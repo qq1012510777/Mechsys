@@ -1,0 +1,3472 @@
+#pragma once
+#include "../Graph_WL_H/Graph_WL.h"
+#include "Fracture_WL.h"
+#include <fstream>
+#include <map>
+#include <sstream>
+#include <string>
+#include <vector>
+
+using namespace Eigen;
+
+namespace DFN
+{
+class Domain
+{
+public:
+    //Data
+    std::vector<Fracture> Fractures;                                                  ///< std::vector of Fractures, this array stores all generated fractures
+    std::vector<size_t> Connections;                                                  ///< std::vector of Fracture connectivity, record the tag / ID of fractures that are connected
+    std::vector<std::vector<size_t>> Listofclusters;                                  ///< List of fractures per cluster
+    std::vector<std::vector<size_t>> Percolation_cluster;                             ///< three orders, N dimensions; first order means x direction, second means y, third means z; alone a percolation direction, there might be zero or more clusters; each element is the subscript of array (Listofclusters)
+    std::map<std::pair<size_t, size_t>, std::pair<Vector3d, Vector3d>> Intersections; ///< Map of line intersection between pairs of fractures
+    Vector6d Model_domain;                                                            ///< Top-zmax, bottom-zmin, front-ymin, back-ymax, left-xmin, right-xmax
+    double n_I;                                                                       ///< Average number of intersections per fracture
+    double P30;
+    double P30_connected;
+    double P32_total;
+    double P32_connected; // percolation cluster
+    double Percolation_parameter_a;
+    double Percolation_parameter_b;
+    double Percolation_parameter_c;
+    double Percolation_parameter_d;
+    double Percolation_parameter_e;
+    double Ratio_of_P32; ///< probability of a fracture belonging to a percolation cluster
+    double Ratio_of_P30;
+    double Excluded_volume_1;
+    double Excluded_volume_2;
+    double Excluded_volume_3;
+    double Excluded_volume_4;
+    double Excluded_volume_5;
+    size_t No_Verts_trim;
+
+    double P30_largest_cluster;
+    double P32_largest_cluster;
+
+    double Xi;      ///< correlation length
+    double max_R_s; ///< max gyration radius
+    Vector3d Center_of_cluster;
+    double Last_frac_size;
+
+    std::vector<Fracture> Surfaces;                                                     ///< model surface
+    std::vector<size_t> Connections_S;                                                  ///< thos fractures intersect with surfaces
+    std::map<std::pair<size_t, size_t>, std::pair<Vector3d, Vector3d>> Intersections_S; ///< Map of line intersection between fractures and surfaces
+
+public:
+    // method
+    void Create_whole_model(const size_t n,
+                            const std::vector<double> DenWeight,
+                            gsl_rng *random_seed,
+                            const Vector6d model_size,
+                            const string str_ori,
+                            const string str_frac_size,
+                            const std::vector<Vector2d> array11,
+                            std::vector<Vector4d> array12,
+                            const std::vector<Vector7d> array13);
+
+    void Model_set(const Vector6d model_size);
+    ///< define model domain
+
+    void AddSquareFracture(size_t Tag, Fracture &c);
+    ///< Adding a square fracture
+
+    bool Intersect_A(const Fracture F1, const Fracture F2);
+    ///< JUST Identify if fractures
+    // are connected, but no intersection points
+    // are returned
+
+    void Modify_fracture_attributes_Zmax(Fracture &F2); ///< modify fracture F2 (its Nvertices, vertexes and area), because F2 intersects surface(s)
+    // if a fracture intersects with
+    // a boundary face, then trim it
+    void Modify_fracture_attributes_Zmin(Fracture &F2);
+    void Modify_fracture_attributes_Ymin(Fracture &F2);
+    void Modify_fracture_attributes_Ymax(Fracture &F2);
+    void Modify_fracture_attributes_Xmin(Fracture &F2);
+    void Modify_fracture_attributes_Xmax(Fracture &F2);
+
+    void If_fracture_intersect_boundary(Fracture &F2);
+    // if a fracture intersects boundary, then
+    // label it
+
+    bool Intersect(Fracture &F1, Fracture &F2);
+    ///< Function to check if two fractures
+    // intersect, and return intersection
+
+    void Clusters();
+    ///< Check the connectivity array
+    // to form the clusters
+
+    void Correlation_length_and_gyration_radius();
+    //
+
+    void Average_number_of_intersections_per_fracture();
+    ///< Average_number_of_intersections_per_fracture
+
+    void Determine_excluded_volume(const string str_ori, const string str_frac_size, double alpha_g = 0, double kappa = 0, double mean_i = 0, double var_i = 0, double min_R_i = 0, double max_R_i = 0);
+    //
+
+    size_t Identify_percolation_clusters(string str);
+    //
+
+    void Connectivity_uniform_orientation(string str_perco_dir); ///< When orientation data have uniform distribution, determines percolation-related varibales
+    void Connectivity_fisher_orientation(string str_perco_dir);  ///< not finished
+
+    void PlotMatlab_DFN(string FileKey);
+    //< matlab plot dfn
+
+    void PlotMatlab_DFN_trim(string FileKey);
+    //
+
+    void PlotMatlab_DFN_and_Intersection(string FileKey);
+    //
+
+    void PlotMatlab_ORI_SCATTER(string FileKey);
+    //
+
+    void PlotMatlab_Traces_on_Model_surfaces(string FileKey);
+    /////< Plot traces on surface
+
+    void PlotMatlab_DFN_Highlight_Cluster(string FileKey);
+    ///< Plot DFN highlighted by cluster values
+
+    void PLotMatlab_DFN_Cluster_along_a_direction(string FileKey, string str);
+    ///< Plot percolation cluster
+    //spanning model along x, y or z axis
+
+    void PlotMatlab_Radius_and_Area_kstest(string FileKey);
+    ///< Use kstest tests if two groups of data
+    //are both following the same distribution,
+    // but seems not work
+
+    void PlotMatlab_Radius_and_Perimeter_kstest(string FileKey);
+
+    void DataFile_Radius_AreaAndPerimeter(string FileKey);
+    ///< outputs the data
+};
+
+inline void Domain::Create_whole_model(const size_t n,
+                                       const std::vector<double> DenWeight,
+                                       gsl_rng *random_seed,
+                                       const Vector6d model_size,
+                                       const string str_ori,
+                                       const string str_frac_size,
+                                       const std::vector<Vector2d> array11,
+                                       std::vector<Vector4d> array12,
+                                       const std::vector<Vector7d> array13)
+{
+    No_Verts_trim = 0;
+    Random_function r1 = Random_function(random_seed);
+
+    Model_set(model_size);
+
+    Last_frac_size = -1;
+
+    if (str_ori == "uniform")
+    {
+        for (size_t i = 0; i < n; ++i)
+        {
+            if (str_frac_size == "powerlaw")
+            {
+                //cout << "debug 1\n";
+                Fracture f(str_ori, str_frac_size, i, r1, array11, array12[0] /*, array13*/, Last_frac_size);
+                //cout << "debug 2\n";
+                AddSquareFracture(i, f);
+                No_Verts_trim += f.Nvertices_trim;
+            }
+            else if (str_frac_size == "lognormal")
+            {
+
+                Fracture f(str_ori, str_frac_size, i, r1, array11, array12[0] /*, array13*/, Last_frac_size);
+                AddSquareFracture(i, f);
+                No_Verts_trim += f.Nvertices_trim;
+            }
+            else if (str_frac_size == "uniform")
+            {
+
+                Fracture f(str_ori, str_frac_size, i, r1, array11, array12[0] /*, array13*/, Last_frac_size);
+                AddSquareFracture(i, f);
+                No_Verts_trim += f.Nvertices_trim;
+            }
+            else if (str_frac_size == "single")
+            {
+
+                Fracture f(str_ori, str_frac_size, i, r1, array11, array12[0] /*, array13*/, Last_frac_size);
+                AddSquareFracture(i, f);
+                No_Verts_trim += f.Nvertices_trim;
+            }
+        }
+    }
+    else if (str_ori == "fisher")
+    {
+        size_t numofsets_1 = DenWeight.size();
+        for (size_t i = 0; i < numofsets_1; ++i)
+        {
+            size_t init_jkk = 0;
+            double Weight_k = 0;
+            for (size_t j = 0; j < i; j++)
+            {
+                Weight_k = Weight_k + DenWeight[j];
+            }
+            init_jkk = n * Weight_k;
+
+            size_t end_jkk = 0;
+            double Weight_i = 0;
+            for (size_t j = 0; j <= i; ++j)
+            {
+                Weight_i = DenWeight[j] + Weight_i;
+            }
+            end_jkk = n * Weight_i;
+            //std::cout<<"start: "<< init_jkk<<" ; end: "<<end_jkk<<"\n";
+            for (size_t j = init_jkk; j < end_jkk; ++j)
+            {
+
+                if (str_frac_size == "powerlaw")
+                {
+                    Fracture f(str_ori, str_frac_size, j, r1, array11, array12[i], array13[i], Last_frac_size);
+                    AddSquareFracture(j, f);
+                    No_Verts_trim += f.Nvertices_trim;
+                }
+                else if (str_frac_size == "lognormal")
+                {
+                    Fracture f(str_ori, str_frac_size, j, r1, array11, array12[i], array13[i], Last_frac_size);
+                    AddSquareFracture(j, f);
+                    No_Verts_trim += f.Nvertices_trim;
+                }
+                else if (str_frac_size == "uniform")
+                {
+                    Fracture f(str_ori, str_frac_size, j, r1, array11, array12[i], array13[i], Last_frac_size);
+                    AddSquareFracture(j, f);
+                    No_Verts_trim += f.Nvertices_trim;
+                }
+                else if (str_frac_size == "single")
+                {
+                    Fracture f(str_ori, str_frac_size, j, r1, array11, array12[i], array13[i], Last_frac_size);
+                    AddSquareFracture(j, f);
+                    No_Verts_trim += f.Nvertices_trim;
+                }
+            }
+        }
+    }
+
+    size_t nz = Fractures.size();
+    if (nz == 0)
+    {
+        P32_total = 0;
+        P32_connected = 0;
+        P30 = 0;
+        P30_connected = 0;
+        Percolation_parameter_a = 0;
+        Percolation_parameter_b = 0;
+        Percolation_parameter_c = 0;
+        Percolation_parameter_d = 0;
+        Ratio_of_P32 = 0;
+        Ratio_of_P30 = 0;
+        Excluded_volume_1 = 0;
+        Excluded_volume_2 = 0;
+        Excluded_volume_3 = 0;
+        Excluded_volume_4 = 0;
+        Excluded_volume_5 = 0;
+        return;
+    };
+
+    for (size_t i = 0; i < nz - 1; ++i)
+    {
+        for (size_t j = i + 1; j < nz; ++j)
+        {
+            Intersect(Fractures[i], Fractures[j]);
+        }
+    }
+
+#pragma omp critical
+    {
+        Clusters();
+    }
+
+    Correlation_length_and_gyration_radius();
+    Average_number_of_intersections_per_fracture();
+    if (str_ori == "uniform")
+    {
+        if (str_frac_size == "powerlaw")
+        {
+            Determine_excluded_volume(str_ori, str_frac_size, array12[0][0], 0, 0, 0, array12[0][1], array12[0][2]);
+        }
+        else if (str_frac_size == "lognormal")
+        {
+            Determine_excluded_volume(str_ori, str_frac_size, 0, 0, array12[0][0], array12[0][1], 0, 0);
+        }
+        else if (str_frac_size == "uniform")
+        {
+            Determine_excluded_volume(str_ori, str_frac_size, 0, 0, 0, 0, array12[0][0], array12[0][1]);
+        }
+        else if (str_frac_size == "single")
+        {
+            Determine_excluded_volume(str_ori, str_frac_size, 0, 0, 0, 0, array12[0][0], array12[0][0]);
+        }
+        else
+        {
+            std::cout << "Error! You do not define fracture size distribution!\n";
+            exit(0);
+        }
+    }
+    else if (str_ori == "fisher")
+    {
+        if (str_frac_size == "powerlaw")
+        {
+            Determine_excluded_volume(str_ori, str_frac_size, array12[0][0], array13[0][2], 0, 0, array12[0][1], array12[0][2]);
+        }
+        else if (str_frac_size == "lognormal")
+        {
+            Determine_excluded_volume(str_ori, str_frac_size, 0, array13[0][2], array12[0][0], array12[0][1], 0, 0);
+        }
+        else if (str_frac_size == "uniform")
+        {
+            Determine_excluded_volume(str_ori, str_frac_size, 0, array13[0][2], 0, 0, array12[0][0], array12[0][1]);
+        }
+        else if (str_frac_size == "single")
+        {
+            Determine_excluded_volume(str_ori, str_frac_size, 0, array13[0][2], 0, 0, array12[0][0], array12[0][0]);
+        }
+        else
+        {
+            std::cout << "Error! You do not define fracture size distribution!\n";
+            exit(0);
+        }
+    }
+    else
+    {
+        std::cout << "Error! You do not define fracture orientation distribution!\n";
+        exit(0);
+    }
+};
+
+inline void Domain::Model_set(const Vector6d model_size)
+{
+    double xmin = model_size[0];
+    double xmax = model_size[1];
+    double ymin = model_size[2];
+    double ymax = model_size[3];
+    double zmin = model_size[4];
+    double zmax = model_size[5];
+    /// top-----------
+    size_t Tag_1 = 0;
+    size_t Clus_1 = -1;
+
+    std::vector<Vector3d> Verts_1;
+    Verts_1.resize(4);
+    Verts_1[0] << xmin, ymin, zmax;
+    Verts_1[1] << xmax, ymin, zmax;
+    Verts_1[2] << xmax, ymax, zmax;
+    Verts_1[3] << xmin, ymax, zmax;
+
+    Fracture Top(Tag_1, Clus_1, Verts_1);
+
+    /// bottom-----------
+    size_t Tag_2 = 1;
+    size_t Clus_2 = -1;
+
+    std::vector<Vector3d> Verts_2;
+    Verts_2.resize(4);
+    Verts_2[0] << xmin, ymin, zmin;
+    Verts_2[1] << xmax, ymin, zmin;
+    Verts_2[2] << xmax, ymax, zmin;
+    Verts_2[3] << xmin, ymax, zmin;
+
+    Fracture Bottom(Tag_2, Clus_2, Verts_2);
+
+    /// front-----------
+    size_t Tag_3 = 2;
+    size_t Clus_3 = -1;
+
+    std::vector<Vector3d> Verts_3;
+    Verts_3.resize(4);
+    Verts_3[0] << xmin, ymin, zmin;
+    Verts_3[1] << xmax, ymin, zmin;
+    Verts_3[2] << xmax, ymin, zmax;
+    Verts_3[3] << xmin, ymin, zmax;
+
+    Fracture Front(Tag_3, Clus_3, Verts_3);
+
+    /// back-----------
+    size_t Tag_4 = 3;
+    size_t Clus_4 = -1;
+
+    std::vector<Vector3d> Verts_4;
+    Verts_4.resize(4);
+    Verts_4[0] << xmin, ymax, zmin;
+    Verts_4[1] << xmax, ymax, zmin;
+    Verts_4[2] << xmax, ymax, zmax;
+    Verts_4[3] << xmin, ymax, zmax;
+
+    Fracture Back(Tag_4, Clus_4, Verts_4);
+
+    /// left-----------
+    size_t Tag_5 = 4;
+    size_t Clus_5 = -1;
+
+    std::vector<Vector3d> Verts_5;
+    Verts_5.resize(4);
+    Verts_5[0] << xmin, ymin, zmin;
+    Verts_5[1] << xmin, ymax, zmin;
+    Verts_5[2] << xmin, ymax, zmax;
+    Verts_5[3] << xmin, ymin, zmax;
+
+    Fracture Left(Tag_5, Clus_5, Verts_5);
+
+    /// right-----------
+    size_t Tag_6 = 5;
+    size_t Clus_6 = -1;
+
+    std::vector<Vector3d> Verts_6;
+    Verts_6.resize(4);
+    Verts_6[0] << xmax, ymin, zmin;
+    Verts_6[1] << xmax, ymax, zmin;
+    Verts_6[2] << xmax, ymax, zmax;
+    Verts_6[3] << xmax, ymin, zmax;
+
+    Fracture Right(Tag_6, Clus_6, Verts_6);
+
+    ///--------push the six surfaces into Fractures, so now, remember, in Fractures, we really have (Size (of Fractures) minus six) fractures
+    /// they are Fractures[0] to [5]
+    Surfaces.push_back(Top);
+    Surfaces.push_back(Bottom);
+    Surfaces.push_back(Front);
+    Surfaces.push_back(Back);
+    Surfaces.push_back(Left);
+    Surfaces.push_back(Right);
+
+    Model_domain << zmax, zmin, ymin, ymax, xmin, xmax;
+};
+
+inline void Domain::AddSquareFracture(size_t Tag,
+                                      Fracture &c)
+{
+
+    if (Model_domain(4) <= c.Center(0) &&
+        Model_domain(5) >= c.Center(0) &&
+        Model_domain(2) <= c.Center(1) &&
+        Model_domain(3) >= c.Center(1) &&
+        Model_domain(1) <= c.Center(2) &&
+        Model_domain(0) >= c.Center(2))
+    {
+
+        bool y1 = Intersect_A(Surfaces[0], c);
+        bool y2 = Intersect_A(Surfaces[1], c);
+        bool y3 = Intersect_A(Surfaces[2], c);
+        bool y4 = Intersect_A(Surfaces[3], c);
+        bool y5 = Intersect_A(Surfaces[4], c);
+        bool y6 = Intersect_A(Surfaces[5], c);
+
+        if (y1 == 1 || y2 == 1 || y3 == 1 || y4 == 1 || y5 == 1 || y6 == 1)
+        {
+            if (y1 == 1)
+            {
+                c.If_intersect_surfaces(0) = 1;
+                Modify_fracture_attributes_Zmax(c);
+            }
+            if (y2 == 1)
+            {
+                c.If_intersect_surfaces(1) = 1;
+                Modify_fracture_attributes_Zmin(c);
+            }
+            if (y3 == 1)
+            {
+                c.If_intersect_surfaces(2) = 1;
+                Modify_fracture_attributes_Ymin(c);
+            }
+            if (y4 == 1)
+            {
+                c.If_intersect_surfaces(3) = 1;
+                Modify_fracture_attributes_Ymax(c);
+            }
+            if (y5 == 1)
+            {
+                c.If_intersect_surfaces(4) = 1;
+                Modify_fracture_attributes_Xmin(c);
+            }
+            if (y6 == 1)
+            {
+                c.If_intersect_surfaces(5) = 1;
+                Modify_fracture_attributes_Xmax(c);
+            }
+        }
+        If_fracture_intersect_boundary(c);
+        Fractures.push_back(c);
+        Fractures[Fractures.size() - 1].Tag = Fractures.size() - 1;
+        Last_frac_size = -1;
+        c.Nvertices_trim = c.Verts_trim.size();
+        return;
+    }
+    else
+    {
+
+        bool y1 = Intersect_A(Surfaces[0], c);
+        bool y2 = Intersect_A(Surfaces[1], c);
+        bool y3 = Intersect_A(Surfaces[2], c);
+        bool y4 = Intersect_A(Surfaces[3], c);
+        bool y5 = Intersect_A(Surfaces[4], c);
+        bool y6 = Intersect_A(Surfaces[5], c);
+
+        if (y1 == 1 || y2 == 1 || y3 == 1 || y4 == 1 || y5 == 1 || y6 == 1)
+        {
+            if (y1 == 1)
+            {
+                c.If_intersect_surfaces(0) = 1;
+                Modify_fracture_attributes_Zmax(c);
+            }
+            if (y2 == 1)
+            {
+                c.If_intersect_surfaces(1) = 1;
+                Modify_fracture_attributes_Zmin(c);
+            }
+            if (y3 == 1)
+            {
+                c.If_intersect_surfaces(2) = 1;
+                Modify_fracture_attributes_Ymin(c);
+            }
+            if (y4 == 1)
+            {
+                c.If_intersect_surfaces(3) = 1;
+                Modify_fracture_attributes_Ymax(c);
+            }
+            if (y5 == 1)
+            {
+                c.If_intersect_surfaces(4) = 1;
+                Modify_fracture_attributes_Xmin(c);
+            }
+            if (y6 == 1)
+            {
+                c.If_intersect_surfaces(5) = 1;
+                Modify_fracture_attributes_Xmax(c);
+            }
+            Fractures.push_back(c);
+            If_fracture_intersect_boundary(c);
+            Fractures[Fractures.size() - 1].Tag = Fractures.size() - 1;
+            Last_frac_size = -1;
+            c.Nvertices_trim = c.Verts_trim.size();
+            return;
+        }
+    }
+    Last_frac_size = -1; //c.Radius;
+    c.Nvertices_trim = c.Verts_trim.size();
+    return;
+};
+
+inline bool Domain::Intersect_A(const Fracture F1, const Fracture F2)
+{
+
+    Vector3d A1;
+    A1 << 0, 0, 0;
+
+    Vector3d B1;
+    B1 << 0, 0, 0;
+
+    Vector3d dis_vec = F2.Center - F1.Center;
+    double distance = pow(dis_vec.dot(dis_vec), 0.5);
+    if (distance > F2.Radius + F1.Radius)
+    {
+        return false;
+    }
+
+    size_t e1, e2;
+    Parallel_or_not(F1.Plane_parameter, F2.Plane_parameter, e1, e2);
+    ///std::cout<<"\ne1:"<<e1<<"; e2: " << e2 << std::endl;
+    if (e1 == 1)
+    {
+        if (e2 == 1)
+        {
+            //two infinite plane are overlaped
+            //in real DFN generation, the interval of each kind of input parameter is large enough, which seldom and even does not lead to two overlapped fractures
+            //because it is a random process
+            return false;
+        }
+        else
+        {
+            //two infinite plane are parallel
+            ///std::cout<<"The two fractrues are parallel but not overlapped!\n";
+            return false;
+        }
+    }
+    else if (e1 == 0)
+    {
+        std::vector<Vector3d> Verts_1;
+        std::vector<Vector3d> Verts_2;
+        Verts_1.resize(F1.Nvertices);
+        Verts_2.resize(F2.Nvertices);
+
+        Vector3d temp1;
+        Find_vector_2(F1.Normal_vector, temp1);
+        //std::cout<<"Debug Tag\n"<<"temp1:\n"<<temp1<<"\n";
+        double R_angle_temp1 = 0;
+        double x_temp = F1.Dip_angle;
+        R_angle_temp1 = -x_temp * M_PI / 180;
+        Quaternion_t Q_axis_1;
+
+        if (F1.Dip_angle > 0.0001)
+        {
+
+            NormalizeRotation(R_angle_temp1, temp1, Q_axis_1);
+            for (size_t i = 0; i < F1.Nvertices; ++i)
+            {
+                Rotation(F1.Verts[i], Q_axis_1, Verts_1[i]);
+            }
+            for (size_t i = 0; i < F2.Nvertices; ++i)
+            {
+                Rotation(F2.Verts[i], Q_axis_1, Verts_2[i]);
+            }
+        }
+        else
+        {
+            for (size_t i = 0; i < F1.Nvertices; ++i)
+                Verts_1[i] = F1.Verts[i];
+            for (size_t i = 0; i < F2.Nvertices; ++i)
+                Verts_2[i] = F2.Verts[i];
+        }
+
+        ///std::cout<<"\nafter rotation, first: \n"<<Verts_1<<std::endl<<"    second:\n"<<Verts_2<<"\n";
+
+        //-------a piece of debug code----
+
+        for (size_t i = 0; i < F1.Nvertices; i++)
+        {
+            size_t j = i + 1 - (size_t)((i + 1) / F1.Nvertices) * (i + 1);
+            if (abs(Verts_1[i](2) - Verts_1[j](2)) > 0.001)
+            {
+                std::cout << "Error!!! The Z values of all vertexes of 1st fracture should be the same! (Intersect_A)\n";
+                exit(0);
+            }
+        }
+        //--------------------------------
+
+        double MAX_Z = Find_max_z_value(Verts_2);
+        double MIN_Z = Find_min_z_value(Verts_2);
+        if (Verts_1[0](2) >= MIN_Z && Verts_1[0](2) <= MAX_Z)
+        {
+            ///--------intersection line segment between horizontal plane and 2nd fracture
+            std::vector<Vector3d> Intersection_1;
+            Intersection_between_2ndpolygon_and_infinite_plane(F2.Nvertices, Verts_1[0](2), Verts_2, Intersection_1);
+
+            ///---------now extending the line segment----
+            std::vector<Vector3d> Intersection_infinite;
+            Output_a_relatively_infinite_line(300, Intersection_1, Intersection_infinite);
+            //cout<<"Infinite line: \n"<<Intersection_infinite[0]<<std::endl<<Intersection_infinite[1]<<"\n";
+
+            ///--------now, determine the coordinates of endpoints of intersection line segment between extending line and 1st fracture
+            size_t numOfIntersectionPoint_1; ///which lies in [0,2];
+            std::vector<Vector3d> Intersection_2;
+            //	std::cout<<"\nIntersection_infinite and 1st fracture:\n";
+            Intersection_between_line_segment_and_polygon(numOfIntersectionPoint_1, Verts_1, Intersection_infinite, Intersection_2);
+            if (numOfIntersectionPoint_1 > 2)
+            {
+                std::cout << "Error!!! There shoule not be more than two intersection points! (Intersect_A)\n";
+                exit(0);
+            }
+            //std::cout<<"\nExtending line segment intersect 1st fracture "<< numOfIntersectionPoint_1<<" times"<<std::endl;
+
+            ///-------now, determine the intersection section between 1st and 2nd polygonal fractures
+            if (numOfIntersectionPoint_1 == 0)
+            {
+                ///std::cout<<"No intersection.\n";
+                return false;
+            }
+            else if (numOfIntersectionPoint_1 == 1)
+            {
+                cout << "Polygon vertices (2D):\n";
+                for (size_t upy = 0; upy < Verts_1.size(); ++upy)
+                {
+                    cout << Verts_1[upy].transpose() << endl;
+                }
+                cout << "The checked line segment (2D):\n";
+                cout << Intersection_infinite[0] << endl;
+                cout << Intersection_infinite[1] << endl;
+                std::cout << "Error, infinite line must intersect 0 or 2 sides of the 1st fracture. (Intersect_A)\nIt is impossible just intersect 1 sides!!! (Intersect_A)";
+                exit(0);
+            }
+            else
+            {
+                /// ------------ determine the intersection between intersection_1 and 1st fracture
+                std::vector<Vector3d> Intersection_3;
+                size_t numOfIntersectionPoint_2; ///which also lies in [0,2]
+                Intersection_between_line_segment_and_polygon(numOfIntersectionPoint_2, Verts_1, Intersection_1, Intersection_3);
+                if (numOfIntersectionPoint_2 > 2)
+                {
+                    std::cout << "Error!!! There shoule be no more than two intersection points! (Intersect_A)\n";
+                    exit(0);
+                };
+                //	std::cout<<"The Intersection_1 intersect the 1st fracture "<<numOfIntersectionPoint_2<<" times\n";
+                ///------------- now, determine the include angle between intersection_1 and x-axis
+                double beta_1;
+                double m_1 = Intersection_1[1](1) - Intersection_1[0](1);
+                double l_1 = Intersection_1[1](0) - Intersection_1[0](0);
+                if (m_1 < 0)
+                {
+                    m_1 = -m_1;
+                    l_1 = -l_1;
+                }
+                beta_1 = atan2(m_1, l_1) * 180.0 / M_PI;
+                //	std::cout<<"Intersection_1: \n"<<Intersection_1[0]<<"\n"<<Intersection_1[1]<<"\n"<<"beta_1 is: "<<beta_1<<std::endl;
+                //	std::cout<<"Intersection_2: \n"<<Intersection_2[0]<<"\n"<<Intersection_2[1]<<"\n---------------------\n";
+                ///-----------
+
+                ///------------a piece of debuging code---
+                double beta_2;
+                double m_2 = Intersection_infinite[1](1) - Intersection_infinite[0](1);
+                double l_2 = Intersection_infinite[1](0) - Intersection_infinite[0](0);
+                if (m_2 < 0)
+                {
+                    m_2 = -m_2;
+                    l_2 = -l_2;
+                }
+                beta_2 = atan2(m_2, l_2) * 180.0 / M_PI;
+                //std::cout<<"beta_1 is: "<<beta_1<<std::endl;
+                //std::cout<<"beta_2 is: "<<beta_2<<std::endl;
+                if (beta_2 < 0)
+                    beta_2 = 360 + beta_2;
+                if (abs(beta_1 - beta_2) > 0.001)
+                {
+                    if ((beta_1 == 0 && beta_2 == 180) || (beta_1 == 180 && beta_2 == 0))
+                    {
+                        //beta_1;
+                    }
+                    else
+                    {
+                        std::cout << "The angle of infinit line and x-axis is incorrect!!! (Intersect_A)\n";
+                        exit(0);
+                    }
+                }
+                ///---------------------------------------
+
+                ///-------
+                if (numOfIntersectionPoint_2 == 0)
+                {
+                    //this means the intersection line (between 2nd fracture and horizontal plane) might be inside or outside the 1st fracture
+
+                    std::vector<Vector3d> Intersection_4;
+                    std::vector<Vector3d> Intersection_5;
+                    Intersection_4.resize(2);
+                    Intersection_5.resize(2);
+
+                    Vector3d axis_z_2;
+                    axis_z_2 << 0, 0, 1;
+                    Quaternion_t Q_axis_z_2;
+                    NormalizeRotation(((180 - beta_1) * M_PI / 180.0), axis_z_2, Q_axis_z_2);
+                    Rotation(Intersection_1[0], Q_axis_z_2, Intersection_4[0]);
+                    Rotation(Intersection_1[1], Q_axis_z_2, Intersection_4[1]);
+                    Rotation(Intersection_2[0], Q_axis_z_2, Intersection_5[0]);
+                    Rotation(Intersection_2[1], Q_axis_z_2, Intersection_5[1]);
+                    ///std::cout<<Intersection_4[0]<<"\n"<<Intersection_4[1]<<std::endl<<Intersection_5[0]<<std::endl<<Intersection_5[1]<<"\n";
+
+                    ///--------------a piece error report   ----
+                    if (abs(Intersection_4[0](1) - Intersection_4[1](1)) > 0.001 || abs(Intersection_5[0](1) - Intersection_5[1](1)) > 0.001 || abs(Intersection_4[0](1) - Intersection_5[1](1)) > 0.001)
+                    {
+                        std::cout << "Error!!! The y values of the two intersections shoule be the same in this step! (Intersect_A)\n";
+                        exit(0);
+                    }
+                    ///-----------------------------------------
+
+                    std::vector<Vector3d> Intersection_6;
+                    Intersection_6.resize(2);
+                    Intersection_6[0](0) = 0.001;
+                    Intersection_6[1](0) = 0.002;
+
+                    Intersection_of_1D_intervals(Intersection_4, Intersection_5, Intersection_6);
+                    ///------------- a piece of test code
+                    if (Intersection_6[0](0) == 0.001 && Intersection_6[1](0) == 0.002)
+                    {
+                        ///std::cout<<"No Intersection, because the intersection between 2nd fracture and horizontal plane is totally outside the 1st fracture\n";
+                        return false;
+                    };
+                    //-------------
+
+                    ///if the test code (above) do not work, it indicate the intersection is totally inside the 1st fracture
+
+                    ///std::cout<<"\nIntersection is totally inside the 1st fracture.\n";
+                    std::vector<Vector3d> Intersection_7; // true intersection points
+                    Intersection_7.resize(2);
+                    Intersection_1[0](2) = Verts_1[0](2);
+                    Intersection_1[1](2) = Verts_1[0](2);
+
+                    if (F1.Dip_angle > 0.0001)
+                    {
+                        Vector3d axis_z_4;
+                        axis_z_4 = temp1;
+                        Quaternion_t Q_axis_z_4;
+                        NormalizeRotation(-R_angle_temp1, axis_z_4, Q_axis_z_4);
+                        Rotation(Intersection_1[0], Q_axis_z_4, Intersection_7[0]);
+                        Rotation(Intersection_1[1], Q_axis_z_4, Intersection_7[1]);
+                    }
+                    else
+                    {
+                        Intersection_7[0] = Intersection_1[0];
+                        Intersection_7[1] = Intersection_1[1];
+                    }
+                    A1 = Intersection_7[0];
+                    B1 = Intersection_7[1];
+                }
+                else if (numOfIntersectionPoint_2 == 1)
+                {
+                    //this means the intersection line (between 2nd fracture and horizontal plane) intersect with one edge of fracture 1, and one end is inside the fracture 1
+                    //but we need to know which end is inside the 1st fracture, so which end is closer to the 1st fracture center, that end must be inside the fracture 1
+                    //also, we need to rotate the center of the 1st fracture, since all vertexes have been rotated
+                    ///std::cout<<"\nOne end of the intersection is inside the 1st fracture.\n";
+                    std::vector<Vector3d> Intersection_4;
+                    std::vector<Vector3d> Intersection_5;
+                    Intersection_4.resize(2);
+                    Intersection_5.resize(2);
+
+                    Vector3d axis_z_2;
+                    axis_z_2 << 0, 0, 1;
+                    Quaternion_t Q_axis_z_2;
+                    NormalizeRotation(((180 - beta_1) * M_PI / 180.0), axis_z_2, Q_axis_z_2);
+                    Rotation(Intersection_1[0], Q_axis_z_2, Intersection_4[0]);
+                    Rotation(Intersection_1[1], Q_axis_z_2, Intersection_4[1]);
+                    Rotation(Intersection_2[0], Q_axis_z_2, Intersection_5[0]);
+                    Rotation(Intersection_2[1], Q_axis_z_2, Intersection_5[1]);
+
+                    //std::cout<<Intersection_4[0]<<"\n"<<Intersection_4[1]<<std::endl<<Intersection_5[0]<<std::endl<<Intersection_5[1]<<"\n";
+                    ///--------------a piece error report   ----
+                    if (abs(Intersection_4[0](1) - Intersection_4[1](1)) > 0.001 || abs(Intersection_5[0](1) - Intersection_5[1](1)) > 0.001 || abs(Intersection_4[0](1) - Intersection_5[1](1)) > 0.001)
+                    {
+                        std::cout << "Error!!! The y values of the two intersections shoule be the same in this step! (Intersect_A)\n";
+                        exit(0);
+                    }
+                    ///-----------------------------------------
+                    std::vector<Vector3d> Intersection_6;
+                    Intersection_6.resize(2);
+                    Intersection_6[0](0) = 0.001;
+                    Intersection_6[1](0) = 0.002;
+
+                    Intersection_of_1D_intervals(Intersection_4, Intersection_5, Intersection_6);
+
+                    ///------------- a piece of test code
+                    if (Intersection_6[0](0) == 0.001 && Intersection_6[1](0) == 0.002)
+                    {
+                        ///std::cout<<"No Intersection, because the intersection between 2nd fracture and horizontal plane is totally outside the 1st fracture\n";
+                        return false;
+                    };
+                    ///----------------------------------
+
+                    //---------------------------
+                    Intersection_6[0](1) = Intersection_4[0](1);
+                    Intersection_6[1](1) = Intersection_4[0](1);
+                    ///std::cout<<"y value: "<<Intersection_4[0](1)<<"\n";
+
+                    Intersection_6[0](2) = Verts_1[0](2);
+                    Intersection_6[1](2) = Verts_1[0](2);
+
+                    //	std::cout<<"Intersection_6: "<<Intersection_6[0]<<"\n"<<Intersection_6[1]<<"\n";
+
+                    std::vector<Vector3d> Intersection_7;
+                    Intersection_7.resize(2);
+
+                    Vector3d axis_z_3;
+                    axis_z_3 << 0, 0, 1;
+                    Quaternion_t Q_axis_z_3;
+                    NormalizeRotation(((180 + beta_1) * M_PI / 180.0), axis_z_3, Q_axis_z_3);
+
+                    Rotation(Intersection_6[0], Q_axis_z_3, Intersection_7[0]);
+                    Rotation(Intersection_6[1], Q_axis_z_3, Intersection_7[1]);
+
+                    //	std::cout<<"Intersection_7: "<<Intersection_7[0]<<"\n"<<Intersection_7[1]<<"\n";
+
+                    std::vector<Vector3d> Intersection_8; /// true Intersection point
+                    Intersection_8.resize(2);
+
+                    if (F1.Dip_angle > 0.0001)
+                    {
+                        Vector3d axis_z_4;
+                        axis_z_4 = temp1;
+                        Quaternion_t Q_axis_z_4;
+                        NormalizeRotation(-R_angle_temp1, axis_z_4, Q_axis_z_4);
+                        Rotation(Intersection_7[0], Q_axis_z_4, Intersection_8[0]);
+                        Rotation(Intersection_7[1], Q_axis_z_4, Intersection_8[1]);
+                    }
+                    else
+                    {
+                        Intersection_8[0] = Intersection_7[0];
+                        Intersection_8[1] = Intersection_7[1];
+                    }
+
+                    A1 = Intersection_8[0];
+                    B1 = Intersection_8[1];
+                }
+                else if (numOfIntersectionPoint_2 == 2)
+                {
+                    //this means the intersection line (between 2nd fracture and horizontal plane) might be inside the 1st fracture
+                    ///	std::cout<<"\nBoth two ends of intersection are on the perimeter (sides) of the 1st fracture.\n";
+                    std::vector<Vector3d> Intersection_6;
+                    Intersection_6.resize(2);
+                    std::vector<Vector3d> Intersection_7;
+                    Intersection_7.resize(2);
+
+                    Intersection_6[0] = Intersection_3[0];
+                    Intersection_6[1] = Intersection_3[1];
+                    Intersection_6[0](2) = Verts_1[0](2);
+                    Intersection_6[1](2) = Verts_1[0](2);
+
+                    if (F1.Dip_angle > 0.0001)
+                    {
+                        Vector3d axis_z_4;
+                        axis_z_4 = temp1;
+                        Quaternion_t Q_axis_z_4;
+                        NormalizeRotation(-R_angle_temp1, axis_z_4, Q_axis_z_4);
+                        Rotation(Intersection_6[0], Q_axis_z_4, Intersection_7[0]);
+                        Rotation(Intersection_6[1], Q_axis_z_4, Intersection_7[1]);
+                    }
+                    else
+                    {
+                        Intersection_7[0] = Intersection_6[0];
+                        Intersection_7[1] = Intersection_6[1];
+                    }
+
+                    A1 = Intersection_7[0];
+                    B1 = Intersection_7[1];
+                }
+            }
+        }
+        else
+        {
+            return false;
+        }
+    };
+
+    ///std::cout<<"Intersection points are: \n"<<A1<<"\n"<<B1<<std::endl;
+
+    if (A1(0) != 0 && A1(1) != 0 && A1(2) != 0 && B1(0) != 0 && B1(1) != 0 && B1(2) != 0)
+    {
+        return true;
+    }
+    else
+        return false;
+}
+
+inline void Domain::Modify_fracture_attributes_Zmax(Fracture &F2) ///modify vertexes, area, Nvertices
+{
+    //std::cout << "Zmax called\n";
+    std::vector<Vector3d> Verts_temp1;
+    size_t nt = 0;
+    double Surf = Surfaces[0].Verts_trim[0](2);
+    /// Fractures[0], Top, Zmax
+
+    if (F2.Verts_trim[0](2) <= Surf)
+    {
+        // first
+        for (size_t i = 0; i < F2.Nvertices_trim; ++i)
+        {
+            size_t ni = i + 1 - (size_t)((i + 1) / F2.Nvertices_trim) * (i + 1);
+
+            if (F2.Verts_trim[i](2) <= Surf && Surf < F2.Verts_trim[ni](2))
+            {
+
+                Verts_temp1.push_back(F2.Verts_trim[i]);
+                //need push intersect point
+                double l = F2.Verts_trim[ni](0) - F2.Verts_trim[i](0);
+                double m = F2.Verts_trim[ni](1) - F2.Verts_trim[i](1);
+                double n = F2.Verts_trim[ni](2) - F2.Verts_trim[i](2);
+
+                double t = (Surf - F2.Verts_trim[i](2)) / n;
+                Vector3d temp_A;
+                temp_A(0) = t * l + F2.Verts_trim[i](0);
+                temp_A(1) = t * m + F2.Verts_trim[i](1);
+                temp_A(2) = Surf;
+                ///----------------------------------------
+                
+                Verts_temp1.push_back(temp_A);
+                nt = i + 1;
+                break;
+            }
+            else
+            {
+                Verts_temp1.push_back(F2.Verts_trim[i]);
+            }
+            nt = F2.Nvertices_trim;
+        }
+        //second
+        for (size_t i = nt; i < F2.Nvertices_trim; ++i)
+        {
+            size_t ni = i + 1 - (size_t)((i + 1) / F2.Nvertices_trim) * (i + 1);
+
+            if ((F2.Verts_trim[i](2) >= Surf && Surf >= F2.Verts_trim[ni](2)))
+            {
+                //need push intersect point
+                double l = F2.Verts_trim[ni](0) - F2.Verts_trim[i](0);
+                double m = F2.Verts_trim[ni](1) - F2.Verts_trim[i](1);
+                double n = F2.Verts_trim[ni](2) - F2.Verts_trim[i](2);
+
+                double t = (Surf - F2.Verts_trim[i](2)) / n;
+                Vector3d temp_A;
+                temp_A(0) = t * l + F2.Verts_trim[i](0);
+                temp_A(1) = t * m + F2.Verts_trim[i](1);
+                temp_A(2) = Surf;
+               
+                Verts_temp1.push_back(temp_A);
+                nt = i + 1;
+                break;
+            }
+        }
+        //third
+        for (size_t i = nt; i < F2.Nvertices_trim; ++i)
+        {
+            Verts_temp1.push_back(F2.Verts_trim[i]);
+        }
+    }
+    else if (F2.Verts_trim[0](2) > Surf)
+    {
+        // first
+        for (size_t i = 0; i < F2.Nvertices_trim; ++i)
+        {
+            size_t ni = i + 1 - (size_t)((i + 1) / F2.Nvertices_trim) * (i + 1);
+            if (F2.Verts_trim[i](2) >= Surf && Surf > F2.Verts_trim[ni](2))
+            {
+                double l = F2.Verts_trim[ni](0) - F2.Verts_trim[i](0);
+                double m = F2.Verts_trim[ni](1) - F2.Verts_trim[i](1);
+                double n = F2.Verts_trim[ni](2) - F2.Verts_trim[i](2);
+                double t = (Surf - F2.Verts_trim[i](2)) / n;
+                Vector3d temp_A;
+                temp_A(0) = t * l + F2.Verts_trim[i](0);
+                temp_A(1) = t * m + F2.Verts_trim[i](1);
+                temp_A(2) = Surf;
+                Verts_temp1.push_back(temp_A);
+                
+                nt = i + 1;
+                break;
+            }
+            nt = F2.Nvertices_trim;
+        }
+        //second
+        for (size_t i = nt; i < F2.Nvertices_trim; ++i)
+        {
+            size_t ni = i + 1 - (size_t)((i + 1) / F2.Nvertices_trim) * (i + 1);
+
+            if ((F2.Verts_trim[i](2) <= Surf && Surf <= F2.Verts_trim[ni](2)))
+            {
+                Verts_temp1.push_back(F2.Verts_trim[i]);
+
+                //need push intersect point
+                double l = F2.Verts_trim[ni](0) - F2.Verts_trim[i](0);
+                double m = F2.Verts_trim[ni](1) - F2.Verts_trim[i](1);
+                double n = F2.Verts_trim[ni](2) - F2.Verts_trim[i](2);
+
+                double t = (Surf - F2.Verts_trim[i](2)) / n;
+                Vector3d temp_A;
+                temp_A(0) = t * l + F2.Verts_trim[i](0);
+                temp_A(1) = t * m + F2.Verts_trim[i](1);
+                temp_A(2) = Surf;
+                
+                Verts_temp1.push_back(temp_A);
+
+                nt = i + 1;
+                break;
+            }
+            else
+            {
+                Verts_temp1.push_back(F2.Verts_trim[i]);
+            }
+        }
+    }
+
+    ///-----------------
+    F2.Nvertices_trim = Verts_temp1.size();
+    F2.Verts_trim.resize(0);
+    for (size_t i = 0; i < F2.Nvertices_trim; ++i)
+        F2.Verts_trim.push_back(Verts_temp1[i]);
+    ///-------------------Area
+    ///Heron's formula
+
+    F2.Area_trim = 0;
+    for (size_t i = 0; i < F2.Nvertices_trim - 2; ++i)
+    {
+        size_t j = i + 1;
+        size_t k = i + 2 - (size_t)((i + 2) / F2.Nvertices_trim) * (i + 2);
+        double a, b, c, p;
+        a = pow((F2.Verts_trim[0] - F2.Verts_trim[j]).dot((F2.Verts_trim[0] - F2.Verts_trim[j])), 0.5);
+        b = pow((F2.Verts_trim[j] - F2.Verts_trim[k]).dot((F2.Verts_trim[j] - F2.Verts_trim[k])), 0.5);
+        c = pow((F2.Verts_trim[k] - F2.Verts_trim[0]).dot((F2.Verts_trim[k] - F2.Verts_trim[0])), 0.5);
+        p = (a + b + c) / 2;
+
+        double Area_1;
+        if (a == 0 || b == 0 || c == 0)
+            Area_1 = 0;
+        else
+            Area_1 = pow((p * (p - a) * (p - b) * (p - c)), 0.5);
+        F2.Area_trim = F2.Area_trim + Area_1;
+    }
+
+    ///--------------Perimeter
+    F2.Perimeter_trim = 0;
+    for (size_t i = 0; i < F2.Verts_trim.size(); ++i)
+    {
+        size_t j = i + 1 - (size_t)((i + 1) / (F2.Verts_trim.size())) * (i + 1);
+        double p = pow((F2.Verts_trim[i] - F2.Verts_trim[j]).dot((F2.Verts_trim[i] - F2.Verts_trim[j])), 0.5);
+        F2.Perimeter_trim = F2.Perimeter_trim + p;
+    }
+}
+
+inline void Domain::Modify_fracture_attributes_Zmin(Fracture &F2) ///modify vertexes, area, Nvertices
+{
+    //	std::cout << "Zmin called\n";
+    std::vector<Vector3d> Verts_temp1;
+    size_t nt = 0;
+    double Surf = Surfaces[1].Verts_trim[0](2);
+    /// Fractures[1], Bottom, Zmin
+
+    if (F2.Verts_trim[0](2) >= Surf)
+    {
+        // first
+        for (size_t i = 0; i < F2.Nvertices_trim; ++i)
+        {
+
+            size_t ni = i + 1 - (size_t)((i + 1) / F2.Nvertices_trim) * (i + 1);
+
+            if (F2.Verts_trim[i](2) >= Surf && Surf > F2.Verts_trim[ni](2))
+            {
+
+                Verts_temp1.push_back(F2.Verts_trim[i]);
+                //need push intersect point
+                double l = F2.Verts_trim[ni](0) - F2.Verts_trim[i](0);
+                double m = F2.Verts_trim[ni](1) - F2.Verts_trim[i](1);
+                double n = F2.Verts_trim[ni](2) - F2.Verts_trim[i](2);
+
+                double t = (Surf - F2.Verts_trim[i](2)) / n;
+                Vector3d temp_A;
+                temp_A(0) = t * l + F2.Verts_trim[i](0);
+                temp_A(1) = t * m + F2.Verts_trim[i](1);
+                temp_A(2) = Surf;
+
+                
+
+                Verts_temp1.push_back(temp_A);
+                nt = i + 1;
+                break;
+            }
+            else
+            {
+                Verts_temp1.push_back(F2.Verts_trim[i]);
+            }
+            nt = F2.Nvertices_trim;
+        }
+        //second
+        for (size_t i = nt; i < F2.Nvertices_trim; ++i)
+        {
+            size_t ni = i + 1 - (size_t)((i + 1) / F2.Nvertices_trim) * (i + 1);
+
+            if ((F2.Verts_trim[i](2) <= Surf && Surf <= F2.Verts_trim[ni](2)))
+            {
+                //need push intersect point
+                double l = F2.Verts_trim[ni](0) - F2.Verts_trim[i](0);
+                double m = F2.Verts_trim[ni](1) - F2.Verts_trim[i](1);
+                double n = F2.Verts_trim[ni](2) - F2.Verts_trim[i](2);
+
+                double t = (Surf - F2.Verts_trim[i](2)) / n;
+                Vector3d temp_A;
+                temp_A(0) = t * l + F2.Verts_trim[i](0);
+                temp_A(1) = t * m + F2.Verts_trim[i](1);
+                temp_A(2) = Surf;
+
+                Verts_temp1.push_back(temp_A);
+                nt = i + 1;
+                break;
+            }
+        }
+        //third
+        for (size_t i = nt; i < F2.Nvertices_trim; ++i)
+        {
+            Verts_temp1.push_back(F2.Verts_trim[i]);
+        }
+    }
+    else if (F2.Verts_trim[0](2) < Surf)
+    {
+        // first
+        for (size_t i = 0; i < F2.Nvertices_trim; ++i)
+        {
+            size_t ni = i + 1 - (size_t)((i + 1) / F2.Nvertices_trim) * (i + 1);
+            if (F2.Verts_trim[i](2) <= Surf && Surf < F2.Verts_trim[ni](2))
+            {
+                double l = F2.Verts_trim[ni](0) - F2.Verts_trim[i](0);
+                double m = F2.Verts_trim[ni](1) - F2.Verts_trim[i](1);
+                double n = F2.Verts_trim[ni](2) - F2.Verts_trim[i](2);
+                double t = (Surf - F2.Verts_trim[i](2)) / n;
+                Vector3d temp_A;
+                temp_A(0) = t * l + F2.Verts_trim[i](0);
+                temp_A(1) = t * m + F2.Verts_trim[i](1);
+                temp_A(2) = Surf;
+                Verts_temp1.push_back(temp_A);
+
+                nt = i + 1;
+                break;
+            }
+            nt = F2.Nvertices_trim;
+        }
+        //second
+        for (size_t i = nt; i < F2.Nvertices_trim; ++i)
+        {
+            size_t ni = i + 1 - (size_t)((i + 1) / F2.Nvertices_trim) * (i + 1);
+
+            if ((F2.Verts_trim[i](2) >= Surf && Surf >= F2.Verts_trim[ni](2)))
+            {
+                Verts_temp1.push_back(F2.Verts_trim[i]);
+
+                //need push intersect point
+                double l = F2.Verts_trim[ni](0) - F2.Verts_trim[i](0);
+                double m = F2.Verts_trim[ni](1) - F2.Verts_trim[i](1);
+                double n = F2.Verts_trim[ni](2) - F2.Verts_trim[i](2);
+
+                double t = (Surf - F2.Verts_trim[i](2)) / n;
+                Vector3d temp_A;
+                temp_A(0) = t * l + F2.Verts_trim[i](0);
+                temp_A(1) = t * m + F2.Verts_trim[i](1);
+                temp_A(2) = Surf;
+
+                Verts_temp1.push_back(temp_A);
+
+                nt = i + 1;
+                break;
+            }
+            else
+            {
+                Verts_temp1.push_back(F2.Verts_trim[i]);
+            }
+        }
+    }
+
+    ///-----------------
+    F2.Nvertices_trim = Verts_temp1.size();
+    F2.Verts_trim.resize(0);
+    for (size_t i = 0; i < F2.Nvertices_trim; ++i)
+        F2.Verts_trim.push_back(Verts_temp1[i]);
+    ///-------------------Area
+    ///Heron's formula
+
+    F2.Area_trim = 0;
+    for (size_t i = 0; i < F2.Nvertices_trim - 2; ++i)
+    {
+        size_t j = i + 1;
+        size_t k = i + 2 - (size_t)((i + 2) / F2.Nvertices_trim) * (i + 2);
+        double a, b, c, p;
+        a = pow((F2.Verts_trim[0] - F2.Verts_trim[j]).dot((F2.Verts_trim[0] - F2.Verts_trim[j])), 0.5);
+        b = pow((F2.Verts_trim[j] - F2.Verts_trim[k]).dot((F2.Verts_trim[j] - F2.Verts_trim[k])), 0.5);
+        c = pow((F2.Verts_trim[k] - F2.Verts_trim[0]).dot((F2.Verts_trim[k] - F2.Verts_trim[0])), 0.5);
+        p = (a + b + c) / 2;
+
+        double Area_1;
+        if (a == 0 || b == 0 || c == 0)
+            Area_1 = 0;
+        else
+            Area_1 = pow((p * (p - a) * (p - b) * (p - c)), 0.5);
+        F2.Area_trim = F2.Area_trim + Area_1;
+    }
+
+    F2.Perimeter_trim = 0;
+    for (size_t i = 0; i < F2.Verts_trim.size(); ++i)
+    {
+        size_t j = i + 1 - (size_t)((i + 1) / (F2.Verts_trim.size())) * (i + 1);
+        double p = pow((F2.Verts_trim[i] - F2.Verts_trim[j]).dot((F2.Verts_trim[i] - F2.Verts_trim[j])), 0.5);
+        F2.Perimeter_trim = F2.Perimeter_trim + p;
+    }
+}
+
+inline void Domain::Modify_fracture_attributes_Ymin(Fracture &F2) ///modify vertexes, area, Nvertices
+{
+    //	std::cout << "Ymin called\n";
+    std::vector<Vector3d> Verts_temp1;
+    size_t nt = 0;
+    double Surf = Surfaces[2].Verts_trim[0](1);
+    /// Fractures[2], Front, Ymin
+
+    if (F2.Verts_trim[0](1) >= Surf)
+    {
+        // first
+        for (size_t i = 0; i < F2.Nvertices_trim; ++i)
+        {
+
+            size_t ni = i + 1 - (size_t)((i + 1) / F2.Nvertices_trim) * (i + 1);
+
+            if (F2.Verts_trim[i](1) >= Surf && Surf > F2.Verts_trim[ni](1))
+            {
+
+                Verts_temp1.push_back(F2.Verts_trim[i]);
+                //need push intersect point
+                double l = F2.Verts_trim[ni](0) - F2.Verts_trim[i](0);
+                double m = F2.Verts_trim[ni](1) - F2.Verts_trim[i](1);
+                double n = F2.Verts_trim[ni](2) - F2.Verts_trim[i](2);
+
+                double t = (Surf - F2.Verts_trim[i](1)) / m;
+                Vector3d temp_A;
+                temp_A(0) = t * l + F2.Verts_trim[i](0);
+                temp_A(1) = Surf;
+                temp_A(2) = t * n + F2.Verts_trim[i](2);
+                
+                Verts_temp1.push_back(temp_A);
+                nt = i + 1;
+                break;
+            }
+            else
+            {
+                Verts_temp1.push_back(F2.Verts_trim[i]);
+            }
+            nt = F2.Nvertices_trim;
+        }
+        //second
+        for (size_t i = nt; i < F2.Nvertices_trim; ++i)
+        {
+            size_t ni = i + 1 - (size_t)((i + 1) / F2.Nvertices_trim) * (i + 1);
+
+            if ((F2.Verts_trim[i](1) <= Surf && Surf <= F2.Verts_trim[ni](1)))
+            {
+                //need push intersect point
+                double l = F2.Verts_trim[ni](0) - F2.Verts_trim[i](0);
+                double m = F2.Verts_trim[ni](1) - F2.Verts_trim[i](1);
+                double n = F2.Verts_trim[ni](2) - F2.Verts_trim[i](2);
+
+                double t = (Surf - F2.Verts_trim[i](1)) / m;
+                Vector3d temp_A;
+                temp_A(0) = t * l + F2.Verts_trim[i](0);
+                temp_A(1) = Surf;
+                temp_A(2) = t * n + F2.Verts_trim[i](2);
+
+                Verts_temp1.push_back(temp_A);
+                nt = i + 1;
+                break;
+            }
+        }
+        //third
+        for (size_t i = nt; i < F2.Nvertices_trim; ++i)
+        {
+            Verts_temp1.push_back(F2.Verts_trim[i]);
+        }
+    }
+    else if (F2.Verts_trim[0](1) < Surf)
+    {
+        // first
+        for (size_t i = 0; i < F2.Nvertices_trim; ++i)
+        {
+            size_t ni = i + 1 - (size_t)((i + 1) / F2.Nvertices_trim) * (i + 1);
+            if (F2.Verts_trim[i](1) <= Surf && Surf < F2.Verts_trim[ni](1))
+            {
+                double l = F2.Verts_trim[ni](0) - F2.Verts_trim[i](0);
+                double m = F2.Verts_trim[ni](1) - F2.Verts_trim[i](1);
+                double n = F2.Verts_trim[ni](2) - F2.Verts_trim[i](2);
+                double t = (Surf - F2.Verts_trim[i](1)) / m;
+                Vector3d temp_A;
+                temp_A(0) = t * l + F2.Verts_trim[i](0);
+                temp_A(1) = Surf;
+                temp_A(2) = t * n + F2.Verts_trim[i](2);
+                Verts_temp1.push_back(temp_A);
+
+                nt = i + 1;
+                break;
+            }
+            nt = F2.Nvertices_trim;
+        }
+        //second
+        for (size_t i = nt; i < F2.Nvertices_trim; ++i)
+        {
+            size_t ni = i + 1 - (size_t)((i + 1) / F2.Nvertices_trim) * (i + 1);
+
+            if ((F2.Verts_trim[i](1) >= Surf && Surf >= F2.Verts_trim[ni](1)))
+            {
+                Verts_temp1.push_back(F2.Verts_trim[i]);
+
+                //need push intersect point
+                double l = F2.Verts_trim[ni](0) - F2.Verts_trim[i](0);
+                double m = F2.Verts_trim[ni](1) - F2.Verts_trim[i](1);
+                double n = F2.Verts_trim[ni](2) - F2.Verts_trim[i](2);
+
+                double t = (Surf - F2.Verts_trim[i](1)) / m;
+                Vector3d temp_A;
+                temp_A(0) = t * l + F2.Verts_trim[i](0);
+                temp_A(1) = Surf;
+                temp_A(2) = t * n + F2.Verts_trim[i](2);
+
+                Verts_temp1.push_back(temp_A);
+
+                nt = i + 1;
+                break;
+            }
+            else
+            {
+                Verts_temp1.push_back(F2.Verts_trim[i]);
+            }
+        }
+    }
+
+    ///-----------------
+    F2.Nvertices_trim = Verts_temp1.size();
+    F2.Verts_trim.resize(0);
+    for (size_t i = 0; i < F2.Nvertices_trim; ++i)
+        F2.Verts_trim.push_back(Verts_temp1[i]);
+    ///-------------------Area
+    ///Heron's formula
+
+    F2.Area_trim = 0;
+    for (size_t i = 0; i < F2.Nvertices_trim - 2; ++i)
+    {
+        size_t j = i + 1;
+        size_t k = i + 2 - (size_t)((i + 2) / F2.Nvertices_trim) * (i + 2);
+        double a, b, c, p;
+        a = pow((F2.Verts_trim[0] - F2.Verts_trim[j]).dot((F2.Verts_trim[0] - F2.Verts_trim[j])), 0.5);
+        b = pow((F2.Verts_trim[j] - F2.Verts_trim[k]).dot((F2.Verts_trim[j] - F2.Verts_trim[k])), 0.5);
+        c = pow((F2.Verts_trim[k] - F2.Verts_trim[0]).dot((F2.Verts_trim[k] - F2.Verts_trim[0])), 0.5);
+        p = (a + b + c) / 2;
+
+        double Area_1;
+        if (a == 0 || b == 0 || c == 0)
+            Area_1 = 0;
+        else
+            Area_1 = pow((p * (p - a) * (p - b) * (p - c)), 0.5);
+        F2.Area_trim = F2.Area_trim + Area_1;
+    }
+    F2.Perimeter_trim = 0;
+    for (size_t i = 0; i < F2.Verts_trim.size(); ++i)
+    {
+        size_t j = i + 1 - (size_t)((i + 1) / (F2.Verts_trim.size())) * (i + 1);
+        double p = pow((F2.Verts_trim[i] - F2.Verts_trim[j]).dot((F2.Verts_trim[i] - F2.Verts_trim[j])), 0.5);
+        F2.Perimeter_trim = F2.Perimeter_trim + p;
+    }
+}
+
+inline void Domain::Modify_fracture_attributes_Ymax(Fracture &F2) ///modify vertexes, area, Nvertices
+{
+    //	std::cout << "Ymax called\n";
+    std::vector<Vector3d> Verts_temp1;
+    size_t nt = 0;
+    double Surf = Surfaces[3].Verts_trim[0](1);
+    /// Fractures[2], Back, Ymax
+
+    if (F2.Verts_trim[0](1) <= Surf)
+    {
+        // first
+        for (size_t i = 0; i < F2.Nvertices_trim; ++i)
+        {
+
+            size_t ni = i + 1 - (size_t)((i + 1) / F2.Nvertices_trim) * (i + 1);
+
+            if (F2.Verts_trim[i](1) <= Surf && Surf < F2.Verts_trim[ni](1))
+            {
+
+                Verts_temp1.push_back(F2.Verts_trim[i]);
+                //need push intersect point
+                double l = F2.Verts_trim[ni](0) - F2.Verts_trim[i](0);
+                double m = F2.Verts_trim[ni](1) - F2.Verts_trim[i](1);
+                double n = F2.Verts_trim[ni](2) - F2.Verts_trim[i](2);
+
+                double t = (Surf - F2.Verts_trim[i](1)) / m;
+                Vector3d temp_A;
+                temp_A(0) = t * l + F2.Verts_trim[i](0);
+                temp_A(1) = Surf;
+                temp_A(2) = t * n + F2.Verts_trim[i](2);
+               
+
+                Verts_temp1.push_back(temp_A);
+                nt = i + 1;
+                break;
+            }
+            else
+            {
+                Verts_temp1.push_back(F2.Verts_trim[i]);
+            }
+            nt = F2.Nvertices_trim;
+        }
+        //second
+        for (size_t i = nt; i < F2.Nvertices_trim; ++i)
+        {
+            size_t ni = i + 1 - (size_t)((i + 1) / F2.Nvertices_trim) * (i + 1);
+
+            if ((F2.Verts_trim[i](1) >= Surf && Surf >= F2.Verts_trim[ni](1)))
+            {
+                //need push intersect point
+                double l = F2.Verts_trim[ni](0) - F2.Verts_trim[i](0);
+                double m = F2.Verts_trim[ni](1) - F2.Verts_trim[i](1);
+                double n = F2.Verts_trim[ni](2) - F2.Verts_trim[i](2);
+
+                double t = (Surf - F2.Verts_trim[i](1)) / m;
+                Vector3d temp_A;
+                temp_A(0) = t * l + F2.Verts_trim[i](0);
+                temp_A(1) = Surf;
+                temp_A(2) = t * n + F2.Verts_trim[i](2);
+
+                Verts_temp1.push_back(temp_A);
+                nt = i + 1;
+                break;
+            }
+        }
+        //third
+        for (size_t i = nt; i < F2.Nvertices_trim; ++i)
+        {
+            Verts_temp1.push_back(F2.Verts_trim[i]);
+        }
+    }
+    else if (F2.Verts_trim[0](1) > Surf)
+    {
+        // first
+        for (size_t i = 0; i < F2.Nvertices_trim; ++i)
+        {
+            size_t ni = i + 1 - (size_t)((i + 1) / F2.Nvertices_trim) * (i + 1);
+            if (F2.Verts_trim[i](1) >= Surf && Surf > F2.Verts_trim[ni](1))
+            {
+                double l = F2.Verts_trim[ni](0) - F2.Verts_trim[i](0);
+                double m = F2.Verts_trim[ni](1) - F2.Verts_trim[i](1);
+                double n = F2.Verts_trim[ni](2) - F2.Verts_trim[i](2);
+                double t = (Surf - F2.Verts_trim[i](1)) / m;
+                Vector3d temp_A;
+                temp_A(0) = t * l + F2.Verts_trim[i](0);
+                temp_A(1) = Surf;
+                temp_A(2) = t * n + F2.Verts_trim[i](2);
+                Verts_temp1.push_back(temp_A);
+
+                nt = i + 1;
+                break;
+            }
+            nt = F2.Nvertices_trim;
+        }
+        //second
+        for (size_t i = nt; i < F2.Nvertices_trim; ++i)
+        {
+            size_t ni = i + 1 - (size_t)((i + 1) / F2.Nvertices_trim) * (i + 1);
+
+            if ((F2.Verts_trim[i](1) <= Surf && Surf <= F2.Verts_trim[ni](1)))
+            {
+                Verts_temp1.push_back(F2.Verts_trim[i]);
+
+                //need push intersect point
+                double l = F2.Verts_trim[ni](0) - F2.Verts_trim[i](0);
+                double m = F2.Verts_trim[ni](1) - F2.Verts_trim[i](1);
+                double n = F2.Verts_trim[ni](2) - F2.Verts_trim[i](2);
+
+                double t = (Surf - F2.Verts_trim[i](1)) / m;
+                Vector3d temp_A;
+                temp_A(0) = t * l + F2.Verts_trim[i](0);
+                temp_A(1) = Surf;
+                temp_A(2) = t * n + F2.Verts_trim[i](2);
+
+                Verts_temp1.push_back(temp_A);
+
+                nt = i + 1;
+                break;
+            }
+            else
+            {
+                Verts_temp1.push_back(F2.Verts_trim[i]);
+            }
+        }
+    }
+
+    ///-----------------
+    F2.Nvertices_trim = Verts_temp1.size();
+    F2.Verts_trim.resize(0);
+    for (size_t i = 0; i < F2.Nvertices_trim; ++i)
+        F2.Verts_trim.push_back(Verts_temp1[i]);
+    ///-------------------Area
+    ///Heron's formula
+
+    F2.Area_trim = 0;
+    for (size_t i = 0; i < F2.Nvertices_trim - 2; ++i)
+    {
+        size_t j = i + 1;
+        size_t k = i + 2 - (size_t)((i + 2) / F2.Nvertices_trim) * (i + 2);
+        double a, b, c, p;
+        a = pow((F2.Verts_trim[0] - F2.Verts_trim[j]).dot((F2.Verts_trim[0] - F2.Verts_trim[j])), 0.5);
+        b = pow((F2.Verts_trim[j] - F2.Verts_trim[k]).dot((F2.Verts_trim[j] - F2.Verts_trim[k])), 0.5);
+        c = pow((F2.Verts_trim[k] - F2.Verts_trim[0]).dot((F2.Verts_trim[k] - F2.Verts_trim[0])), 0.5);
+        p = (a + b + c) / 2;
+
+        double Area_1;
+        if (a == 0 || b == 0 || c == 0)
+            Area_1 = 0;
+        else
+            Area_1 = pow((p * (p - a) * (p - b) * (p - c)), 0.5);
+        F2.Area_trim = F2.Area_trim + Area_1;
+    }
+
+    F2.Perimeter_trim = 0;
+    for (size_t i = 0; i < F2.Verts_trim.size(); ++i)
+    {
+        size_t j = i + 1 - (size_t)((i + 1) / (F2.Verts_trim.size())) * (i + 1);
+        double p = pow((F2.Verts_trim[i] - F2.Verts_trim[j]).dot((F2.Verts_trim[i] - F2.Verts_trim[j])), 0.5);
+        F2.Perimeter_trim = F2.Perimeter_trim + p;
+    }
+}
+
+inline void Domain::Modify_fracture_attributes_Xmin(Fracture &F2) ///modify vertexes, area, Nvertices
+{
+    //std::cout << "Xmin called\n";
+    std::vector<Vector3d> Verts_temp1;
+    size_t nt = 0;
+    double Surf = Surfaces[4].Verts_trim[0](0);
+    /// Fractures[4], Left, Xmin
+
+    if (F2.Verts_trim[0](0) >= Surf)
+    {
+        // first
+        for (size_t i = 0; i < F2.Nvertices_trim; ++i)
+        {
+
+            size_t ni = i + 1 - (size_t)((i + 1) / F2.Nvertices_trim) * (i + 1);
+
+            if (F2.Verts_trim[i](0) >= Surf && Surf > F2.Verts_trim[ni](0))
+            {
+
+                Verts_temp1.push_back(F2.Verts_trim[i]);
+                //need push intersect point
+                double l = F2.Verts_trim[ni](0) - F2.Verts_trim[i](0);
+                double m = F2.Verts_trim[ni](1) - F2.Verts_trim[i](1);
+                double n = F2.Verts_trim[ni](2) - F2.Verts_trim[i](2);
+
+                double t = (Surf - F2.Verts_trim[i](0)) / l;
+                Vector3d temp_A;
+                temp_A(0) = Surf;
+                temp_A(1) = t * m + F2.Verts_trim[i](1);
+                temp_A(2) = t * n + F2.Verts_trim[i](2);
+                
+                Verts_temp1.push_back(temp_A);
+                nt = i + 1;
+                break;
+            }
+            else
+            {
+                Verts_temp1.push_back(F2.Verts_trim[i]);
+            }
+            nt = F2.Nvertices_trim;
+        }
+        //second
+        for (size_t i = nt; i < F2.Nvertices_trim; ++i)
+        {
+            size_t ni = i + 1 - (size_t)((i + 1) / F2.Nvertices_trim) * (i + 1);
+
+            if ((F2.Verts_trim[i](0) <= Surf && Surf <= F2.Verts_trim[ni](0)))
+            {
+                //need push intersect point
+                double l = F2.Verts_trim[ni](0) - F2.Verts_trim[i](0);
+                double m = F2.Verts_trim[ni](1) - F2.Verts_trim[i](1);
+                double n = F2.Verts_trim[ni](2) - F2.Verts_trim[i](2);
+
+                double t = (Surf - F2.Verts_trim[i](0)) / l;
+                Vector3d temp_A;
+                temp_A(0) = Surf;
+                temp_A(1) = t * m + F2.Verts_trim[i](1);
+                temp_A(2) = t * n + F2.Verts_trim[i](2);
+
+                Verts_temp1.push_back(temp_A);
+                nt = i + 1;
+                break;
+            }
+        }
+        //third
+        for (size_t i = nt; i < F2.Nvertices_trim; ++i)
+        {
+            Verts_temp1.push_back(F2.Verts_trim[i]);
+        }
+    }
+    else if (F2.Verts_trim[0](0) < Surf)
+    {
+        // first
+        for (size_t i = 0; i < F2.Nvertices_trim; ++i)
+        {
+            size_t ni = i + 1 - (size_t)((i + 1) / F2.Nvertices_trim) * (i + 1);
+            if (F2.Verts_trim[i](0) <= Surf && Surf < F2.Verts_trim[ni](0))
+            {
+                double l = F2.Verts_trim[ni](0) - F2.Verts_trim[i](0);
+                double m = F2.Verts_trim[ni](1) - F2.Verts_trim[i](1);
+                double n = F2.Verts_trim[ni](2) - F2.Verts_trim[i](2);
+                double t = (Surf - F2.Verts_trim[i](0)) / l;
+                Vector3d temp_A;
+                temp_A(0) = Surf;
+                temp_A(1) = t * m + F2.Verts_trim[i](1);
+                temp_A(2) = t * n + F2.Verts_trim[i](2);
+                Verts_temp1.push_back(temp_A);
+
+                nt = i + 1;
+                break;
+            }
+            nt = F2.Nvertices_trim;
+        }
+        //second
+        for (size_t i = nt; i < F2.Nvertices_trim; ++i)
+        {
+            size_t ni = i + 1 - (size_t)((i + 1) / F2.Nvertices_trim) * (i + 1);
+
+            if ((F2.Verts_trim[i](0) >= Surf && Surf >= F2.Verts_trim[ni](0)))
+            {
+                Verts_temp1.push_back(F2.Verts_trim[i]);
+
+                //need push intersect point
+                double l = F2.Verts_trim[ni](0) - F2.Verts_trim[i](0);
+                double m = F2.Verts_trim[ni](1) - F2.Verts_trim[i](1);
+                double n = F2.Verts_trim[ni](2) - F2.Verts_trim[i](2);
+
+                double t = (Surf - F2.Verts_trim[i](0)) / l;
+                Vector3d temp_A;
+                temp_A(0) = Surf;
+                temp_A(1) = t * m + F2.Verts_trim[i](1);
+                temp_A(2) = t * n + F2.Verts_trim[i](2);
+
+                Verts_temp1.push_back(temp_A);
+
+                nt = i + 1;
+                break;
+            }
+            else
+            {
+                Verts_temp1.push_back(F2.Verts_trim[i]);
+            }
+        }
+    }
+
+    ///-----------------
+    F2.Nvertices_trim = Verts_temp1.size();
+    F2.Verts_trim.resize(0);
+    for (size_t i = 0; i < F2.Nvertices_trim; ++i)
+        F2.Verts_trim.push_back(Verts_temp1[i]);
+    ///-------------------Area
+    ///Heron's formula
+
+    F2.Area_trim = 0;
+    for (size_t i = 0; i < F2.Nvertices_trim - 2; ++i)
+    {
+        size_t j = i + 1;
+        size_t k = i + 2 - (size_t)((i + 2) / F2.Nvertices_trim) * (i + 2);
+        double a, b, c, p;
+        a = pow((F2.Verts_trim[0] - F2.Verts_trim[j]).dot((F2.Verts_trim[0] - F2.Verts_trim[j])), 0.5);
+        b = pow((F2.Verts_trim[j] - F2.Verts_trim[k]).dot((F2.Verts_trim[j] - F2.Verts_trim[k])), 0.5);
+        c = pow((F2.Verts_trim[k] - F2.Verts_trim[0]).dot((F2.Verts_trim[k] - F2.Verts_trim[0])), 0.5);
+        p = (a + b + c) / 2;
+
+        double Area_1;
+        if (a == 0 || b == 0 || c == 0)
+            Area_1 = 0;
+        else
+            Area_1 = pow((p * (p - a) * (p - b) * (p - c)), 0.5);
+        F2.Area_trim = F2.Area_trim + Area_1;
+    }
+
+    F2.Perimeter_trim = 0;
+    for (size_t i = 0; i < F2.Verts_trim.size(); ++i)
+    {
+        size_t j = i + 1 - (size_t)((i + 1) / (F2.Verts_trim.size())) * (i + 1);
+        double p = pow((F2.Verts_trim[i] - F2.Verts_trim[j]).dot((F2.Verts_trim[i] - F2.Verts_trim[j])), 0.5);
+        F2.Perimeter_trim = F2.Perimeter_trim + p;
+    }
+}
+
+inline void Domain::Modify_fracture_attributes_Xmax(Fracture &F2) ///modify vertexes, area, Nvertices
+{
+    //	std::cout << "Xmax called\n";
+    std::vector<Vector3d> Verts_temp1;
+    size_t nt = 0;
+    double Surf = Surfaces[5].Verts_trim[0](0);
+    /// Fractures[5], Right, Xmax
+
+    if (F2.Verts_trim[0](0) <= Surf)
+    {
+        // first
+        for (size_t i = 0; i < F2.Nvertices_trim; ++i)
+        {
+
+            size_t ni = i + 1 - (size_t)((i + 1) / F2.Nvertices_trim) * (i + 1);
+
+            if (F2.Verts_trim[i](0) <= Surf && Surf < F2.Verts_trim[ni](0))
+            {
+
+                Verts_temp1.push_back(F2.Verts_trim[i]);
+                //need push intersect point
+                double l = F2.Verts_trim[ni](0) - F2.Verts_trim[i](0);
+                double m = F2.Verts_trim[ni](1) - F2.Verts_trim[i](1);
+                double n = F2.Verts_trim[ni](2) - F2.Verts_trim[i](2);
+
+                double t = (Surf - F2.Verts_trim[i](0)) / l;
+                Vector3d temp_A;
+                temp_A(0) = Surf;
+                temp_A(1) = t * m + F2.Verts_trim[i](1);
+                temp_A(2) = t * n + F2.Verts_trim[i](2);
+                
+                Verts_temp1.push_back(temp_A);
+                nt = i + 1;
+                break;
+            }
+            else
+            {
+                Verts_temp1.push_back(F2.Verts_trim[i]);
+            }
+            nt = F2.Nvertices_trim;
+        }
+        //second
+        for (size_t i = nt; i < F2.Nvertices_trim; ++i)
+        {
+            size_t ni = i + 1 - (size_t)((i + 1) / F2.Nvertices_trim) * (i + 1);
+
+            if ((F2.Verts_trim[i](0) >= Surf && Surf >= F2.Verts_trim[ni](0)))
+            {
+                //need push intersect point
+                double l = F2.Verts_trim[ni](0) - F2.Verts_trim[i](0);
+                double m = F2.Verts_trim[ni](1) - F2.Verts_trim[i](1);
+                double n = F2.Verts_trim[ni](2) - F2.Verts_trim[i](2);
+
+                double t = (Surf - F2.Verts_trim[i](0)) / l;
+                Vector3d temp_A;
+                temp_A(0) = Surf;
+                temp_A(1) = t * m + F2.Verts_trim[i](1);
+                temp_A(2) = t * n + F2.Verts_trim[i](2);
+
+                Verts_temp1.push_back(temp_A);
+                nt = i + 1;
+                break;
+            }
+        }
+        //third
+        for (size_t i = nt; i < F2.Nvertices_trim; ++i)
+        {
+            Verts_temp1.push_back(F2.Verts_trim[i]);
+        }
+    }
+    else if (F2.Verts_trim[0](0) > Surf)
+    {
+        // first
+        for (size_t i = 0; i < F2.Nvertices_trim; ++i)
+        {
+            size_t ni = i + 1 - (size_t)((i + 1) / F2.Nvertices_trim) * (i + 1);
+            if (F2.Verts_trim[i](0) >= Surf && Surf > F2.Verts_trim[ni](0))
+            {
+                double l = F2.Verts_trim[ni](0) - F2.Verts_trim[i](0);
+                double m = F2.Verts_trim[ni](1) - F2.Verts_trim[i](1);
+                double n = F2.Verts_trim[ni](2) - F2.Verts_trim[i](2);
+                double t = (Surf - F2.Verts_trim[i](0)) / l;
+                Vector3d temp_A;
+                temp_A(0) = Surf;
+                temp_A(1) = t * m + F2.Verts_trim[i](1);
+                temp_A(2) = t * n + F2.Verts_trim[i](2);
+                Verts_temp1.push_back(temp_A);
+
+                nt = i + 1;
+                break;
+            }
+            nt = F2.Nvertices_trim;
+        }
+        //second
+        for (size_t i = nt; i < F2.Nvertices_trim; ++i)
+        {
+            size_t ni = i + 1 - (size_t)((i + 1) / F2.Nvertices_trim) * (i + 1);
+
+            if ((F2.Verts_trim[i](0) <= Surf && Surf <= F2.Verts_trim[ni](0)))
+            {
+                Verts_temp1.push_back(F2.Verts_trim[i]);
+
+                //need push intersect point
+                double l = F2.Verts_trim[ni](0) - F2.Verts_trim[i](0);
+                double m = F2.Verts_trim[ni](1) - F2.Verts_trim[i](1);
+                double n = F2.Verts_trim[ni](2) - F2.Verts_trim[i](2);
+
+                double t = (Surf - F2.Verts_trim[i](0)) / l;
+                Vector3d temp_A;
+                temp_A(0) = Surf;
+                temp_A(1) = t * m + F2.Verts_trim[i](1);
+                temp_A(2) = t * n + F2.Verts_trim[i](2);
+
+                Verts_temp1.push_back(temp_A);
+
+                nt = i + 1;
+                break;
+            }
+            else
+            {
+                Verts_temp1.push_back(F2.Verts_trim[i]);
+            }
+        }
+    }
+
+    ///-----------------
+    F2.Nvertices_trim = Verts_temp1.size();
+    F2.Verts_trim.resize(0);
+    for (size_t i = 0; i < F2.Nvertices_trim; ++i)
+        F2.Verts_trim.push_back(Verts_temp1[i]);
+    ///-------------------Area
+    ///Heron's formula
+
+    F2.Area_trim = 0;
+    for (size_t i = 0; i < F2.Nvertices_trim - 2; ++i)
+    {
+        size_t j = i + 1;
+        size_t k = i + 2 - (size_t)((i + 2) / F2.Nvertices_trim) * (i + 2);
+        double a, b, c, p;
+        a = pow((F2.Verts_trim[0] - F2.Verts_trim[j]).dot((F2.Verts_trim[0] - F2.Verts_trim[j])), 0.5);
+        b = pow((F2.Verts_trim[j] - F2.Verts_trim[k]).dot((F2.Verts_trim[j] - F2.Verts_trim[k])), 0.5);
+        c = pow((F2.Verts_trim[k] - F2.Verts_trim[0]).dot((F2.Verts_trim[k] - F2.Verts_trim[0])), 0.5);
+        p = (a + b + c) / 2;
+
+        double Area_1;
+        if (a == 0 || b == 0 || c == 0)
+            Area_1 = 0;
+        else
+            Area_1 = pow((p * (p - a) * (p - b) * (p - c)), 0.5);
+        F2.Area_trim = F2.Area_trim + Area_1;
+    }
+    F2.Perimeter_trim = 0;
+    for (size_t i = 0; i < F2.Verts_trim.size(); ++i)
+    {
+        size_t j = i + 1 - (size_t)((i + 1) / (F2.Verts_trim.size())) * (i + 1);
+        double p = pow((F2.Verts_trim[i] - F2.Verts_trim[j]).dot((F2.Verts_trim[i] - F2.Verts_trim[j])), 0.5);
+        F2.Perimeter_trim = F2.Perimeter_trim + p;
+    }
+}
+
+inline void Domain::If_fracture_intersect_boundary(Fracture &F2)
+{
+    if (F2.If_boundary.size() > 1)
+    {
+        std::cout << "Error! In class of 'Domain', function 'If_fracture_intersect_boundary', fracture array 'If_boundary' should be initialized\n";
+        exit(0);
+    }
+    if (Surfaces.size() != 6)
+    {
+        std::cout << "Error! In class of 'Domain', function 'If_fracture_intersect_boundary', Surfaces array 'Surfaces' should be initialized\n";
+        exit(0);
+    }
+    for (size_t i = 0; i < F2.Verts_trim.size(); ++i)
+    {
+        size_t ni = i + 1 - (size_t)((i + 1) / F2.Verts_trim.size()) * (i + 1);
+        double top_surf = Surfaces[0].Verts_trim[0](2);
+        double bottom_surf = Surfaces[1].Verts_trim[0](2);
+        double front_surf = Surfaces[2].Verts_trim[0](1);
+        double back_surf = Surfaces[3].Verts_trim[0](1);
+        double left_surf = Surfaces[4].Verts_trim[0](0);
+        double right_surf = Surfaces[5].Verts_trim[0](0);
+        if (abs(F2.Verts_trim[i](2) - top_surf) < 0.001 && abs(F2.Verts_trim[ni](2) - top_surf))
+        {
+            Vector2d temoy;
+            temoy << i, 0;
+            F2.If_boundary.push_back(temoy);
+        }
+        if (abs(F2.Verts_trim[i](2) - bottom_surf) < 0.001 && abs(F2.Verts_trim[ni](2) - bottom_surf))
+        {
+            Vector2d temoy;
+            temoy << i, 1;
+            F2.If_boundary.push_back(temoy);
+        }
+        if (abs(F2.Verts_trim[i](1) - front_surf) < 0.001 && abs(F2.Verts_trim[ni](1) - front_surf))
+        {
+            Vector2d temoy;
+            temoy << i, 2;
+            F2.If_boundary.push_back(temoy);
+        }
+        if (abs(F2.Verts_trim[i](1) - back_surf) < 0.001 && abs(F2.Verts_trim[ni](1) - back_surf))
+        {
+            Vector2d temoy;
+            temoy << i, 3;
+            F2.If_boundary.push_back(temoy);
+        }
+        if (abs(F2.Verts_trim[i](0) - left_surf) < 0.001 && abs(F2.Verts_trim[ni](0) - left_surf))
+        {
+            Vector2d temoy;
+            temoy << i, 4;
+            F2.If_boundary.push_back(temoy);
+        }
+        if (abs(F2.Verts_trim[i](0) - right_surf) < 0.001 && abs(F2.Verts_trim[ni](0) - right_surf))
+        {
+            Vector2d temoy;
+            temoy << i, 5;
+            F2.If_boundary.push_back(temoy);
+        }
+    }
+};
+
+inline bool Domain::Intersect(Fracture &F1, Fracture &F2)
+{
+    F1.Nvertices_trim = F1.Verts_trim.size();
+    F2.Nvertices_trim = F2.Verts_trim.size();
+
+    Vector3d A1;
+    A1 << 0, 0, 0;
+
+    Vector3d B1;
+    B1 << 0, 0, 0;
+
+    Vector3d dis_vec = F2.Center - F1.Center;
+    double distance = pow(dis_vec.dot(dis_vec), 0.5);
+    if (distance > F2.Radius + F1.Radius)
+    {
+        return false;
+    }
+    /* std::cout<<"debug\n"; */
+
+    size_t e1, e2;
+    Parallel_or_not(F1.Plane_parameter, F2.Plane_parameter, e1, e2);
+    ///std::cout<<"\ne1:"<<e1<<"; e2: " << e2 << std::endl;
+    if (e1 == 1)
+    {
+        if (e2 == 1)
+        {
+            //two infinite plane are overlaped
+            //in real DFN generation, the interval of each kind of input parameter is large enough, which seldom and even does not lead to two overlapped fractures
+            //because it is a random process
+            return false;
+        }
+        else
+        {
+            //two infinite plane are parallel
+            ///std::cout<<"The two fractrues are parallel but not overlapped!\n";
+            return false;
+        }
+    }
+    else if (e1 == 0)
+    {
+        std::vector<Vector3d> Verts_1;
+        std::vector<Vector3d> Verts_2;
+        Verts_1.resize(F1.Nvertices_trim);
+        Verts_2.resize(F2.Nvertices_trim);
+
+        Vector3d temp1;
+        Find_vector_2(F1.Normal_vector, temp1);
+
+        double R_angle_temp1 = 0;
+        double x_temp = F1.Dip_angle;
+        R_angle_temp1 = -x_temp * M_PI / 180;
+        Quaternion_t Q_axis_1;
+
+        if (F1.Dip_angle > 0.0001)
+        {
+
+            NormalizeRotation(R_angle_temp1, temp1, Q_axis_1);
+            for (size_t i = 0; i < F1.Nvertices_trim; ++i)
+            {
+                Rotation(F1.Verts_trim[i], Q_axis_1, Verts_1[i]);
+            }
+            for (size_t i = 0; i < F2.Nvertices_trim; ++i)
+            {
+                Rotation(F2.Verts_trim[i], Q_axis_1, Verts_2[i]);
+            }
+        }
+        else
+        {
+            for (size_t i = 0; i < F1.Nvertices_trim; ++i)
+                Verts_1[i] = F1.Verts_trim[i];
+            for (size_t i = 0; i < F2.Nvertices_trim; ++i)
+                Verts_2[i] = F2.Verts_trim[i];
+        }
+
+        ///std::cout<<"\nafter rotation, first: \n"<<Verts_1<<std::endl<<"    second:\n"<<Verts_2<<"\n";
+
+        //-------a piece of debug code----
+        for (size_t i = 0; i < F1.Nvertices_trim; i++)
+        {
+            size_t j = i + 1 - (size_t)((i + 1) / F1.Nvertices_trim) * (i + 1);
+            if (abs(Verts_1[i](2) - Verts_1[j](2)) > 0.001)
+            {
+                std::cout << "Error!!! The Z values of all vertexes of 1st fracture should be the same!\n";
+                exit(0);
+            }
+        }
+        //--------------------------------
+
+        double MAX_Z = Find_max_z_value(Verts_2);
+        double MIN_Z = Find_min_z_value(Verts_2);
+        if (Verts_1[0](2) >= MIN_Z && Verts_1[0](2) <= MAX_Z)
+        {
+
+            ///--------intersection line segment between horizontal plane and 2nd fracture
+            std::vector<Vector3d> Intersection_1;
+            Intersection_between_2ndpolygon_and_infinite_plane(F2.Nvertices_trim, Verts_1[0](2), Verts_2, Intersection_1);
+            //std::cout << Intersection_1 << std::endl;
+
+            ///---------now extending the line segment----
+            std::vector<Vector3d> Intersection_infinite;
+            Output_a_relatively_infinite_line(300, Intersection_1, Intersection_infinite);
+            //cout<<"Infinite line: \n"<<Intersection_infinite[0]<<std::endl<<Intersection_infinite[1]<<"\n";
+
+            ///--------now, determine the coordinates of endpoints of intersection line segment between extending line and 1st fracture
+            size_t numOfIntersectionPoint_1; ///which lies in [0,2];
+            std::vector<Vector3d> Intersection_2;
+            //	std::cout<<"\nIntersection_infinite and 1st fracture:\n";
+            Intersection_between_line_segment_and_polygon(numOfIntersectionPoint_1, Verts_1, Intersection_infinite, Intersection_2);
+            if (numOfIntersectionPoint_1 > 2)
+            {
+                std::cout << "Error!!! There shoule not be more than two intersection points!\n";
+                exit(0);
+            }
+            //std::cout<<"\nExtending line segment intersect 1st fracture "<< numOfIntersectionPoint_1<<" times"<<std::endl;
+
+            ///-------now, determine the intersection section between 1st and 2nd polygonal fractures
+            if (numOfIntersectionPoint_1 == 0)
+            {
+                ///std::cout<<"No intersection.\n";
+                return false;
+            }
+            else if (numOfIntersectionPoint_1 == 1)
+            {
+                cout << "Polygon vertices (2D):\n";
+                for (size_t upy = 0; upy < Verts_1.size(); ++upy)
+                {
+                    cout << Verts_1[upy].transpose() << endl;
+                }
+                cout << "The checked line segment (2D):\n";
+                cout << Intersection_infinite[0] << endl;
+                cout << Intersection_infinite[1] << endl;
+                std::cout << "Error, infinite line must intersect 0 or 2 sides of the 1st fracture.\nIt is impossible just intersect 1 sides!!!\n";
+                exit(0);
+            }
+            else
+            {
+                /// ------------ determine the intersection between intersection_1 and 1st fracture
+                std::vector<Vector3d> Intersection_3;
+                size_t numOfIntersectionPoint_2; ///which also lies in [0,2]
+                Intersection_between_line_segment_and_polygon(numOfIntersectionPoint_2, Verts_1, Intersection_1, Intersection_3);
+                if (numOfIntersectionPoint_2 > 2)
+                {
+                    std::cout << "Error!!! There shoule be no more than two intersection points!\n";
+                    exit(0);
+                };
+                //	std::cout<<"The Intersection_1 intersect the 1st fracture "<<numOfIntersectionPoint_2<<" times\n";
+                ///------------- now, determine the include angle between intersection_1 and x-axis
+                double beta_1;
+                double m_1 = Intersection_1[1](1) - Intersection_1[0](1);
+                double l_1 = Intersection_1[1](0) - Intersection_1[0](0);
+                if (m_1 < 0)
+                {
+                    m_1 = -m_1;
+                    l_1 = -l_1;
+                }
+                beta_1 = atan2(m_1, l_1) * 180.0 / M_PI;
+                if (beta_1 < 0)
+                    beta_1 = 360 + beta_1;
+                //	std::cout<<"Intersection_1: \n"<<Intersection_1[0]<<"\n"<<Intersection_1[1]<<"\n"<<"beta_1 is: "<<beta_1<<std::endl;
+                //	std::cout<<"Intersection_2: \n"<<Intersection_2[0]<<"\n"<<Intersection_2[1]<<"\n---------------------\n";
+                ///-----------
+
+                ///------------a piece of debuging code---
+                double beta_2;
+                double m_2 = Intersection_infinite[1](1) - Intersection_infinite[0](1);
+                double l_2 = Intersection_infinite[1](0) - Intersection_infinite[0](0);
+                if (m_2 < 0)
+                {
+                    m_2 = -m_2;
+                    l_2 = -l_2;
+                }
+                beta_2 = atan2(m_2, l_2) * 180.0 / M_PI;
+                if (beta_2 < 0)
+                    beta_2 = 360 + beta_2;
+                //std::cout<<"beta_2 is: "<<beta_2<<std::endl;
+                if (abs(beta_1 - beta_2) > 0.001)
+                {
+                    std::cout << "The angle of infinit line and x-axis is incorrect!!!\n";
+                    exit(0);
+                }
+                ///---------------------------------------
+
+                ///-------
+                if (numOfIntersectionPoint_2 == 0)
+                {
+                    //this means the intersection line (between 2nd fracture and horizontal plane) might be inside or outside the 1st fracture
+
+                    std::vector<Vector3d> Intersection_4;
+                    std::vector<Vector3d> Intersection_5;
+                    Intersection_4.resize(2);
+                    Intersection_5.resize(2);
+
+                    Vector3d axis_z_2;
+                    axis_z_2 << 0, 0, 1;
+                    Quaternion_t Q_axis_z_2;
+                    NormalizeRotation(((180 - beta_1) * M_PI / 180.0), axis_z_2, Q_axis_z_2);
+                    Rotation(Intersection_1[0], Q_axis_z_2, Intersection_4[0]);
+                    Rotation(Intersection_1[1], Q_axis_z_2, Intersection_4[1]);
+                    Rotation(Intersection_2[0], Q_axis_z_2, Intersection_5[0]);
+                    Rotation(Intersection_2[1], Q_axis_z_2, Intersection_5[1]);
+                    ///std::cout<<Intersection_4[0]<<"\n"<<Intersection_4[1]<<std::endl<<Intersection_5[0]<<std::endl<<Intersection_5[1]<<"\n";
+
+                    ///--------------a piece error report   ----
+                    if (abs(Intersection_4[0](1) - Intersection_4[1](1)) > 0.001 || abs(Intersection_5[0](1) - Intersection_5[1](1)) > 0.001 || abs(Intersection_4[0](1) - Intersection_5[1](1)) > 0.001)
+                    {
+                        std::cout << "Error!!! The y values of the two intersections shoule be the same in this step!\n";
+                        exit(0);
+                    }
+                    ///-----------------------------------------
+
+                    std::vector<Vector3d> Intersection_6;
+                    Intersection_6.resize(2);
+                    Intersection_6[0](0) = 0.001;
+                    Intersection_6[1](0) = 0.002;
+
+                    Intersection_of_1D_intervals(Intersection_4, Intersection_5, Intersection_6);
+                    ///------------- a piece of test code
+                    if (Intersection_6[0](0) == 0.001 && Intersection_6[1](0) == 0.002)
+                    {
+                        ///std::cout<<"No Intersection, because the intersection between 2nd fracture and horizontal plane is totally outside the 1st fracture\n";
+                        return false;
+                    };
+                    //-------------
+
+                    ///if the test code (above) do not work, it indicate the intersection is totally inside the 1st fracture
+
+                    ///std::cout<<"\nIntersection is totally inside the 1st fracture.\n";
+                    std::vector<Vector3d> Intersection_7; // true intersection points
+                    Intersection_7.resize(2);
+                    Intersection_1[0](2) = Verts_1[0](2);
+                    Intersection_1[1](2) = Verts_1[0](2);
+
+                    if (F1.Dip_angle > 0.0001)
+                    {
+                        Vector3d axis_z_4;
+                        axis_z_4 = temp1;
+                        Quaternion_t Q_axis_z_4;
+                        NormalizeRotation(-R_angle_temp1, axis_z_4, Q_axis_z_4);
+                        Rotation(Intersection_1[0], Q_axis_z_4, Intersection_7[0]);
+                        Rotation(Intersection_1[1], Q_axis_z_4, Intersection_7[1]);
+                    }
+                    else
+                    {
+                        Intersection_7[0] = Intersection_1[0];
+                        Intersection_7[1] = Intersection_1[1];
+                    }
+                    A1 = Intersection_7[0];
+                    B1 = Intersection_7[1];
+                }
+                else if (numOfIntersectionPoint_2 == 1)
+                {
+                    //this means the intersection line (between 2nd fracture and horizontal plane) intersect with one edge of fracture 1, and one end is inside the fracture 1
+                    //but we need to know which end is inside the 1st fracture, so which end is closer to the 1st fracture center, that end must be inside the fracture 1
+                    //also, we need to rotate the center of the 1st fracture, since all vertexes have been rotated
+                    ///std::cout<<"\nOne end of the intersection is inside the 1st fracture.\n";
+                    std::vector<Vector3d> Intersection_4;
+                    std::vector<Vector3d> Intersection_5;
+                    Intersection_4.resize(2);
+                    Intersection_5.resize(2);
+
+                    Vector3d axis_z_2;
+                    axis_z_2 << 0, 0, 1;
+                    Quaternion_t Q_axis_z_2;
+                    NormalizeRotation(((180 - beta_1) * M_PI / 180.0), axis_z_2, Q_axis_z_2);
+                    Rotation(Intersection_1[0], Q_axis_z_2, Intersection_4[0]);
+                    Rotation(Intersection_1[1], Q_axis_z_2, Intersection_4[1]);
+                    Rotation(Intersection_2[0], Q_axis_z_2, Intersection_5[0]);
+                    Rotation(Intersection_2[1], Q_axis_z_2, Intersection_5[1]);
+
+                    //std::cout<<Intersection_4[0]<<"\n"<<Intersection_4[1]<<std::endl<<Intersection_5[0]<<std::endl<<Intersection_5[1]<<"\n";
+                    ///--------------a piece error report   ----
+                    if (abs(Intersection_4[0](1) - Intersection_4[1](1)) > 0.001 || abs(Intersection_5[0](1) - Intersection_5[1](1)) > 0.001 || abs(Intersection_4[0](1) - Intersection_5[1](1)) > 0.001)
+                    {
+                        std::cout << "Error!!! The y values of the two intersections shoule be the same in this step!\n";
+                        exit(0);
+                    }
+                    ///-----------------------------------------
+                    std::vector<Vector3d> Intersection_6;
+                    Intersection_6.resize(2);
+                    Intersection_6[0](0) = 0.001;
+                    Intersection_6[1](0) = 0.002;
+
+                    Intersection_of_1D_intervals(Intersection_4, Intersection_5, Intersection_6);
+
+                    ///------------- a piece of test code
+                    if (Intersection_6[0](0) == 0.001 && Intersection_6[1](0) == 0.002)
+                    {
+                        ///std::cout<<"No Intersection, because the intersection between 2nd fracture and horizontal plane is totally outside the 1st fracture\n";
+                        return false;
+                    };
+                    ///----------------------------------
+
+                    //---------------------------
+                    Intersection_6[0](1) = Intersection_4[0](1);
+                    Intersection_6[1](1) = Intersection_4[0](1);
+                    ///std::cout<<"y value: "<<Intersection_4[0](1)<<"\n";
+
+                    Intersection_6[0](2) = Verts_1[0](2);
+                    Intersection_6[1](2) = Verts_1[0](2);
+
+                    //	std::cout<<"Intersection_6: "<<Intersection_6[0]<<"\n"<<Intersection_6[1]<<"\n";
+
+                    std::vector<Vector3d> Intersection_7;
+                    Intersection_7.resize(2);
+
+                    Vector3d axis_z_3;
+                    axis_z_3 << 0, 0, 1;
+                    Quaternion_t Q_axis_z_3;
+                    NormalizeRotation(((180 + beta_1) * M_PI / 180.0), axis_z_3, Q_axis_z_3);
+
+                    Rotation(Intersection_6[0], Q_axis_z_3, Intersection_7[0]);
+                    Rotation(Intersection_6[1], Q_axis_z_3, Intersection_7[1]);
+
+                    //	std::cout<<"Intersection_7: "<<Intersection_7[0]<<"\n"<<Intersection_7[1]<<"\n";
+
+                    std::vector<Vector3d> Intersection_8; /// true Intersection point
+                    Intersection_8.resize(2);
+
+                    if (F1.Dip_angle > 0.0001)
+                    {
+                        Vector3d axis_z_4;
+                        axis_z_4 = temp1;
+                        Quaternion_t Q_axis_z_4;
+                        NormalizeRotation(-R_angle_temp1, axis_z_4, Q_axis_z_4);
+                        Rotation(Intersection_7[0], Q_axis_z_4, Intersection_8[0]);
+                        Rotation(Intersection_7[1], Q_axis_z_4, Intersection_8[1]);
+                    }
+                    else
+                    {
+                        Intersection_8[0] = Intersection_7[0];
+                        Intersection_8[1] = Intersection_7[1];
+                    }
+
+                    A1 = Intersection_8[0];
+                    B1 = Intersection_8[1];
+                }
+                else if (numOfIntersectionPoint_2 == 2)
+                {
+                    //this means the intersection line (between 2nd fracture and horizontal plane) might be inside the 1st fracture
+                    ///	std::cout<<"\nBoth two ends of intersection are on the perimeter (sides) of the 1st fracture.\n";
+                    std::vector<Vector3d> Intersection_6;
+                    Intersection_6.resize(2);
+                    std::vector<Vector3d> Intersection_7;
+                    Intersection_7.resize(2);
+
+                    Intersection_6[0] = Intersection_3[0];
+                    Intersection_6[1] = Intersection_3[1];
+                    Intersection_6[0](2) = Verts_1[0](2);
+                    Intersection_6[1](2) = Verts_1[0](2);
+
+                    if (F1.Dip_angle > 0.0001)
+                    {
+                        Vector3d axis_z_4;
+                        axis_z_4 = temp1;
+                        Quaternion_t Q_axis_z_4;
+                        NormalizeRotation(-R_angle_temp1, axis_z_4, Q_axis_z_4);
+                        Rotation(Intersection_6[0], Q_axis_z_4, Intersection_7[0]);
+                        Rotation(Intersection_6[1], Q_axis_z_4, Intersection_7[1]);
+                    }
+                    else
+                    {
+                        Intersection_7[0] = Intersection_6[0];
+                        Intersection_7[1] = Intersection_6[1];
+                    }
+
+                    A1 = Intersection_7[0];
+                    B1 = Intersection_7[1];
+                }
+            }
+        }
+        else
+        {
+            return false;
+        }
+    };
+
+    ///std::cout<<"Intersection points are: \n"<<A1<<"\n"<<B1<<std::endl;
+
+    if (A1(0) != 0 && A1(1) != 0 && A1(2) != 0 && B1(0) != 0 && B1(1) != 0 && B1(2) != 0)
+    {
+        //std::cout << "Found intersection between Fracture[" << F1.Tag << "] and Fracture[" << F2.Tag << "]!" << std::endl;
+        ///Clusters(F1,F2, A1, B1);
+
+        Connections.push_back(F1.Tag); //Fracture F1 and F2 are connected
+        Connections.push_back(F2.Tag);
+        std::pair<size_t, size_t> p = std::make_pair(F1.Tag, F2.Tag); //Saving the intersection line from x1 to x2 into the Intersections map for the pair of fracture 0 and 1
+        Vector3d x1, x2;
+        x1 = A1;
+        x2 = B1;
+        Intersections[p] = std::make_pair(x1, x2);
+
+        // std::set<size_t, size_t> Intersect_other_frac_after_trim;
+        F1.Intersect_other_frac_after_trim.insert(F2.Tag);
+        F2.Intersect_other_frac_after_trim.insert(F1.Tag);
+        return true;
+    }
+    else
+        return false;
+}
+
+inline void Domain::Clusters()
+{
+    Graph GK(Fractures.size(), Connections);
+    GK.CreateGraph_i(Listofclusters);
+
+    //std::cout <<"Listofclusters.size(): " << Listofclusters.size() << std::endl;
+    for (size_t i = 0; i < Listofclusters.size(); i++)
+    {
+        //std::cout << "debug 1.2" << std::endl;
+        //std::cout<<Listofclusters[i]<<std::endl;
+        for (size_t j = 0; j < Listofclusters[i].size(); j++)
+        {
+            //std::cout << "debug 1.3" << std::endl;
+            Fractures[Listofclusters[i][j]].Clus = i;
+        }
+        //std::cout << "debug 1.4" << std::endl;
+    }
+}
+
+inline void Domain::Correlation_length_and_gyration_radius()
+{
+    Xi = 0;
+    max_R_s = 0;
+    size_t max_cluster = 0;
+    size_t max_size = 0;
+    if (Listofclusters.size() != 0)
+    {
+        max_cluster = 0;
+        max_size = 0;
+        //double total_distance = 0;
+        for (size_t i = 0; i < Listofclusters.size(); ++i)
+        {
+            //std::cout << "Cluster " << i << "'s size is: " << Listofclusters[i].size() << std::endl;
+            if (max_size <= Listofclusters[i].size())
+            {
+                max_size = Listofclusters[i].size();
+                max_cluster = i;
+            }
+        }
+        //std::cout << "the largest cluster is " << max_cluster << std::endl;
+        //std::cout << "size of max cluster is " << Listofclusters[max_cluster].size() << std::endl;
+        if (Listofclusters[max_cluster].size() > 1)
+        {
+            Center_of_cluster[0] = 0;
+            Center_of_cluster[1] = 0;
+            Center_of_cluster[2] = 0;
+
+            for (size_t i = 0; i < Listofclusters[max_cluster].size(); ++i)
+            {
+                Center_of_cluster[0] = Center_of_cluster[0] + Fractures[Listofclusters[max_cluster][i]].Center[0];
+                Center_of_cluster[1] = Center_of_cluster[1] + Fractures[Listofclusters[max_cluster][i]].Center[1];
+                Center_of_cluster[2] = Center_of_cluster[2] + Fractures[Listofclusters[max_cluster][i]].Center[2];
+            }
+            Center_of_cluster[0] = Center_of_cluster[0] / Listofclusters[max_cluster].size();
+            Center_of_cluster[1] = Center_of_cluster[1] / Listofclusters[max_cluster].size();
+            Center_of_cluster[2] = Center_of_cluster[2] / Listofclusters[max_cluster].size();
+
+            max_R_s = 0;
+            for (size_t i = 0; i < Listofclusters[max_cluster].size(); ++i)
+            {
+                Vector3d distance = Fractures[Listofclusters[max_cluster][i]].Center - Center_of_cluster;
+                double module = pow(pow(distance[0], 2) + pow(distance[1], 2) + pow(distance[2], 2), 0.5);
+                if (max_R_s <= module)
+                    max_R_s = module;
+            }
+
+            double Model_volume = (Model_domain(0) - Model_domain(1)) * (Model_domain(3) - Model_domain(2)) * (Model_domain(5) - Model_domain(4));
+            P30_largest_cluster = Listofclusters[max_cluster].size() / Model_volume;
+            double area_total = 0;
+            for (size_t i = 0; i < Listofclusters[max_cluster].size(); ++i)
+            {
+                area_total = area_total + Fractures[Listofclusters[max_cluster][i]].Area;
+            }
+
+            P32_largest_cluster = area_total / Model_volume;
+        }
+        else
+        {
+            /*Xi = 0;*/
+            max_R_s = 0;
+            P30_largest_cluster = 0;
+            P32_largest_cluster = 0;
+        }
+    }
+
+    /// now, determine Xi
+    if (Listofclusters.size() > 1)
+    {
+        size_t k = Listofclusters.size();
+        size_t a[2][k];
+        for (size_t i = 0; i < k; ++i)
+        {
+            a[0][i] = i;
+            a[1][i] = 0;
+        }
+
+        std::vector<std::vector<size_t>> kss;
+        kss.resize(max_size);
+
+        for (size_t i = 0; i < max_size; ++i)
+        {
+            for (size_t j = 0; j < k; ++j)
+            {
+                if (a[1][j] == 0)
+                {
+                    if (Listofclusters[j].size() == i + 1)
+                    {
+                        kss[i].push_back(j);
+                        a[1][j] = 1;
+                    }
+                }
+            }
+        }
+        /*
+        double numerator_h = 0;
+        double denominator_h = 0;
+        for (size_t i = 0; i < kss.size(); ++i)
+        {
+            for (size_t j = 0; j < kss[i].size(); ++j)
+            {
+                double R_s_squared = 0;
+                if (i != 0)
+                {
+                    //std::cout << "\n----------------*\n";
+                    double distance = 0;
+                    for (size_t v = 0; v < Listofclusters[kss[i][j]].size(); ++v)
+                    {
+                        for (size_t w = 0; w < Listofclusters[kss[i][j]].size(); ++w)
+                        {
+
+                            double auu = Fractures[Listofclusters[kss[i][j]][v]].Center.dot(Fractures[Listofclusters[kss[i][j]][v]].Center) + Fractures[Listofclusters[kss[i][j]][w]].Center.dot(Fractures[Listofclusters[kss[i][j]][w]].Center) - 2 * Fractures[Listofclusters[kss[i][j]][v]].Center.dot(Fractures[Listofclusters[kss[i][j]][w]].Center);
+                            distance = distance + auu;
+
+                            //std::cout << "\tdistance between Fracture " << Listofclusters[kss[i][j]][v] << " and Fracture " << Listofclusters[kss[i][j]][w] << " is " << auu << ";\n";
+                        }
+                    }
+                    //R_s_squared = 0.5 * distance / (double)pow((i + 1), (i + 1));
+                    R_s_squared = 0.5 * distance / (double)pow((i + 1), 2);
+                    //std::cout << "Counting distance of cluster " << kss[i][j] << ", and it's size is (" << i + 1 << "): ";
+                    //std::cout << R_s_squared << "\n----------------\n";
+                }
+                double numerator_s = R_s_squared * (i + 1) * (i + 1) * ((double)kss[i].size() / Fractures.size());
+                double denominator_s = (i + 1) * (i + 1) * ((double)kss[i].size() / Fractures.size());
+
+                numerator_h = numerator_h + numerator_s;
+                denominator_h = denominator_h + denominator_s;
+            }
+        }
+        //std::cout << numerator_h <<"\n" << denominator_h <<"\n";
+        Xi = 2 * numerator_h / denominator_h;
+        Xi = pow(Xi, 0.5);*/
+
+        Xi = 0;
+        size_t ku = 0;
+        for (size_t i = 1; i < kss.size(); ++i)
+        {
+            if (kss[i].size() != 0)
+            {
+                ku++;
+                double D_a = 0;
+                for (size_t j = 0; j < kss[i].size(); ++j)
+                {
+                    double D_c = 0;
+                    for (size_t v = 0; v < Listofclusters[kss[i][j]].size(); ++v)
+                    {
+                        size_t ID_frac = Listofclusters[kss[i][j]][v];
+                        //std::vector<size_t> Connections
+                        std::vector<size_t> connected_frac;
+                        for (size_t w = 0; w < Connections.size(); w++)
+                        {
+                            if (Connections[w] == ID_frac)
+                            {
+                                if (w % 2 == 0)
+                                    connected_frac.push_back(Connections[w + 1]);
+                                else if (w % 2 == 1)
+                                    connected_frac.push_back(Connections[w - 1]);
+                            }
+                        }
+
+                        double dist = 0;
+                        for (size_t w = 0; w < connected_frac.size(); ++w)
+                        {
+                            dist += (Fractures[ID_frac].Center - Fractures[connected_frac[w]].Center).norm();
+                        }
+
+                        dist = dist / connected_frac.size();
+                        //cout << "dist: " << dist << endl;
+                        D_c += dist;
+                    }
+                    D_c = D_c / Listofclusters[kss[i][j]].size();
+                    D_a += D_c;
+                    //cout << "D_c: " << D_c << endl;
+                }
+                D_a = D_a / kss[i].size();
+                //cout << "D_a: " << D_a << endl;
+                Xi += D_a;
+            }
+        }
+        if (ku != 0)
+            Xi = Xi / ku;
+        else
+            Xi = 0;
+    }
+    else
+    {
+        Xi = 0;
+    }
+
+    //std::cout << Center_of_cluster[0] << ", " << Center_of_cluster[1] <<", " << Center_of_cluster[2] << std::endl;
+};
+
+inline void Domain::Average_number_of_intersections_per_fracture()
+{
+    n_I = (double)(Connections.size() / 2) / (double)Fractures.size();
+};
+
+inline void Domain::Determine_excluded_volume(const string str_ori, const string str_frac_size, double alpha_g, double kappa, double mean_i, double var_i, double min_R_i, double max_R_i)
+{
+    if (str_ori == "uniform")
+    {
+        //double C1 = (1-alpha_g)/((2-alpha_g)*(pow(x1,1-alpha_g)-pow(x0,1-alpha_g)));
+        //double Expected_value_of_radius = C1*pow(x1,2-alpha_g) - C1*pow(x0,2-alpha_g);
+        //std::cout<<"Expected_value_of_radius: "<<Expected_value_of_radius<<std::endl;
+        if (str_frac_size == "powerlaw")
+        {
+            double x0, x1;
+            x0 = min_R_i * pow(2.0, 0.5);
+            x1 = max_R_i * pow(2.0, 0.5);
+            double C2 = (1 - alpha_g) / (pow(x1, 1 - alpha_g) - pow(x0, 1 - alpha_g));
+            //********below is 0.5*<A*P>
+            Excluded_volume_1 = C2 * 4.0 * (pow(x1, 4.0 - alpha_g) - pow(x0, 4.0 - alpha_g)) / (4.0 - alpha_g);
+            Excluded_volume_1 = 0.5 * Excluded_volume_1;
+
+            //********below is 0.5*<A>*<P>
+            Excluded_volume_2 = 0.5 * C2 * (pow(x1, 3.0 - alpha_g) - pow(x0, 3.0 - alpha_g)) / (3.0 - alpha_g);                       //0.5*<A>
+            Excluded_volume_2 = Excluded_volume_2 * (4.0 * C2 * (pow(x1, 2.0 - alpha_g) - pow(x0, 2.0 - alpha_g)) / (2.0 - alpha_g)); //<A>*<P>
+
+            //********below is 0.5 * <l^3>
+            Excluded_volume_3 = 0.5 * C2 * (pow(x1, 4.0 - alpha_g) - pow(x0, 4.0 - alpha_g)) / (4.0 - alpha_g);
+
+            //********below is 0.5 * <l^3>/<l^2>, and note that the percolation parameter equals to P32*<l^3>/<l^2>
+            Excluded_volume_4 = Excluded_volume_3 / (C2 / (3.0 - alpha_g) * (pow(x1, 3.0 - alpha_g) - pow(x0, 3.0 - alpha_g)));
+
+            //********below is 0.5 * <A*P>/<l^2>, and note that the percolation parameter equals to P32*<l^3>/<l^2>
+            Excluded_volume_5 = Excluded_volume_1 / (C2 / (3.0 - alpha_g) * (pow(x1, 3.0 - alpha_g) - pow(x0, 3.0 - alpha_g)));
+        }
+        else if (str_frac_size == "lognormal")
+        {
+            double mean, var;
+            mean = mean_i * pow(2, 0.5);
+            var = 2.0 * var_i;
+
+            double mean_1 = log(mean * mean / (pow(var + mean * mean, 0.5)));
+            double var_1 = pow(log(1 + ((double)var) / (mean * mean)), 0.5); //var_1 is input std. deviation
+
+            //********below is 0.5*<A*P>
+            Excluded_volume_1 = 0.5 * 4.0 * exp(3 * mean_1 + (9.00 / 2.0) * (var_1 * var_1));
+            //std::cout << "Vex: " << Excluded_volume_1 <<"\n";
+
+            //********below is 0.5*<A>*<P>
+            Excluded_volume_2 = 0.5 * exp(2.0 * mean_1 + 2.0 * var_1 * var_1) * 4.0 * exp(mean_1 + 0.5 * var_1 * var_1);
+
+            //********below is 0.5 * <l^3>
+            Excluded_volume_3 = 0.5 * exp(3.0 * mean_1 + (9.00 / 2.0) * (var_1 * var_1));
+
+            //********below is 0.5 * <l^3>/<l^2>, and note that the percolation parameter equals to P32*<l^3>/<l^2>
+            Excluded_volume_4 = Excluded_volume_3 / (exp(2.0 * mean_1 + 2.0 * var_1 * var_1));
+
+            //********below is 0.5 * <A*P>/<l^2>, and note that the percolation parameter equals to P32*<l^3>/<l^2>
+            Excluded_volume_5 = Excluded_volume_1 / (exp(2.0 * mean_1 + 2.0 * var_1 * var_1));
+        }
+        else if (str_frac_size == "uniform")
+        {
+            double max_R, min_R;
+            max_R = max_R_i * pow(2.0, 0.5);
+            min_R = min_R_i * pow(2.0, 0.5);
+            double C2 = 1 / (max_R - min_R);
+
+            //********below is 0.5*<A*P>
+            Excluded_volume_1 = 0.5 * C2 * 4.0 / 4.0 * (pow(max_R, 4) - pow(min_R, 4));
+
+            //********below is 0.5*<A>*<P>
+            Excluded_volume_2 = 0.5 * C2 * (pow(max_R, 3.0) - pow(min_R, 3.0)) / 3.0 * C2 * 4.0 * (pow(max_R, 2.0) - pow(min_R, 2.0)) / 2.0;
+
+            //********below is 0.5 * <l^3>
+            Excluded_volume_3 = 0.5 * C2 * ((pow(max_R, 4.0) - pow(min_R, 4.0)) / 4.0);
+
+            //********below is 0.5 * <l^3>/<l^2>, and note that the percolation parameter equals to P32*<l^3>/<l^2>
+            Excluded_volume_4 = Excluded_volume_3 / (C2 * ((pow(max_R, 3.0) - pow(min_R, 3.0)) / 3.0));
+
+            //********below is 0.5 * <A*P>/<l^2>, and note that the percolation parameter equals to P32*<l^3>/<l^2>
+            Excluded_volume_5 = Excluded_volume_1 / (C2 * ((pow(max_R, 3.0) - pow(min_R, 3.0)) / 3.0));
+        }
+        else if (str_frac_size == "single")
+        {
+            double R = min_R_i * pow(2.0, 0.5);
+            //********below is 0.5*<A*P>
+            Excluded_volume_1 = 0.5 * pow(R, 2) * 4.0 * R;
+
+            //********below is 0.5*<A>*<P>
+            Excluded_volume_2 = Excluded_volume_1;
+
+            //********below is 0.5 * <l^3>
+            Excluded_volume_3 = 0.5 * R * R * R;
+
+            //********below is 0.5 * <l^3>/<l^2>, and note that the percolation parameter equals to P32*<l^3>/<l^2>
+            Excluded_volume_4 = Excluded_volume_3 / (R * R);
+
+            //********below is 0.5 * <A*P>/<l^2>, and note that the percolation parameter equals to P32*<l^3>/<l^2>
+            Excluded_volume_5 = Excluded_volume_1 / (R * R);
+        }
+    }
+    else if (str_ori == "fisher")
+    {
+        //here, we need to calculate more,i.e., the statistical average of sinγ
+        double psi = (2 / ((sinh(kappa)) * (sinh(kappa)))) * (first_modified_Bessel(0, 2 * kappa) - (1 / kappa) * first_modified_Bessel(1, 2 * kappa));
+        double pi = acos(-1);
+        double SinGamma = psi * pi / 4;
+        //--------------------------------------------------------
+        if (str_frac_size == "powerlaw")
+        {
+            double x0, x1;
+            x0 = min_R_i * pow(2.0, 0.5);
+            x1 = max_R_i * pow(2.0, 0.5);
+            double C2 = (1 - alpha_g) / (pow(x1, 1 - alpha_g) - pow(x0, 1 - alpha_g));
+            //********below is 2/pi * < sinγ > * < A * P >
+            Excluded_volume_1 = C2 * 4.0 * (pow(x1, 4.0 - alpha_g) - pow(x0, 4.0 - alpha_g)) / (4.0 - alpha_g);
+            Excluded_volume_1 = 2 / pi * SinGamma * Excluded_volume_1;
+
+            //********below is 2/pi * < sinγ > *<A>*<P>
+            Excluded_volume_2 = C2 * (pow(x1, 3.0 - alpha_g) - pow(x0, 3.0 - alpha_g)) / (3.0 - alpha_g);                                                 //<A>
+            Excluded_volume_2 = 2 / pi * SinGamma * Excluded_volume_2 * (4.0 * C2 * (pow(x1, 2.0 - alpha_g) - pow(x0, 2.0 - alpha_g)) / (2.0 - alpha_g)); //<A>*<P>
+
+            //********below is 2/pi * < sinγ > * <l^3>
+            Excluded_volume_3 = 2 / pi * SinGamma * C2 * (pow(x1, 4.0 - alpha_g) - pow(x0, 4.0 - alpha_g)) / (4.0 - alpha_g);
+
+            //********below is 2/pi * < sinγ > * <l^3>/<l^2>, and note that the percolation parameter equals to P32*< sinγ >*<l^3>/<l^2>
+            Excluded_volume_4 = Excluded_volume_3 / (C2 / (3.0 - alpha_g) * (pow(x1, 3.0 - alpha_g) - pow(x0, 3.0 - alpha_g)));
+
+            //********below is 2/pi * < sinγ > * <A*P>/<l^2>, and note that the percolation parameter equals to P32*< sinγ >*<l^3>/<l^2>
+            Excluded_volume_5 = Excluded_volume_1 / (C2 / (3.0 - alpha_g) * (pow(x1, 3.0 - alpha_g) - pow(x0, 3.0 - alpha_g)));
+        }
+        else if (str_frac_size == "lognormal")
+        {
+            double mean, var;
+            mean = mean_i * pow(2, 0.5);
+            var = 2.0 * var_i;
+
+            double mean_1 = log(mean * mean / (pow(var + mean * mean, 0.5)));
+            double var_1 = pow(log(1 + ((double)var) / (mean * mean)), 0.5); //var_1 is input std. deviation
+
+            //********below is 2/pi * < sinγ > * < A * P >
+            Excluded_volume_1 = 2 / pi * SinGamma * 4.0 * exp(3 * mean_1 + (9.00 / 2.0) * (var_1 * var_1));
+            //std::cout << "Vex: " << Excluded_volume_1 <<"\n";
+
+            //********below is 2/pi * < sinγ > *<A>*<P>
+            Excluded_volume_2 = 2 / pi * SinGamma * exp(2.0 * mean_1 + 2.0 * var_1 * var_1) * 4.0 * exp(mean_1 + 0.5 * var_1 * var_1);
+
+            //********below is 2/pi * < sinγ > * <l^3>
+            Excluded_volume_3 = 2 / pi * SinGamma * exp(3.0 * mean_1 + (9.00 / 2.0) * (var_1 * var_1));
+
+            //********below is 2/pi * < sinγ > * <l^3>/<l^2>, and note that the percolation parameter equals to P32*< sinγ >*<l^3>/<l^2>
+            Excluded_volume_4 = Excluded_volume_3 / (exp(2.0 * mean_1 + 2.0 * var_1 * var_1));
+
+            //********below is 2/pi * < sinγ > * <A*P>/<l^2>, and note that the percolation parameter equals to P32*< sinγ >*<l^3>/<l^2>
+            Excluded_volume_5 = Excluded_volume_1 / (exp(2.0 * mean_1 + 2.0 * var_1 * var_1));
+        }
+        else if (str_frac_size == "uniform")
+        {
+            double max_R, min_R;
+            max_R = max_R_i * pow(2.0, 0.5);
+            min_R = min_R_i * pow(2.0, 0.5);
+            double C2 = 1 / (max_R - min_R);
+
+            //********below is 2/pi * < sinγ > * < A * P >
+            Excluded_volume_1 = 2 / pi * SinGamma * C2 * 4.0 / 4.0 * (pow(max_R, 4) - pow(min_R, 4));
+
+            //********below is 2/pi * < sinγ > *<A>*<P>
+            Excluded_volume_2 = 2 / pi * SinGamma * C2 * (pow(max_R, 3.0) - pow(min_R, 3.0)) / 3.0 * C2 * 4.0 * (pow(max_R, 2.0) - pow(min_R, 2.0)) / 2.0;
+
+            //********below is 2/pi * < sinγ > * <l^3>
+            Excluded_volume_3 = 2 / pi * SinGamma * C2 * ((pow(max_R, 4.0) - pow(min_R, 4.0)) / 4.0);
+
+            //********below is 2/pi * < sinγ > * <l^3>/<l^2>, and note that the percolation parameter equals to P32*< sinγ >*<l^3>/<l^2>
+            Excluded_volume_4 = Excluded_volume_3 / (C2 * ((pow(max_R, 3.0) - pow(min_R, 3.0)) / 3.0));
+
+            //********below is 2/pi * < sinγ > * <A*P>/<l^2>, and note that the percolation parameter equals to P32*< sinγ >*<l^3>/<l^2>
+            Excluded_volume_5 = Excluded_volume_1 / (C2 * ((pow(max_R, 3.0) - pow(min_R, 3.0)) / 3.0));
+        }
+        else if (str_frac_size == "single")
+        {
+            double R = min_R_i * pow(2.0, 0.5);
+            //********below is 2/pi * < sinγ > * < A * P >
+            Excluded_volume_1 = 2 / pi * SinGamma * (R * R) * (4.0 * R);
+
+            //********below is 2/pi * < sinγ > *<A>*<P>
+            Excluded_volume_2 = Excluded_volume_1;
+
+            //********below is 2/pi * < sinγ > * <l^3>
+            Excluded_volume_3 = 2 / pi * SinGamma * R * R * R;
+
+            //********below is 2/pi * < sinγ > * <l^3>/<l^2>, and note that the percolation parameter equals to P32*< sinγ >*<l^3>/<l^2>
+            Excluded_volume_4 = Excluded_volume_3 / (R * R);
+
+            //********below is 2/pi * < sinγ > * <A*P>/<l^2>, and note that the percolation parameter equals to P32*< sinγ >*<l^3>/<l^2>
+            Excluded_volume_5 = Excluded_volume_1 / (R * R);
+        }
+    }
+    else
+    {
+        std::cout << "Error! Please define the orientation distribution!\n";
+        exit(0);
+    }
+};
+
+inline size_t Domain::Identify_percolation_clusters(string str)
+{
+    Percolation_cluster.resize(3);
+    if (Fractures.size() == 0)
+    {
+        //std::cout << "debug!!!?\n";
+        return 0;
+    }
+    for (size_t i = 0; i < Listofclusters.size(); ++i) //Z direction
+    {
+        size_t q1 = 0, q2 = 0;
+        for (size_t j = 0; j < Listofclusters[i].size(); ++j)
+        {
+            if (Fractures[Listofclusters[i][j]].If_intersect_surfaces(0) == 1)
+                q1 = 1;
+            if (Fractures[Listofclusters[i][j]].If_intersect_surfaces(1) == 1)
+                q2 = 1;
+            if (q1 == 1 && q2 == 1)
+            {
+                Percolation_cluster[2].push_back(i);
+                break;
+            }
+        }
+    }
+
+    for (size_t i = 0; i < Listofclusters.size(); ++i) //Y direction
+    {
+        size_t q1 = 0, q2 = 0;
+        for (size_t j = 0; j < Listofclusters[i].size(); ++j)
+        {
+            if (Fractures[Listofclusters[i][j]].If_intersect_surfaces(2) == 1)
+                q1 = 1;
+            if (Fractures[Listofclusters[i][j]].If_intersect_surfaces(3) == 1)
+                q2 = 1;
+            if (q1 == 1 && q2 == 1)
+            {
+                Percolation_cluster[1].push_back(i);
+                break;
+            }
+        }
+    }
+
+    for (size_t i = 0; i < Listofclusters.size(); ++i) //X direction
+    {
+        size_t q1 = 0, q2 = 0;
+        for (size_t j = 0; j < Listofclusters[i].size(); ++j)
+        {
+            if (Fractures[Listofclusters[i][j]].If_intersect_surfaces(4) == 1)
+                q1 = 1;
+            if (Fractures[Listofclusters[i][j]].If_intersect_surfaces(5) == 1)
+                q2 = 1;
+            if (q1 == 1 && q2 == 1)
+            {
+                Percolation_cluster[0].push_back(i);
+                break;
+            }
+        }
+    }
+    if (str == "x")
+    {
+        if (Percolation_cluster[0].size() == 0)
+        {
+            return 0;
+        }
+        else
+            return 1;
+    }
+    else if (str == "y")
+    {
+        if (Percolation_cluster[1].size() == 0)
+        {
+            return 0;
+        }
+        else
+            return 1;
+    }
+    else if (str == "z")
+    {
+        if (Percolation_cluster[2].size() == 0)
+        {
+            return 0;
+        }
+        else
+            return 1;
+    }
+    else
+    {
+        std::cout << "Please define a percolation direction with x, y, z\n";
+        exit(0);
+    }
+}
+
+inline void Domain::Connectivity_uniform_orientation(string str_perco_dir)
+{
+
+    if (Fractures.size() == 0)
+    {
+        return;
+    }
+    std::vector<size_t> temp;
+    if (str_perco_dir == "x")
+    {
+        temp.resize(Percolation_cluster[0].size());
+        temp = Percolation_cluster[0];
+    }
+    else if (str_perco_dir == "y")
+    {
+        temp.resize(Percolation_cluster[1].size());
+        temp = Percolation_cluster[1];
+    }
+    else if (str_perco_dir == "z")
+    {
+        temp.resize(Percolation_cluster[2].size());
+        temp = Percolation_cluster[2];
+    }
+    else
+    {
+        std::cout << "please define the percolation direction with char 'x', 'y' or 'z'\n";
+        exit(0);
+    }
+    P32_connected = 0;
+    P32_total = 0;
+    double Area_connected = 0;
+    double Area_total = 0;
+    double Model_volume = (Model_domain(0) - Model_domain(1)) * (Model_domain(3) - Model_domain(2)) * (Model_domain(5) - Model_domain(4));
+
+    double nooffractures_connected = 0;
+    for (size_t i = 0; i < temp.size(); ++i)
+    {
+        for (size_t j = 0; j < Listofclusters[temp[i]].size(); ++j)
+        {
+            size_t nf = Listofclusters[temp[i]][j];
+            nooffractures_connected = nooffractures_connected + 1;
+            Area_connected = Area_connected + Fractures[nf].Area;
+        }
+    }
+    P32_connected = Area_connected / Model_volume;
+    for (size_t i = 0; i < Fractures.size(); ++i)
+    {
+        Area_total = Area_total + Fractures[i].Area;
+    }
+    P32_total = Area_total / Model_volume;
+    Ratio_of_P32 = P32_connected / P32_total;
+
+    P30 = Fractures.size() / Model_volume;
+    P30_connected = nooffractures_connected / Model_volume;
+
+    Ratio_of_P30 = P30_connected / P30;
+
+    Percolation_parameter_a = P30 * Excluded_volume_1;
+    Percolation_parameter_b = P30 * Excluded_volume_2;
+    Percolation_parameter_c = P30 * Excluded_volume_3;
+    Percolation_parameter_d = P32_total * Excluded_volume_4;
+    Percolation_parameter_e = P32_total * Excluded_volume_5;
+};
+
+inline void Domain::Connectivity_fisher_orientation(string str_perco_dir)
+{
+    if (Fractures.size() == 0)
+    {
+        return;
+    }
+    std::vector<size_t> temp;
+    if (str_perco_dir == "x")
+    {
+        temp.resize(Percolation_cluster[0].size());
+        temp = Percolation_cluster[0];
+    }
+    else if (str_perco_dir == "y")
+    {
+        temp.resize(Percolation_cluster[1].size());
+        temp = Percolation_cluster[1];
+    }
+    else if (str_perco_dir == "z")
+    {
+        temp.resize(Percolation_cluster[2].size());
+        temp = Percolation_cluster[2];
+    }
+    else
+    {
+        std::cout << "please define the percolation direction with char 'x', 'y' or 'z'\n";
+        exit(0);
+    }
+    P32_connected = 0;
+    P32_total = 0;
+    double Area_connected = 0;
+    double Area_total = 0;
+    double Model_volume = (Model_domain(0) - Model_domain(1)) * (Model_domain(3) - Model_domain(2)) * (Model_domain(5) - Model_domain(4));
+
+    double nooffractures_connected = 0;
+    for (size_t i = 0; i < temp.size(); ++i)
+    {
+        for (size_t j = 0; j < Listofclusters[temp[i]].size(); ++j)
+        {
+            size_t nf = Listofclusters[temp[i]][j];
+            nooffractures_connected = nooffractures_connected + 1;
+            Area_connected = Area_connected + Fractures[nf].Area;
+        }
+    }
+    P32_connected = Area_connected / Model_volume;
+    for (size_t i = 0; i < Fractures.size(); ++i)
+    {
+        Area_total = Area_total + Fractures[i].Area;
+    }
+    P32_total = Area_total / Model_volume;
+
+    Ratio_of_P32 = P32_connected / P32_total;
+
+    P30 = Fractures.size() / Model_volume;
+    P30_connected = nooffractures_connected / Model_volume;
+    Ratio_of_P30 = P30_connected / P30;
+
+    Percolation_parameter_a = P30 * Excluded_volume_1;
+    Percolation_parameter_b = P30 * Excluded_volume_2;
+    Percolation_parameter_c = P30 * Excluded_volume_3;
+    Percolation_parameter_d = P32_total * Excluded_volume_4;
+    Percolation_parameter_e = P32_total * Excluded_volume_5;
+};
+
+inline void Domain::PlotMatlab_DFN(string FileKey)
+{
+    //Writing data
+    std::ofstream oss(FileKey, ios::out);
+
+    //Plotting the fractures
+    oss << "clc;\nclose all;\nclear all;\n";
+    for (size_t nf = 0; nf < Fractures.size(); nf++)
+    {
+        size_t n_verts = Fractures[nf].Verts.size();
+        oss << "frac" << nf + 1 << " = fill3([";
+        for (size_t nv = 0; nv < n_verts + 1; ++nv)
+        {
+            size_t nv_1 = nv - (size_t)(nv / n_verts) * n_verts;
+            oss << Fractures[nf].Verts[nv_1](0) << " ";
+        }
+        oss << "],[";
+        for (size_t nv = 0; nv < n_verts + 1; ++nv)
+        {
+            size_t nv_1 = nv - (size_t)(nv / n_verts) * n_verts;
+            oss << Fractures[nf].Verts[nv_1](1) << " ";
+        }
+        oss << "],[";
+        for (size_t nv = 0; nv < n_verts + 1; ++nv)
+        {
+            size_t nv_1 = nv - (size_t)(nv / n_verts) * n_verts;
+            oss << Fractures[nf].Verts[nv_1](2) << " ";
+        }
+        oss << "],[rand rand rand]);\ngrid on;\nhold on;\n";
+    }
+
+    //Plotting the model domain
+    for (size_t i = 0; i < 6; ++i)
+    {
+        for (size_t j = 0; j < 4; ++j)
+        {
+            size_t nj = j + 1 - (size_t)((j + 1) / 4) * (j + 1);
+            oss << "plot3(";
+            oss << "[" << Surfaces[i].Verts[j](0) << " " << Surfaces[i].Verts[nj](0) << "],";
+            oss << "[" << Surfaces[i].Verts[j](1) << " " << Surfaces[i].Verts[nj](1) << "],";
+            oss << "[" << Surfaces[i].Verts[j](2) << " " << Surfaces[i].Verts[nj](2) << "],";
+            oss << "'color',[1 0 0],'Linewidth',3);\ngrid on;\nhold on;\n";
+        }
+    }
+    double xmin_1 = Model_domain(4), xmax_1 = Model_domain(5);
+    double ymin_1 = Model_domain(2), ymax_1 = Model_domain(3);
+    double zmin_1 = Model_domain(1), zmax_1 = Model_domain(0);
+    oss << "axis([" << xmin_1 << " " << xmax_1 << " " << ymin_1 << " " << ymax_1 << " " << zmin_1 << " " << zmax_1 << "])\nhold on;\nxlabel('x (m)');\nylabel('y (m)');\nzlabel('z (m)');\ntitle('DFN');\n";
+
+    oss.close();
+};
+
+inline void Domain::PlotMatlab_DFN_trim(string FileKey)
+{
+    //Writing data
+    std::ofstream oss(FileKey, ios::out);
+    oss << "clc;\nclose all;\nclear all;\n";
+    //Plotting the fractures
+    for (size_t nf = 0; nf < Fractures.size(); nf++)
+    {
+        size_t n_verts = Fractures[nf].Verts_trim.size();
+        oss << "fill3([";
+        for (size_t nv = 0; nv < n_verts + 1; ++nv)
+        {
+            size_t nv_1 = nv - (size_t)(nv / n_verts) * n_verts;
+            oss << Fractures[nf].Verts_trim[nv_1](0) << " ";
+        }
+        oss << "],[";
+        for (size_t nv = 0; nv < n_verts + 1; ++nv)
+        {
+            size_t nv_1 = nv - (size_t)(nv / n_verts) * n_verts;
+            oss << Fractures[nf].Verts_trim[nv_1](1) << " ";
+        }
+        oss << "],[";
+        for (size_t nv = 0; nv < n_verts + 1; ++nv)
+        {
+            size_t nv_1 = nv - (size_t)(nv / n_verts) * n_verts;
+            oss << Fractures[nf].Verts_trim[nv_1](2) << " ";
+        }
+        oss << "],[rand rand rand]);\ngrid on;\nhold on;\n";
+    }
+
+    //Plotting the model domain
+    for (size_t i = 0; i < 6; ++i)
+    {
+        for (size_t j = 0; j < 4; ++j)
+        {
+            size_t nj = j + 1 - (size_t)((j + 1) / 4) * (j + 1);
+            oss << "plot3(";
+            oss << "[" << Surfaces[i].Verts[j](0) << " " << Surfaces[i].Verts[nj](0) << "],";
+            oss << "[" << Surfaces[i].Verts[j](1) << " " << Surfaces[i].Verts[nj](1) << "],";
+            oss << "[" << Surfaces[i].Verts[j](2) << " " << Surfaces[i].Verts[nj](2) << "],";
+            oss << "'color',[1 0 0],'Linewidth',3);\ngrid on;\nhold on;\n";
+        }
+    }
+    double xmin_1 = Model_domain(4), xmax_1 = Model_domain(5);
+    double ymin_1 = Model_domain(2), ymax_1 = Model_domain(3);
+    double zmin_1 = Model_domain(1), zmax_1 = Model_domain(0);
+    oss << "axis([" << xmin_1 << " " << xmax_1 << " " << ymin_1 << " " << ymax_1 << " " << zmin_1 << " " << zmax_1 << "])\nhold on;\nxlabel('x (m)');\nylabel('y (m)');\nzlabel('z (m)');\ntitle('DFN');\n";
+
+    //Open Matlab script to plot
+    oss.close();
+};
+
+inline void Domain::PlotMatlab_DFN_and_Intersection(string FileKey)
+{
+    //Writing data
+    std::ofstream oss(FileKey, ios::out);
+
+    oss << "clc;\nclose all;\nclear all;\n";
+    //Plotting the fractures
+    for (size_t nf = 0; nf < Fractures.size(); nf++)
+    {
+        size_t n_verts = Fractures[nf].Verts_trim.size();
+        oss << "frac" << nf + 1 << " = fill3([";
+        for (size_t nv = 0; nv < n_verts + 1; ++nv)
+        {
+            size_t nv_1 = nv - (size_t)(nv / n_verts) * n_verts;
+            oss << Fractures[nf].Verts_trim[nv_1](0) << " ";
+            /*
+            if (isnan(Fractures[nf].Verts_trim[nv_1](0)) == 1)
+            {
+                cout << "nf: " << nf << endl;
+                cout << "nv_1: " << nv_1 << endl;
+                cout << "Verts_trim[nv_1]: " << Fractures[nf].Verts_trim[nv_1].transpose() << endl;
+                cout << "found isnan!\n";
+                exit(0);
+            }*/
+        }
+        oss << "],[";
+        for (size_t nv = 0; nv < n_verts + 1; ++nv)
+        {
+            size_t nv_1 = nv - (size_t)(nv / n_verts) * n_verts;
+            oss << Fractures[nf].Verts_trim[nv_1](1) << " ";
+        }
+        oss << "],[";
+        for (size_t nv = 0; nv < n_verts + 1; ++nv)
+        {
+            size_t nv_1 = nv - (size_t)(nv / n_verts) * n_verts;
+            oss << Fractures[nf].Verts_trim[nv_1](2) << " ";
+        }
+        oss << "],[rand rand rand]);\ngrid on;\nhold on;\n";
+    }
+
+    //Plotting the intersections
+    //std::cout<<Connections.size()<<std::endl;
+    for (size_t nc = 0; nc < Connections.size() / 2; nc++)
+    {
+        size_t i1 = Connections[2 * nc];
+        size_t i2 = Connections[2 * nc + 1];
+        Vector3d x1 = Intersections[std::make_pair(i1, i2)].first;
+        Vector3d x2 = Intersections[std::make_pair(i1, i2)].second;
+        oss << "plot3(";
+        oss << "[" << x1(0) << " " << x2(0) << "],";
+        oss << "[" << x1(1) << " " << x2(1) << "],";
+        oss << "[" << x1(2) << " " << x2(2) << "],";
+        oss << "'color',[0 0 1],'Linewidth',3);\ngrid on;\nhold on;\n";
+    }
+
+    //Plotting the model domain
+    for (size_t i = 0; i < 6; ++i)
+    {
+        for (size_t j = 0; j < 4; ++j)
+        {
+            size_t nj = j + 1 - (size_t)((j + 1) / 4) * (j + 1);
+            oss << "plot3(";
+            oss << "[" << Surfaces[i].Verts[j](0) << " " << Surfaces[i].Verts[nj](0) << "],";
+            oss << "[" << Surfaces[i].Verts[j](1) << " " << Surfaces[i].Verts[nj](1) << "],";
+            oss << "[" << Surfaces[i].Verts[j](2) << " " << Surfaces[i].Verts[nj](2) << "],";
+            oss << "'color',[1 0 0],'Linewidth',3);\ngrid on;\nhold on;\n";
+        }
+    }
+    double xmin_1 = Model_domain(4), xmax_1 = Model_domain(5);
+    double ymin_1 = Model_domain(2), ymax_1 = Model_domain(3);
+    double zmin_1 = Model_domain(1), zmax_1 = Model_domain(0);
+    oss << "axis([" << xmin_1 << " " << xmax_1 << " " << ymin_1 << " " << ymax_1 << " " << zmin_1 << " " << zmax_1 << "])\nhold on;\nxlabel('x (m)');\nylabel('y (m)');\nzlabel('z (m)');\ntitle('DFN');\n";
+
+    oss.close();
+}
+
+inline void Domain::PlotMatlab_ORI_SCATTER(string FileKey)
+{
+    //Writing data
+    std::ofstream oss(FileKey, ios::out);
+    oss << "clc;\nclose all;\nclear all;\n";
+    double pi = acos(-1);
+    oss << "th = [";
+    for (size_t i = 0; i < Fractures.size(); ++i)
+    {
+        double DD = Fractures[i].Dip_direction;
+        double alpha = 0;
+        if (DD > 90)
+            alpha = 450 - DD;
+        else if (DD <= 90)
+            alpha = 90 - DD;
+        alpha = alpha * pi / 180.0;
+        oss << alpha << " ";
+    }
+    oss << "];\nr = [";
+
+    for (size_t i = 0; i < Fractures.size(); ++i)
+    {
+        double DA = Fractures[i].Dip_angle;
+        double beta = DA;
+        beta = beta * pi / 180.0;
+        oss << beta << " ";
+    }
+    oss << "];\npolarscatter(th,r,'filled');\nhold on;\nrlim([0 " << pi / 2 << "]);\n";
+    oss << "hold on;\nrticks([" << pi / 12 << " " << 2 * pi / 12 << " " << 3 * pi / 12 << " " << 4 * pi / 12 << " " << 5 * pi / 12 << " " << 6 * pi / 12 << "]);\n";
+    oss << "set(gca,'thetaticklabel',[]);\n";
+    oss << "set(gca,'rticklabel',[]);";
+    oss.close();
+};
+
+inline void Domain::PlotMatlab_Traces_on_Model_surfaces(string FileKey)
+{
+    //Writing data
+    std::ofstream oss(FileKey, ios::out);
+    oss << "clc;\nclose all;\nclear all;\n";
+    //plotting the intersections between model surfaces and fractures
+
+    for (size_t nc = 0; nc < Connections_S.size() / 2; nc++)
+    {
+        size_t i1 = Connections_S[2 * nc];
+        size_t i2 = Connections_S[2 * nc + 1];
+        Vector3d x1 = Intersections_S[std::make_pair(i1, i2)].first;
+        Vector3d x2 = Intersections_S[std::make_pair(i1, i2)].second;
+        oss << "plot3(";
+        oss << "[" << x1(0) << " " << x2(0) << "],";
+        oss << "[" << x1(1) << " " << x2(1) << "],";
+        oss << "[" << x1(2) << " " << x2(2) << "],";
+        oss << "'color',[0 0 1],'Linewidth',3);\ngrid on;\nhold on;\n";
+    }
+
+    //Plotting the model domain
+    for (size_t i = 0; i < 6; ++i)
+    {
+        for (size_t j = 0; j < 4; ++j)
+        {
+            size_t nj = j + 1 - (size_t)((j + 1) / 4) * (j + 1);
+            oss << "plot3(";
+            oss << "[" << Surfaces[i].Verts[j](0) << " " << Surfaces[i].Verts[nj](0) << "],";
+            oss << "[" << Surfaces[i].Verts[j](1) << " " << Surfaces[i].Verts[nj](1) << "],";
+            oss << "[" << Surfaces[i].Verts[j](2) << " " << Surfaces[i].Verts[nj](2) << "],";
+            oss << "'color',[1 0 0],'Linewidth',3);\ngrid on;\nhold on;\n";
+        }
+    }
+    double xmin_1 = Model_domain(4), xmax_1 = Model_domain(5);
+    double ymin_1 = Model_domain(2), ymax_1 = Model_domain(3);
+    double zmin_1 = Model_domain(1), zmax_1 = Model_domain(0);
+    oss << "axis([" << xmin_1 << " " << xmax_1 << " " << ymin_1 << " " << ymax_1 << " " << zmin_1 << " " << zmax_1 << "])\nhold on;\nxlabel('x (m)');\nylabel('y (m)');\nzlabel('z (m)');\ntitle('DFN');\n";
+    oss.close();
+};
+
+inline void Domain::PlotMatlab_DFN_Highlight_Cluster(string FileKey)
+{
+    //Writing data
+    std::ofstream oss(FileKey, ios::out);
+    oss << "clc;\nclose all;\nclear all;\n";
+    //Plotting the fractures, they are distinguished by clus values
+    for (size_t i = 0; i < Listofclusters.size(); ++i)
+    {
+        double rand_1 = random_double(0, 1);
+        double rand_2 = random_double(0, 1);
+        double rand_3 = random_double(0, 1);
+        for (size_t j = 0; j < Listofclusters[i].size(); ++j)
+        {
+            size_t nf = Listofclusters[i][j];
+            size_t n_verts = Fractures[nf].Verts.size();
+            oss << "fill3([";
+            for (size_t nv = 0; nv < n_verts + 1; ++nv)
+            {
+                size_t nv_1 = nv - (size_t)(nv / n_verts) * n_verts;
+                oss << Fractures[nf].Verts[nv_1](0) << " ";
+            }
+            oss << "],[";
+            for (size_t nv = 0; nv < n_verts + 1; ++nv)
+            {
+                size_t nv_1 = nv - (size_t)(nv / n_verts) * n_verts;
+                oss << Fractures[nf].Verts[nv_1](1) << " ";
+            }
+            oss << "],[";
+            for (size_t nv = 0; nv < n_verts + 1; ++nv)
+            {
+                size_t nv_1 = nv - (size_t)(nv / n_verts) * n_verts;
+                oss << Fractures[nf].Verts[nv_1](2) << " ";
+            }
+            oss << "],[" << rand_1 << " " << rand_2 << " " << rand_3 << "]);\ngrid on;\nhold on;\n";
+        }
+    }
+
+    //Plotting the model domain
+    for (size_t i = 0; i < 6; ++i)
+    {
+        for (size_t j = 0; j < 4; ++j)
+        {
+            size_t nj = j + 1 - (size_t)((j + 1) / 4) * (j + 1);
+            oss << "plot3(";
+            oss << "[" << Surfaces[i].Verts[j](0) << " " << Surfaces[i].Verts[nj](0) << "],";
+            oss << "[" << Surfaces[i].Verts[j](1) << " " << Surfaces[i].Verts[nj](1) << "],";
+            oss << "[" << Surfaces[i].Verts[j](2) << " " << Surfaces[i].Verts[nj](2) << "],";
+            oss << "'color',[1 0 0],'Linewidth',3);\ngrid on;\nhold on;\n";
+        }
+    }
+    double xmin_1 = Model_domain(4), xmax_1 = Model_domain(5);
+    double ymin_1 = Model_domain(2), ymax_1 = Model_domain(3);
+    double zmin_1 = Model_domain(1), zmax_1 = Model_domain(0);
+    oss << "axis([" << xmin_1 << " " << xmax_1 << " " << ymin_1 << " " << ymax_1 << " " << zmin_1 << " " << zmax_1 << "])\nhold on;\nxlabel('x (m)');\nylabel('y (m)');\nzlabel('z (m)');\ntitle('DFN');\n";
+
+    oss.close();
+};
+
+inline void Domain::PLotMatlab_DFN_Cluster_along_a_direction(string FileKey, string str)
+{
+    //Writing data
+    std::ofstream oss(FileKey, ios::out);
+    oss << "clc;\nclose all;\nclear all;\n";
+    //Plotting the fractures
+    std::vector<size_t> temp;
+    if (str == "x")
+    {
+        temp.resize(Percolation_cluster[0].size());
+        temp = Percolation_cluster[0];
+    }
+    else if (str == "y")
+    {
+        temp.resize(Percolation_cluster[1].size());
+        temp = Percolation_cluster[1];
+    }
+    else if (str == "z")
+    {
+        temp.resize(Percolation_cluster[2].size());
+        temp = Percolation_cluster[2];
+    }
+    else
+    {
+        std::cout << "please define the percolation direction with char 'x', 'y' or 'z'\n";
+        exit(0);
+    };
+
+    for (size_t i = 0; i < temp.size(); ++i)
+    {
+        double rand_1 = random_double(0, 1);
+        double rand_2 = random_double(0, 1);
+        double rand_3 = random_double(0, 1);
+        for (size_t j = 0; j < Listofclusters[temp[i]].size(); ++j)
+        {
+            size_t nf = Listofclusters[temp[i]][j];
+            size_t n_verts = Fractures[nf].Verts.size();
+            oss << "fill3([";
+            for (size_t nv = 0; nv < n_verts + 1; ++nv)
+            {
+                size_t nv_1 = nv - (size_t)(nv / n_verts) * n_verts;
+                oss << Fractures[nf].Verts[nv_1](0) << " ";
+            }
+            oss << "],[";
+            for (size_t nv = 0; nv < n_verts + 1; ++nv)
+            {
+                size_t nv_1 = nv - (size_t)(nv / n_verts) * n_verts;
+                oss << Fractures[nf].Verts[nv_1](1) << " ";
+            }
+            oss << "],[";
+            for (size_t nv = 0; nv < n_verts + 1; ++nv)
+            {
+                size_t nv_1 = nv - (size_t)(nv / n_verts) * n_verts;
+                oss << Fractures[nf].Verts[nv_1](2) << " ";
+            }
+            oss << "],[" << rand_1 << " " << rand_2 << " " << rand_3 << "]);\ngrid on;\nhold on;\n";
+        }
+    }
+
+    //Plotting the model domain
+    for (size_t i = 0; i < 6; ++i)
+    {
+        for (size_t j = 0; j < 4; ++j)
+        {
+            size_t nj = j + 1 - (size_t)((j + 1) / 4) * (j + 1);
+            oss << "plot3(";
+            oss << "[" << Surfaces[i].Verts[j](0) << " " << Surfaces[i].Verts[nj](0) << "],";
+            oss << "[" << Surfaces[i].Verts[j](1) << " " << Surfaces[i].Verts[nj](1) << "],";
+            oss << "[" << Surfaces[i].Verts[j](2) << " " << Surfaces[i].Verts[nj](2) << "],";
+            oss << "'color',[1 0 0],'Linewidth',3);\ngrid on;\nhold on;\n";
+        }
+    }
+    double xmin_1 = Model_domain(4), xmax_1 = Model_domain(5);
+    double ymin_1 = Model_domain(2), ymax_1 = Model_domain(3);
+    double zmin_1 = Model_domain(1), zmax_1 = Model_domain(0);
+    oss << "axis([" << xmin_1 << " " << xmax_1 << " " << ymin_1 << " " << ymax_1 << " " << zmin_1 << " " << zmax_1 << "])\nhold on;\nxlabel('x (m)');\nylabel('y (m)');\nzlabel('z (m)');\ntitle('DFN');\n";
+    oss.close();
+};
+
+inline void Domain::PlotMatlab_Radius_and_Area_kstest(string FileKey)
+{
+    std::ofstream oss(FileKey, ios::out);
+    oss << "clc;\nclose all;\nclear all;\n";
+    oss << "x1=[";
+    for (size_t i = 0; i < Fractures.size(); ++i)
+    {
+        oss << Fractures[i].Radius << "\t";
+    }
+    oss << "];\n";
+
+    oss << "x2=[";
+    for (size_t i = 0; i < Fractures.size(); ++i)
+    {
+        oss << Fractures[i].Area << "\t";
+    }
+    oss << "];\n";
+
+    oss << "[h,p,k] = kstest2(x1,x2);\n";
+    oss << "%if h = 1, means the two groups of data are not having similar distributions;\n";
+    oss << "hold on;\n";
+    oss << "nbins = 30;\n";
+    oss << "subplot(2,1,1);\n";
+    oss << "histogram(x1,nbins);\n";
+    oss << "hold on;\n";
+    oss << "subplot(2,1,2);\n";
+    oss << "%histogram(x2);\n";
+    oss << "histogram(x2,nbins);\n";
+
+    oss.close();
+};
+
+inline void Domain::PlotMatlab_Radius_and_Perimeter_kstest(string FileKey)
+{
+    std::ofstream oss(FileKey, ios::out);
+    oss << "clc;\nclose all;\nclear all;\n";
+    oss << "x1=[";
+    for (size_t i = 0; i < Fractures.size(); ++i)
+    {
+        oss << Fractures[i].Radius << "\t";
+    }
+    oss << "];\n";
+
+    oss << "x2=[";
+    for (size_t i = 0; i < Fractures.size(); ++i)
+    {
+        oss << Fractures[i].Perimeter << "\t";
+    }
+    oss << "];\n";
+
+    oss << "[h,p,k] = kstest2(x1,x2);\n";
+    oss << "%if h = 1, means the two groups of data are not having similar distributions;\n";
+    oss << "hold on;\n";
+    oss << "nbins = 30;\n";
+    oss << "subplot(2,1,1);\n";
+    oss << "histogram(x1,nbins);\n";
+    oss << "hold on;\n";
+    oss << "subplot(2,1,2);\n";
+    oss << "%histogram(x2);\n";
+    oss << "histogram(x2,nbins);\n";
+
+    oss.close();
+};
+
+inline void Domain::DataFile_Radius_AreaAndPerimeter(string FileKey)
+{
+    std::ofstream oss(FileKey, ios::out);
+    oss << "Radius\tArea\tPerimeter\n";
+    for (size_t i = 0; i < Fractures.size(); ++i)
+    {
+        if (i == Fractures.size() - 1)
+            oss << Fractures[i].Radius << "\t" << Fractures[i].Area << "\t" << Fractures[i].Perimeter;
+        oss << Fractures[i].Radius << "\t" << Fractures[i].Area << "\t" << Fractures[i].Perimeter << "\n";
+    };
+
+    oss.close();
+}
+}; // namespace DFN

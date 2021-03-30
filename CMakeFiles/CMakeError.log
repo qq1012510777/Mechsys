@@ -1,0 +1,456 @@
+Determining if the Fortran sgemm exists failed with the following output:
+Change Dir: /home/tingchangyin/mechsys/CMakeFiles/CMakeTmp
+
+Run Build Command:"/usr/bin/make" "cmTC_f62a8/fast"
+/usr/bin/make -f CMakeFiles/cmTC_f62a8.dir/build.make CMakeFiles/cmTC_f62a8.dir/build
+make[1]: Entering directory '/home/tingchangyin/mechsys/CMakeFiles/CMakeTmp'
+Building Fortran object CMakeFiles/cmTC_f62a8.dir/testFortranCompiler.f.o
+/usr/bin/gfortran    -c /home/tingchangyin/mechsys/CMakeFiles/CMakeTmp/testFortranCompiler.f -o CMakeFiles/cmTC_f62a8.dir/testFortranCompiler.f.o
+Linking Fortran executable cmTC_f62a8
+/opt/cmake-3.13.0/bin/cmake -E cmake_link_script CMakeFiles/cmTC_f62a8.dir/link.txt --verbose=1
+/usr/bin/gfortran      CMakeFiles/cmTC_f62a8.dir/testFortranCompiler.f.o  -o cmTC_f62a8 
+CMakeFiles/cmTC_f62a8.dir/testFortranCompiler.f.o: In function `MAIN__':
+testFortranCompiler.f:(.text+0xa): undefined reference to `sgemm_'
+collect2: error: ld returned 1 exit status
+CMakeFiles/cmTC_f62a8.dir/build.make:86: recipe for target 'cmTC_f62a8' failed
+make[1]: *** [cmTC_f62a8] Error 1
+make[1]: Leaving directory '/home/tingchangyin/mechsys/CMakeFiles/CMakeTmp'
+Makefile:121: recipe for target 'cmTC_f62a8/fast' failed
+make: *** [cmTC_f62a8/fast] Error 2
+
+
+Determining if the pthread_create exist failed with the following output:
+Change Dir: /home/tingchangyin/mechsys/CMakeFiles/CMakeTmp
+
+Run Build Command:"/usr/bin/make" "cmTC_9b48f/fast"
+/usr/bin/make -f CMakeFiles/cmTC_9b48f.dir/build.make CMakeFiles/cmTC_9b48f.dir/build
+make[1]: Entering directory '/home/tingchangyin/mechsys/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_9b48f.dir/CheckSymbolExists.c.o
+/usr/bin/cc    -o CMakeFiles/cmTC_9b48f.dir/CheckSymbolExists.c.o   -c /home/tingchangyin/mechsys/CMakeFiles/CMakeTmp/CheckSymbolExists.c
+Linking C executable cmTC_9b48f
+/opt/cmake-3.13.0/bin/cmake -E cmake_link_script CMakeFiles/cmTC_9b48f.dir/link.txt --verbose=1
+/usr/bin/cc      -rdynamic CMakeFiles/cmTC_9b48f.dir/CheckSymbolExists.c.o  -o cmTC_9b48f 
+CMakeFiles/cmTC_9b48f.dir/CheckSymbolExists.c.o: In function `main':
+CheckSymbolExists.c:(.text+0x1b): undefined reference to `pthread_create'
+collect2: error: ld returned 1 exit status
+CMakeFiles/cmTC_9b48f.dir/build.make:86: recipe for target 'cmTC_9b48f' failed
+make[1]: *** [cmTC_9b48f] Error 1
+make[1]: Leaving directory '/home/tingchangyin/mechsys/CMakeFiles/CMakeTmp'
+Makefile:121: recipe for target 'cmTC_9b48f/fast' failed
+make: *** [cmTC_9b48f/fast] Error 2
+
+File /home/tingchangyin/mechsys/CMakeFiles/CMakeTmp/CheckSymbolExists.c:
+/* */
+#include <pthread.h>
+
+int main(int argc, char** argv)
+{
+  (void)argv;
+#ifndef pthread_create
+  return ((int*)(&pthread_create))[argc];
+#else
+  (void)argc;
+  return 0;
+#endif
+}
+
+Determining if the function pthread_create exists in the pthreads failed with the following output:
+Change Dir: /home/tingchangyin/mechsys/CMakeFiles/CMakeTmp
+
+Run Build Command:"/usr/bin/make" "cmTC_93348/fast"
+/usr/bin/make -f CMakeFiles/cmTC_93348.dir/build.make CMakeFiles/cmTC_93348.dir/build
+make[1]: Entering directory '/home/tingchangyin/mechsys/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_93348.dir/CheckFunctionExists.c.o
+/usr/bin/cc   -DCHECK_FUNCTION_EXISTS=pthread_create   -o CMakeFiles/cmTC_93348.dir/CheckFunctionExists.c.o   -c /opt/cmake-3.13.0/share/cmake-3.13/Modules/CheckFunctionExists.c
+Linking C executable cmTC_93348
+/opt/cmake-3.13.0/bin/cmake -E cmake_link_script CMakeFiles/cmTC_93348.dir/link.txt --verbose=1
+/usr/bin/cc  -DCHECK_FUNCTION_EXISTS=pthread_create    -rdynamic CMakeFiles/cmTC_93348.dir/CheckFunctionExists.c.o  -o cmTC_93348 -lpthreads 
+/usr/bin/ld: cannot find -lpthreads
+collect2: error: ld returned 1 exit status
+CMakeFiles/cmTC_93348.dir/build.make:86: recipe for target 'cmTC_93348' failed
+make[1]: *** [cmTC_93348] Error 1
+make[1]: Leaving directory '/home/tingchangyin/mechsys/CMakeFiles/CMakeTmp'
+Makefile:121: recipe for target 'cmTC_93348/fast' failed
+make: *** [cmTC_93348/fast] Error 2
+
+
+Determining if the Fortran sgemm exists failed with the following output:
+Change Dir: /home/tingchangyin/mechsys/CMakeFiles/CMakeTmp
+
+Run Build Command:"/usr/bin/make" "cmTC_6e73d/fast"
+/usr/bin/make -f CMakeFiles/cmTC_6e73d.dir/build.make CMakeFiles/cmTC_6e73d.dir/build
+make[1]: Entering directory '/home/tingchangyin/mechsys/CMakeFiles/CMakeTmp'
+Building Fortran object CMakeFiles/cmTC_6e73d.dir/testFortranCompiler.f.o
+/usr/bin/gfortran    -c /home/tingchangyin/mechsys/CMakeFiles/CMakeTmp/testFortranCompiler.f -o CMakeFiles/cmTC_6e73d.dir/testFortranCompiler.f.o
+Linking Fortran executable cmTC_6e73d
+/opt/cmake-3.13.0/bin/cmake -E cmake_link_script CMakeFiles/cmTC_6e73d.dir/link.txt --verbose=1
+/usr/bin/gfortran      CMakeFiles/cmTC_6e73d.dir/testFortranCompiler.f.o  -o cmTC_6e73d 
+CMakeFiles/cmTC_6e73d.dir/testFortranCompiler.f.o: In function `MAIN__':
+testFortranCompiler.f:(.text+0xa): undefined reference to `sgemm_'
+collect2: error: ld returned 1 exit status
+CMakeFiles/cmTC_6e73d.dir/build.make:86: recipe for target 'cmTC_6e73d' failed
+make[1]: *** [cmTC_6e73d] Error 1
+make[1]: Leaving directory '/home/tingchangyin/mechsys/CMakeFiles/CMakeTmp'
+Makefile:121: recipe for target 'cmTC_6e73d/fast' failed
+make: *** [cmTC_6e73d/fast] Error 2
+
+
+Determining if the pthread_create exist failed with the following output:
+Change Dir: /home/tingchangyin/mechsys/CMakeFiles/CMakeTmp
+
+Run Build Command:"/usr/bin/make" "cmTC_50bd9/fast"
+/usr/bin/make -f CMakeFiles/cmTC_50bd9.dir/build.make CMakeFiles/cmTC_50bd9.dir/build
+make[1]: Entering directory '/home/tingchangyin/mechsys/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_50bd9.dir/CheckSymbolExists.c.o
+/usr/bin/cc    -o CMakeFiles/cmTC_50bd9.dir/CheckSymbolExists.c.o   -c /home/tingchangyin/mechsys/CMakeFiles/CMakeTmp/CheckSymbolExists.c
+Linking C executable cmTC_50bd9
+/opt/cmake-3.13.0/bin/cmake -E cmake_link_script CMakeFiles/cmTC_50bd9.dir/link.txt --verbose=1
+/usr/bin/cc      -rdynamic CMakeFiles/cmTC_50bd9.dir/CheckSymbolExists.c.o  -o cmTC_50bd9 
+CMakeFiles/cmTC_50bd9.dir/CheckSymbolExists.c.o: In function `main':
+CheckSymbolExists.c:(.text+0x1b): undefined reference to `pthread_create'
+collect2: error: ld returned 1 exit status
+CMakeFiles/cmTC_50bd9.dir/build.make:86: recipe for target 'cmTC_50bd9' failed
+make[1]: *** [cmTC_50bd9] Error 1
+make[1]: Leaving directory '/home/tingchangyin/mechsys/CMakeFiles/CMakeTmp'
+Makefile:121: recipe for target 'cmTC_50bd9/fast' failed
+make: *** [cmTC_50bd9/fast] Error 2
+
+File /home/tingchangyin/mechsys/CMakeFiles/CMakeTmp/CheckSymbolExists.c:
+/* */
+#include <pthread.h>
+
+int main(int argc, char** argv)
+{
+  (void)argv;
+#ifndef pthread_create
+  return ((int*)(&pthread_create))[argc];
+#else
+  (void)argc;
+  return 0;
+#endif
+}
+
+Determining if the function pthread_create exists in the pthreads failed with the following output:
+Change Dir: /home/tingchangyin/mechsys/CMakeFiles/CMakeTmp
+
+Run Build Command:"/usr/bin/make" "cmTC_dcffb/fast"
+/usr/bin/make -f CMakeFiles/cmTC_dcffb.dir/build.make CMakeFiles/cmTC_dcffb.dir/build
+make[1]: Entering directory '/home/tingchangyin/mechsys/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_dcffb.dir/CheckFunctionExists.c.o
+/usr/bin/cc   -DCHECK_FUNCTION_EXISTS=pthread_create   -o CMakeFiles/cmTC_dcffb.dir/CheckFunctionExists.c.o   -c /opt/cmake-3.13.0/share/cmake-3.13/Modules/CheckFunctionExists.c
+Linking C executable cmTC_dcffb
+/opt/cmake-3.13.0/bin/cmake -E cmake_link_script CMakeFiles/cmTC_dcffb.dir/link.txt --verbose=1
+/usr/bin/cc  -DCHECK_FUNCTION_EXISTS=pthread_create    -rdynamic CMakeFiles/cmTC_dcffb.dir/CheckFunctionExists.c.o  -o cmTC_dcffb -lpthreads 
+/usr/bin/ld: cannot find -lpthreads
+collect2: error: ld returned 1 exit status
+CMakeFiles/cmTC_dcffb.dir/build.make:86: recipe for target 'cmTC_dcffb' failed
+make[1]: *** [cmTC_dcffb] Error 1
+make[1]: Leaving directory '/home/tingchangyin/mechsys/CMakeFiles/CMakeTmp'
+Makefile:121: recipe for target 'cmTC_dcffb/fast' failed
+make: *** [cmTC_dcffb/fast] Error 2
+
+
+Determining if the Fortran sgemm exists failed with the following output:
+Change Dir: /home/tingchangyin/mechsys/CMakeFiles/CMakeTmp
+
+Run Build Command:"/usr/bin/make" "cmTC_98301/fast"
+/usr/bin/make -f CMakeFiles/cmTC_98301.dir/build.make CMakeFiles/cmTC_98301.dir/build
+make[1]: Entering directory '/home/tingchangyin/mechsys/CMakeFiles/CMakeTmp'
+Building Fortran object CMakeFiles/cmTC_98301.dir/testFortranCompiler.f.o
+/usr/bin/gfortran    -c /home/tingchangyin/mechsys/CMakeFiles/CMakeTmp/testFortranCompiler.f -o CMakeFiles/cmTC_98301.dir/testFortranCompiler.f.o
+Linking Fortran executable cmTC_98301
+/opt/cmake-3.13.0/bin/cmake -E cmake_link_script CMakeFiles/cmTC_98301.dir/link.txt --verbose=1
+/usr/bin/gfortran      CMakeFiles/cmTC_98301.dir/testFortranCompiler.f.o  -o cmTC_98301 
+CMakeFiles/cmTC_98301.dir/testFortranCompiler.f.o: In function `MAIN__':
+testFortranCompiler.f:(.text+0xa): undefined reference to `sgemm_'
+collect2: error: ld returned 1 exit status
+CMakeFiles/cmTC_98301.dir/build.make:86: recipe for target 'cmTC_98301' failed
+make[1]: *** [cmTC_98301] Error 1
+make[1]: Leaving directory '/home/tingchangyin/mechsys/CMakeFiles/CMakeTmp'
+Makefile:121: recipe for target 'cmTC_98301/fast' failed
+make: *** [cmTC_98301/fast] Error 2
+
+
+Determining if the pthread_create exist failed with the following output:
+Change Dir: /home/tingchangyin/mechsys/CMakeFiles/CMakeTmp
+
+Run Build Command:"/usr/bin/make" "cmTC_bec23/fast"
+/usr/bin/make -f CMakeFiles/cmTC_bec23.dir/build.make CMakeFiles/cmTC_bec23.dir/build
+make[1]: Entering directory '/home/tingchangyin/mechsys/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_bec23.dir/CheckSymbolExists.c.o
+/usr/bin/cc    -o CMakeFiles/cmTC_bec23.dir/CheckSymbolExists.c.o   -c /home/tingchangyin/mechsys/CMakeFiles/CMakeTmp/CheckSymbolExists.c
+Linking C executable cmTC_bec23
+/opt/cmake-3.13.0/bin/cmake -E cmake_link_script CMakeFiles/cmTC_bec23.dir/link.txt --verbose=1
+/usr/bin/cc      -rdynamic CMakeFiles/cmTC_bec23.dir/CheckSymbolExists.c.o  -o cmTC_bec23 
+CMakeFiles/cmTC_bec23.dir/CheckSymbolExists.c.o: In function `main':
+CheckSymbolExists.c:(.text+0x1b): undefined reference to `pthread_create'
+collect2: error: ld returned 1 exit status
+CMakeFiles/cmTC_bec23.dir/build.make:86: recipe for target 'cmTC_bec23' failed
+make[1]: *** [cmTC_bec23] Error 1
+make[1]: Leaving directory '/home/tingchangyin/mechsys/CMakeFiles/CMakeTmp'
+Makefile:121: recipe for target 'cmTC_bec23/fast' failed
+make: *** [cmTC_bec23/fast] Error 2
+
+File /home/tingchangyin/mechsys/CMakeFiles/CMakeTmp/CheckSymbolExists.c:
+/* */
+#include <pthread.h>
+
+int main(int argc, char** argv)
+{
+  (void)argv;
+#ifndef pthread_create
+  return ((int*)(&pthread_create))[argc];
+#else
+  (void)argc;
+  return 0;
+#endif
+}
+
+Determining if the function pthread_create exists in the pthreads failed with the following output:
+Change Dir: /home/tingchangyin/mechsys/CMakeFiles/CMakeTmp
+
+Run Build Command:"/usr/bin/make" "cmTC_d53b8/fast"
+/usr/bin/make -f CMakeFiles/cmTC_d53b8.dir/build.make CMakeFiles/cmTC_d53b8.dir/build
+make[1]: Entering directory '/home/tingchangyin/mechsys/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_d53b8.dir/CheckFunctionExists.c.o
+/usr/bin/cc   -DCHECK_FUNCTION_EXISTS=pthread_create   -o CMakeFiles/cmTC_d53b8.dir/CheckFunctionExists.c.o   -c /opt/cmake-3.13.0/share/cmake-3.13/Modules/CheckFunctionExists.c
+Linking C executable cmTC_d53b8
+/opt/cmake-3.13.0/bin/cmake -E cmake_link_script CMakeFiles/cmTC_d53b8.dir/link.txt --verbose=1
+/usr/bin/cc  -DCHECK_FUNCTION_EXISTS=pthread_create    -rdynamic CMakeFiles/cmTC_d53b8.dir/CheckFunctionExists.c.o  -o cmTC_d53b8 -lpthreads 
+/usr/bin/ld: cannot find -lpthreads
+collect2: error: ld returned 1 exit status
+CMakeFiles/cmTC_d53b8.dir/build.make:86: recipe for target 'cmTC_d53b8' failed
+make[1]: *** [cmTC_d53b8] Error 1
+make[1]: Leaving directory '/home/tingchangyin/mechsys/CMakeFiles/CMakeTmp'
+Makefile:121: recipe for target 'cmTC_d53b8/fast' failed
+make: *** [cmTC_d53b8/fast] Error 2
+
+
+Determining if the Fortran sgemm exists failed with the following output:
+Change Dir: /home/tingchangyin/mechsys/CMakeFiles/CMakeTmp
+
+Run Build Command:"/usr/bin/make" "cmTC_06460/fast"
+/usr/bin/make -f CMakeFiles/cmTC_06460.dir/build.make CMakeFiles/cmTC_06460.dir/build
+make[1]: Entering directory '/home/tingchangyin/mechsys/CMakeFiles/CMakeTmp'
+Building Fortran object CMakeFiles/cmTC_06460.dir/testFortranCompiler.f.o
+/usr/bin/gfortran    -c /home/tingchangyin/mechsys/CMakeFiles/CMakeTmp/testFortranCompiler.f -o CMakeFiles/cmTC_06460.dir/testFortranCompiler.f.o
+Linking Fortran executable cmTC_06460
+/opt/cmake-3.13.0/bin/cmake -E cmake_link_script CMakeFiles/cmTC_06460.dir/link.txt --verbose=1
+/usr/bin/gfortran      CMakeFiles/cmTC_06460.dir/testFortranCompiler.f.o  -o cmTC_06460 
+CMakeFiles/cmTC_06460.dir/testFortranCompiler.f.o: In function `MAIN__':
+testFortranCompiler.f:(.text+0xa): undefined reference to `sgemm_'
+collect2: error: ld returned 1 exit status
+CMakeFiles/cmTC_06460.dir/build.make:86: recipe for target 'cmTC_06460' failed
+make[1]: *** [cmTC_06460] Error 1
+make[1]: Leaving directory '/home/tingchangyin/mechsys/CMakeFiles/CMakeTmp'
+Makefile:121: recipe for target 'cmTC_06460/fast' failed
+make: *** [cmTC_06460/fast] Error 2
+
+
+Determining if the pthread_create exist failed with the following output:
+Change Dir: /home/tingchangyin/mechsys/CMakeFiles/CMakeTmp
+
+Run Build Command:"/usr/bin/make" "cmTC_e52dd/fast"
+/usr/bin/make -f CMakeFiles/cmTC_e52dd.dir/build.make CMakeFiles/cmTC_e52dd.dir/build
+make[1]: Entering directory '/home/tingchangyin/mechsys/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_e52dd.dir/CheckSymbolExists.c.o
+/usr/bin/cc    -o CMakeFiles/cmTC_e52dd.dir/CheckSymbolExists.c.o   -c /home/tingchangyin/mechsys/CMakeFiles/CMakeTmp/CheckSymbolExists.c
+Linking C executable cmTC_e52dd
+/opt/cmake-3.13.0/bin/cmake -E cmake_link_script CMakeFiles/cmTC_e52dd.dir/link.txt --verbose=1
+/usr/bin/cc      -rdynamic CMakeFiles/cmTC_e52dd.dir/CheckSymbolExists.c.o  -o cmTC_e52dd 
+CMakeFiles/cmTC_e52dd.dir/CheckSymbolExists.c.o: In function `main':
+CheckSymbolExists.c:(.text+0x1b): undefined reference to `pthread_create'
+collect2: error: ld returned 1 exit status
+CMakeFiles/cmTC_e52dd.dir/build.make:86: recipe for target 'cmTC_e52dd' failed
+make[1]: *** [cmTC_e52dd] Error 1
+make[1]: Leaving directory '/home/tingchangyin/mechsys/CMakeFiles/CMakeTmp'
+Makefile:121: recipe for target 'cmTC_e52dd/fast' failed
+make: *** [cmTC_e52dd/fast] Error 2
+
+File /home/tingchangyin/mechsys/CMakeFiles/CMakeTmp/CheckSymbolExists.c:
+/* */
+#include <pthread.h>
+
+int main(int argc, char** argv)
+{
+  (void)argv;
+#ifndef pthread_create
+  return ((int*)(&pthread_create))[argc];
+#else
+  (void)argc;
+  return 0;
+#endif
+}
+
+Determining if the function pthread_create exists in the pthreads failed with the following output:
+Change Dir: /home/tingchangyin/mechsys/CMakeFiles/CMakeTmp
+
+Run Build Command:"/usr/bin/make" "cmTC_c2664/fast"
+/usr/bin/make -f CMakeFiles/cmTC_c2664.dir/build.make CMakeFiles/cmTC_c2664.dir/build
+make[1]: Entering directory '/home/tingchangyin/mechsys/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_c2664.dir/CheckFunctionExists.c.o
+/usr/bin/cc   -DCHECK_FUNCTION_EXISTS=pthread_create   -o CMakeFiles/cmTC_c2664.dir/CheckFunctionExists.c.o   -c /opt/cmake-3.13.0/share/cmake-3.13/Modules/CheckFunctionExists.c
+Linking C executable cmTC_c2664
+/opt/cmake-3.13.0/bin/cmake -E cmake_link_script CMakeFiles/cmTC_c2664.dir/link.txt --verbose=1
+/usr/bin/cc  -DCHECK_FUNCTION_EXISTS=pthread_create    -rdynamic CMakeFiles/cmTC_c2664.dir/CheckFunctionExists.c.o  -o cmTC_c2664 -lpthreads 
+/usr/bin/ld: cannot find -lpthreads
+collect2: error: ld returned 1 exit status
+CMakeFiles/cmTC_c2664.dir/build.make:86: recipe for target 'cmTC_c2664' failed
+make[1]: *** [cmTC_c2664] Error 1
+make[1]: Leaving directory '/home/tingchangyin/mechsys/CMakeFiles/CMakeTmp'
+Makefile:121: recipe for target 'cmTC_c2664/fast' failed
+make: *** [cmTC_c2664/fast] Error 2
+
+
+Determining if the Fortran sgemm exists failed with the following output:
+Change Dir: /home/tingchangyin/mechsys/CMakeFiles/CMakeTmp
+
+Run Build Command:"/usr/bin/make" "cmTC_8df62/fast"
+/usr/bin/make -f CMakeFiles/cmTC_8df62.dir/build.make CMakeFiles/cmTC_8df62.dir/build
+make[1]: Entering directory '/home/tingchangyin/mechsys/CMakeFiles/CMakeTmp'
+Building Fortran object CMakeFiles/cmTC_8df62.dir/testFortranCompiler.f.o
+/usr/bin/gfortran    -c /home/tingchangyin/mechsys/CMakeFiles/CMakeTmp/testFortranCompiler.f -o CMakeFiles/cmTC_8df62.dir/testFortranCompiler.f.o
+Linking Fortran executable cmTC_8df62
+/opt/cmake-3.13.0/bin/cmake -E cmake_link_script CMakeFiles/cmTC_8df62.dir/link.txt --verbose=1
+/usr/bin/gfortran      CMakeFiles/cmTC_8df62.dir/testFortranCompiler.f.o  -o cmTC_8df62 
+CMakeFiles/cmTC_8df62.dir/testFortranCompiler.f.o: In function `MAIN__':
+testFortranCompiler.f:(.text+0xa): undefined reference to `sgemm_'
+collect2: error: ld returned 1 exit status
+CMakeFiles/cmTC_8df62.dir/build.make:86: recipe for target 'cmTC_8df62' failed
+make[1]: *** [cmTC_8df62] Error 1
+make[1]: Leaving directory '/home/tingchangyin/mechsys/CMakeFiles/CMakeTmp'
+Makefile:121: recipe for target 'cmTC_8df62/fast' failed
+make: *** [cmTC_8df62/fast] Error 2
+
+
+Determining if the pthread_create exist failed with the following output:
+Change Dir: /home/tingchangyin/mechsys/CMakeFiles/CMakeTmp
+
+Run Build Command:"/usr/bin/make" "cmTC_a5853/fast"
+/usr/bin/make -f CMakeFiles/cmTC_a5853.dir/build.make CMakeFiles/cmTC_a5853.dir/build
+make[1]: Entering directory '/home/tingchangyin/mechsys/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_a5853.dir/CheckSymbolExists.c.o
+/usr/bin/cc    -o CMakeFiles/cmTC_a5853.dir/CheckSymbolExists.c.o   -c /home/tingchangyin/mechsys/CMakeFiles/CMakeTmp/CheckSymbolExists.c
+Linking C executable cmTC_a5853
+/opt/cmake-3.13.0/bin/cmake -E cmake_link_script CMakeFiles/cmTC_a5853.dir/link.txt --verbose=1
+/usr/bin/cc      -rdynamic CMakeFiles/cmTC_a5853.dir/CheckSymbolExists.c.o  -o cmTC_a5853 
+CMakeFiles/cmTC_a5853.dir/CheckSymbolExists.c.o: In function `main':
+CheckSymbolExists.c:(.text+0x1b): undefined reference to `pthread_create'
+collect2: error: ld returned 1 exit status
+CMakeFiles/cmTC_a5853.dir/build.make:86: recipe for target 'cmTC_a5853' failed
+make[1]: *** [cmTC_a5853] Error 1
+make[1]: Leaving directory '/home/tingchangyin/mechsys/CMakeFiles/CMakeTmp'
+Makefile:121: recipe for target 'cmTC_a5853/fast' failed
+make: *** [cmTC_a5853/fast] Error 2
+
+File /home/tingchangyin/mechsys/CMakeFiles/CMakeTmp/CheckSymbolExists.c:
+/* */
+#include <pthread.h>
+
+int main(int argc, char** argv)
+{
+  (void)argv;
+#ifndef pthread_create
+  return ((int*)(&pthread_create))[argc];
+#else
+  (void)argc;
+  return 0;
+#endif
+}
+
+Determining if the function pthread_create exists in the pthreads failed with the following output:
+Change Dir: /home/tingchangyin/mechsys/CMakeFiles/CMakeTmp
+
+Run Build Command:"/usr/bin/make" "cmTC_b119e/fast"
+/usr/bin/make -f CMakeFiles/cmTC_b119e.dir/build.make CMakeFiles/cmTC_b119e.dir/build
+make[1]: Entering directory '/home/tingchangyin/mechsys/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_b119e.dir/CheckFunctionExists.c.o
+/usr/bin/cc   -DCHECK_FUNCTION_EXISTS=pthread_create   -o CMakeFiles/cmTC_b119e.dir/CheckFunctionExists.c.o   -c /opt/cmake-3.13.0/share/cmake-3.13/Modules/CheckFunctionExists.c
+Linking C executable cmTC_b119e
+/opt/cmake-3.13.0/bin/cmake -E cmake_link_script CMakeFiles/cmTC_b119e.dir/link.txt --verbose=1
+/usr/bin/cc  -DCHECK_FUNCTION_EXISTS=pthread_create    -rdynamic CMakeFiles/cmTC_b119e.dir/CheckFunctionExists.c.o  -o cmTC_b119e -lpthreads 
+/usr/bin/ld: cannot find -lpthreads
+collect2: error: ld returned 1 exit status
+CMakeFiles/cmTC_b119e.dir/build.make:86: recipe for target 'cmTC_b119e' failed
+make[1]: *** [cmTC_b119e] Error 1
+make[1]: Leaving directory '/home/tingchangyin/mechsys/CMakeFiles/CMakeTmp'
+Makefile:121: recipe for target 'cmTC_b119e/fast' failed
+make: *** [cmTC_b119e/fast] Error 2
+
+
+Determining if the Fortran sgemm exists failed with the following output:
+Change Dir: /home/tingchangyin/mechsys/CMakeFiles/CMakeTmp
+
+Run Build Command:"/usr/bin/make" "cmTC_b1973/fast"
+/usr/bin/make -f CMakeFiles/cmTC_b1973.dir/build.make CMakeFiles/cmTC_b1973.dir/build
+make[1]: Entering directory '/home/tingchangyin/mechsys/CMakeFiles/CMakeTmp'
+Building Fortran object CMakeFiles/cmTC_b1973.dir/testFortranCompiler.f.o
+/usr/bin/gfortran    -c /home/tingchangyin/mechsys/CMakeFiles/CMakeTmp/testFortranCompiler.f -o CMakeFiles/cmTC_b1973.dir/testFortranCompiler.f.o
+Linking Fortran executable cmTC_b1973
+/opt/cmake-3.13.0/bin/cmake -E cmake_link_script CMakeFiles/cmTC_b1973.dir/link.txt --verbose=1
+/usr/bin/gfortran      CMakeFiles/cmTC_b1973.dir/testFortranCompiler.f.o  -o cmTC_b1973 
+CMakeFiles/cmTC_b1973.dir/testFortranCompiler.f.o: In function `MAIN__':
+testFortranCompiler.f:(.text+0xa): undefined reference to `sgemm_'
+collect2: error: ld returned 1 exit status
+CMakeFiles/cmTC_b1973.dir/build.make:86: recipe for target 'cmTC_b1973' failed
+make[1]: *** [cmTC_b1973] Error 1
+make[1]: Leaving directory '/home/tingchangyin/mechsys/CMakeFiles/CMakeTmp'
+Makefile:121: recipe for target 'cmTC_b1973/fast' failed
+make: *** [cmTC_b1973/fast] Error 2
+
+
+Determining if the pthread_create exist failed with the following output:
+Change Dir: /home/tingchangyin/mechsys/CMakeFiles/CMakeTmp
+
+Run Build Command:"/usr/bin/make" "cmTC_4f37c/fast"
+/usr/bin/make -f CMakeFiles/cmTC_4f37c.dir/build.make CMakeFiles/cmTC_4f37c.dir/build
+make[1]: Entering directory '/home/tingchangyin/mechsys/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_4f37c.dir/CheckSymbolExists.c.o
+/usr/bin/cc    -o CMakeFiles/cmTC_4f37c.dir/CheckSymbolExists.c.o   -c /home/tingchangyin/mechsys/CMakeFiles/CMakeTmp/CheckSymbolExists.c
+Linking C executable cmTC_4f37c
+/opt/cmake-3.13.0/bin/cmake -E cmake_link_script CMakeFiles/cmTC_4f37c.dir/link.txt --verbose=1
+/usr/bin/cc      -rdynamic CMakeFiles/cmTC_4f37c.dir/CheckSymbolExists.c.o  -o cmTC_4f37c 
+CMakeFiles/cmTC_4f37c.dir/CheckSymbolExists.c.o: In function `main':
+CheckSymbolExists.c:(.text+0x1b): undefined reference to `pthread_create'
+collect2: error: ld returned 1 exit status
+CMakeFiles/cmTC_4f37c.dir/build.make:86: recipe for target 'cmTC_4f37c' failed
+make[1]: *** [cmTC_4f37c] Error 1
+make[1]: Leaving directory '/home/tingchangyin/mechsys/CMakeFiles/CMakeTmp'
+Makefile:121: recipe for target 'cmTC_4f37c/fast' failed
+make: *** [cmTC_4f37c/fast] Error 2
+
+File /home/tingchangyin/mechsys/CMakeFiles/CMakeTmp/CheckSymbolExists.c:
+/* */
+#include <pthread.h>
+
+int main(int argc, char** argv)
+{
+  (void)argv;
+#ifndef pthread_create
+  return ((int*)(&pthread_create))[argc];
+#else
+  (void)argc;
+  return 0;
+#endif
+}
+
+Determining if the function pthread_create exists in the pthreads failed with the following output:
+Change Dir: /home/tingchangyin/mechsys/CMakeFiles/CMakeTmp
+
+Run Build Command:"/usr/bin/make" "cmTC_4a78d/fast"
+/usr/bin/make -f CMakeFiles/cmTC_4a78d.dir/build.make CMakeFiles/cmTC_4a78d.dir/build
+make[1]: Entering directory '/home/tingchangyin/mechsys/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_4a78d.dir/CheckFunctionExists.c.o
+/usr/bin/cc   -DCHECK_FUNCTION_EXISTS=pthread_create   -o CMakeFiles/cmTC_4a78d.dir/CheckFunctionExists.c.o   -c /opt/cmake-3.13.0/share/cmake-3.13/Modules/CheckFunctionExists.c
+Linking C executable cmTC_4a78d
+/opt/cmake-3.13.0/bin/cmake -E cmake_link_script CMakeFiles/cmTC_4a78d.dir/link.txt --verbose=1
+/usr/bin/cc  -DCHECK_FUNCTION_EXISTS=pthread_create    -rdynamic CMakeFiles/cmTC_4a78d.dir/CheckFunctionExists.c.o  -o cmTC_4a78d -lpthreads 
+/usr/bin/ld: cannot find -lpthreads
+collect2: error: ld returned 1 exit status
+CMakeFiles/cmTC_4a78d.dir/build.make:86: recipe for target 'cmTC_4a78d' failed
+make[1]: *** [cmTC_4a78d] Error 1
+make[1]: Leaving directory '/home/tingchangyin/mechsys/CMakeFiles/CMakeTmp'
+Makefile:121: recipe for target 'cmTC_4a78d/fast' failed
+make: *** [cmTC_4a78d/fast] Error 2
+
+
