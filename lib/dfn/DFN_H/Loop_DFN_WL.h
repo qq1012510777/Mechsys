@@ -251,7 +251,7 @@ inline void Loop_DFN::Loop_create_DFNs(gsl_rng *random_seed,
                 dom.PlotMatlab_DFN_and_Intersection("tdfn01_DFN_and_Intersections.m");
                 dom.PlotMatlab_ORI_SCATTER("tdfn01_ORI_SCATTER.m");
                 //dom.PlotMatlab_Traces_on_Model_surfaces("tdfn01_Trace_on_surfaces.m");
-                //dom.PlotMatlab_DFN_Highlight_Cluster("tdfn01_DFN_Highlight_Cluster.m");
+                dom.PlotMatlab_DFN_Highlight_Cluster("tdfn01_DFN_Highlight_Cluster.m");
                 dom.PLotMatlab_DFN_Cluster_along_a_direction("tdfn01_DFN_Z_clusters.m", "z");
                 //dom.PlotMatlab_Radius_and_Area_kstest("tdfn01_DFN_Fracture_Radius_and_Area.m");
                 //dom.PlotMatlab_Radius_and_Perimeter_kstest("tdfn01_DFN_Fracture_Radius_and_Perimeter.m");

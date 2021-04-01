@@ -1,128 +1,120 @@
 #pragma once
 
-#include <iostream>
-#include <ctime>
+#include <bits/stdc++.h>
 #include <cmath>
+#include <ctime>
+#include <iostream>
 #include <queue>
 #include <vector>
-
+using namespace std;
+//--------------------------------------------------------------------------
 class Graph
 {
 public:
-    size_t NumOfFractures;
+    //size_t NumOfFractures;
     ///< variable with the number of fractures
-
+    size_t V;
     //std::vector<std::vector<size_t>> G;
 
-    std::vector<std::vector<size_t>> Adj;
+    //std::vector<std::vector<size_t>> Adj;
+    list<int> *Adj; // adjacency lists
     ///< adjacent list
 
-    std::vector<bool> Visited;
+    //std::vector<bool> Visited;
     ///< history: if this fracture has
     // been visited or not
 
 public:
     Graph(const size_t NumOfFractures_1,
           const std::vector<size_t> Connections);
-    void DFS(size_t V, std::vector<size_t> &B,
-             size_t &Tag_r);
+
+    void DFS(std::vector<std::vector<size_t>> & ListOfClusters);
+
+    void DFSUtil(int s, vector<bool> &visited, vector<size_t> &onecluster);
+
+    void addEdge(int v, int w);
+
     void CreateGraph_i(std::vector<std::vector<size_t>> &S);
 };
 
 inline Graph::Graph(const size_t NumOfFractures_1, const std::vector<size_t> Connections)
 {
     //std::cout << "debug_0.01\n";
-    NumOfFractures = NumOfFractures_1;
-
-    /*G.resize(NumOfFractures);
-
-    for (size_t i = 0; i < NumOfFractures; ++i)
-        G[i].resize(NumOfFractures);
-
-    for (size_t i = 0; i < NumOfFractures; ++i)
-    {
-        for (size_t j = 0; j < NumOfFractures; ++j)
-            G[i][j] = 0;
-    }*/
-    Adj.resize(NumOfFractures_1);
-    //std::cout << "debug_0.02\n";
-    for (size_t i = 0; i < NumOfFractures; ++i)
-    {
-        Adj[i].resize(1);
-        Adj[i][0] = i;
-    }
+    Adj = new list<int>[NumOfFractures_1];
+    V = NumOfFractures_1;
 
     //std::cout << "debug_0.03\n";
 
     for (size_t i = 0; i < Connections.size() / 2; ++i)
     {
-        //G[Connections[2 * i]][Connections[2 * i + 1]] = 1;
-        //G[Connections[2 * i + 1]][Connections[2 * i]] = 1;
-        Adj[Connections[2 * i]].push_back(Connections[2 * i + 1]);
-        Adj[Connections[2 * i + 1]].push_back(Connections[2 * i]);
-    }
-
-    Visited.resize(NumOfFractures);
-    for (size_t i = 0; i < NumOfFractures; ++i)
-    {
-        Visited[i] = false;
+        addEdge(Connections[2 * i], Connections[2 * i + 1]);
+        addEdge(Connections[2 * i + 1], Connections[2 * i]);
     }
 }
 
-inline void Graph::DFS(size_t V, std::vector<size_t> &B /*one array to record one cluster*/, size_t &Tag_r)
+inline void Graph::addEdge(int v, int w)
 {
-    Visited[V] = true;
-    B[Tag_r] = V;
-    //B.push_back(V);
+    Adj[v].push_back(w); // Add w to v’s list.
+}
 
-    /*for (size_t i = 0; i < NumOfFractures; ++i)
+inline void Graph::DFS(std::vector<std::vector<size_t>> & ListOfClusters)
+{
+    // Mark all the vertices as not visited
+    vector<bool> visited(V, false);
+
+    for (int i = 0; i < (int)V; i++)
     {
-        if (Visited[i] == false && G[V][i] == 1)
+        vector<size_t> onecluster;
+        if (!visited[i])
         {
-            Tag_r++;
-            DFS(i, B, Tag_r);
+            DFSUtil(i, visited, onecluster);
         }
-    }*/
 
-    for (size_t i = 0; i < Adj[V].size(); i++)
-    {
-        if (!Visited[Adj[V][i]])
+        if (onecluster.size() > 0)
         {
-            Tag_r++;
-            DFS(Adj[V][i], B, Tag_r);
+            ListOfClusters.push_back(onecluster);   
+        }
+    }
+}
+
+inline void Graph::DFSUtil(int s, vector<bool> &visited, vector<size_t> &onecluster)
+{
+    // Create a stack for DFS
+    stack<int> stack;
+
+    // Push the current source node.
+    stack.push(s);
+
+    while (!stack.empty())
+    {
+        // Pop a vertex from stack and print it
+        s = stack.top();
+        stack.pop();
+
+        // Stack may contain same vertex twice. So
+        // we need to print the popped item only
+        // if it is not visited.
+        if (!visited[s])
+        {
+            //cout << s << " ";
+            onecluster.push_back((size_t)s);
+            visited[s] = true;
+        }
+
+        // Get all adjacent vertices of the popped vertex s
+        // If a adjacent has not been visited, then push it
+        // to the stack.
+        for (auto i = Adj[s].begin(); i != Adj[s].end(); ++i)
+        {
+            if (!visited[*i])
+            {
+                stack.push(*i);
+            };
         }
     }
 }
 
 inline void Graph::CreateGraph_i(std::vector<std::vector<size_t>> &S)
 {
-    //std::cout << "graph_x\n";
-    if (S.size() != 0)
-    {
-        std::cout << "Error! ListOfClusters should be empty array!\n";
-        exit(0);
-    }
-    for (size_t i = 0; i < NumOfFractures; ++i)
-    {
-        if (!Visited[i])
-        {
-            size_t Tag_r = 0;
-            //std::vector<size_t> A;
-            std::vector<size_t> A(NumOfFractures);
-            //std::cout << "debug_0.5\n";
-            DFS(i, A, Tag_r); // so, at least, the first element of A will form a cluster
-            //std::cout << "debug_1\n";
-            //need a function to determine true size of one cluster, i.e., provided A = [0,1,2,3,0,0,0], the size of this cluster is four
-
-            std::vector<size_t> new_A(Tag_r + 1);
-
-            S.push_back(new_A);
-            //std::cout << "debug_2\n";
-            for (size_t i = 0; i < Tag_r + 1; ++i)
-                S[S.size() - 1][i] = A[i];
-            //std::cout << "debug_3\n";
-            //S.push_back(A);
-            //S.push_back(new_A); //
-        }
-    }
+    DFS(S);   
 }
