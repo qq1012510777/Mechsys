@@ -1,9 +1,12 @@
 #pragma once
+#include "../Geometry_H/NorVec_plane.h"
 #include "../Math_WL_H/Math_WL.h"
 #include "../Quaternion_H/Quaternion.h"
+#include "../Geometry_H/Vector_2.h"
 #include "Dense"
 #include "Random_function_WL.h"
 #include <cmath>
+#include <iostream>
 #include <set>
 #include <string>
 
@@ -136,17 +139,24 @@ inline Fracture::Fracture(string string_ori,
             n_1 = -n_1;
         }
         //std::cout<<" *** "<<l_1<<", "<<m_1<<", "<<n_1;
+        double r_k = pow(l_1 * l_1 + m_1 * m_1 + n_1 * n_1, 0.5);
 
-        double beta_tmp = acos(n_1) * 180.0 / M_PI;
-        double alpha_tmp = atan2(m_1, l_1) * 180 / M_PI;
+        double beta_tmp = acos(n_1 / r_k) * 180.0 / M_PI;
+        double alpha_tmp = atan2(m_1, l_1) * 180.0 / M_PI;
 
         if (alpha_tmp < 0)
             alpha_tmp = 360 + alpha_tmp;
+
         Dip_angle = beta_tmp;
+
         if (alpha_tmp <= 90)
             Dip_direction = 90 - alpha_tmp;
+            
         else if (alpha_tmp > 90)
             Dip_direction = 450 - alpha_tmp;
+
+        //--------------------normal vector--------
+        Normal_vector << l_1, m_1, n_1;
     }
     else
     {
@@ -163,9 +173,6 @@ inline Fracture::Fracture(string string_ori,
 
     //--------------------random number of vertexes
     Nvertices = 4; //random_integer(4, 7); //no more sides, becasue more sides, more likely close to a circle
-
-    //--------------------normal vector--------
-    Find_normal_vec(Dip_direction, Dip_angle, Normal_vector);
 
     //--------------------coordinates of all vertexes in order
     Verts.resize(Nvertices);
@@ -201,7 +208,8 @@ inline Fracture::Fracture(string string_ori,
     };
 
     Vector3d temp3;
-    Find_vector_2(Normal_vector, temp3);
+    DFN::Vector_2 v(Normal_vector, temp3);
+
     if (abs(temp3(0)) < 0.000001 && abs(temp3(1)) < 0.000001 && abs(temp3(2)) < 0.000001)
     {
         //Verts;
@@ -210,7 +218,7 @@ inline Fracture::Fracture(string string_ori,
     {
         double R_angle_temp1 = 0;
         double x_temp = Dip_angle; ///it is better to create a new variable to represent the dip angle, because debuging shows direct use of 'Dip_angle' to calculate rotation angle leads wrong output
-        R_angle_temp1 = x_temp * M_PI / 180.0;
+        R_angle_temp1 = -x_temp * M_PI / 180.0;
 
         Quaternion_t Q_axis_1;
 
@@ -226,7 +234,6 @@ inline Fracture::Fracture(string string_ori,
     for (size_t i = 0; i < Nvertices; i++)
     {
         Verts[i] = Verts[i] + Center;
-        
     };
 
     ///------------------a piece of debuging code------
@@ -242,6 +249,25 @@ inline Fracture::Fracture(string string_ori,
             exit(0);
         }
     }
+
+    /*
+    DFN::NorVec_plane CYT{Verts};
+    if (abs(Normal_vector(0)) > 0.0001 &&
+        abs(Normal_vector(1)) > 0.0001 &&
+        abs(Normal_vector(2)) > 0.0001)
+    {
+        double x0 = (CYT.Normal_vector(0) / Normal_vector(0));
+        double x1 = (CYT.Normal_vector(1) / Normal_vector(1));
+        double x2 = (CYT.Normal_vector(2) / Normal_vector(2));
+
+        if (abs(x0 - x1) > 1e-6 || abs(x0 - x2) > 1e-6 ||
+            abs(x1 - x2) > 1e-6)
+        {
+            cout << "Questionable normal vector!\n";
+            exit(0);
+        }
+    }*/
+
     ///------------------------------------------------
 
     //--------------------plane equation parameters: a,b,c,d
@@ -381,7 +407,7 @@ inline Fracture::Fracture(string string_ori,
     };
 
     Vector3d temp3;
-    Find_vector_2(Normal_vector, temp3);
+    DFN::Vector_2 v(Normal_vector, temp3);
     if (abs(temp3(0)) < 0.000001 && abs(temp3(1)) < 0.000001 && abs(temp3(2)) < 0.000001)
     {
         //Verts;
@@ -390,7 +416,7 @@ inline Fracture::Fracture(string string_ori,
     {
         double R_angle_temp1 = 0;
         double x_temp = Dip_angle; ///it is better to create a new variable to represent the dip angle, because debuging shows direct use of 'Dip_angle' to calculate rotation angle leads wrong output
-        R_angle_temp1 = x_temp * M_PI / 180;
+        R_angle_temp1 = -x_temp * M_PI / 180;
 
         Quaternion_t Q_axis_1;
 
@@ -469,23 +495,17 @@ inline Fracture::Fracture(size_t _Tag,
 
     Nvertices = _Verts.size();
     Radius = pow((_Verts[0] - _Verts[2]).dot(_Verts[0] - _Verts[2]), 0.5) * 0.5;
-    double x1, y1, z1, x2, y2, z2, x3, y3, z3;
+    double x1, y1, z1;
     double l, m, n, d;
     x1 = _Verts[0](0);
     y1 = _Verts[0](1);
     z1 = _Verts[0](2);
 
-    x2 = _Verts[1](0);
-    y2 = _Verts[1](1);
-    z2 = _Verts[1](2);
+    Vector3d Ns = (_Verts[0] - _Verts[1]).cross(_Verts[1] - _Verts[2]);
 
-    x3 = _Verts[2](0);
-    y3 = _Verts[2](1);
-    z3 = _Verts[2](2);
-
-    l = (y3 - y1) * (z3 - z1) - (z2 - z1) * (y3 - y1);
-    m = (x3 - x1) * (z2 - z1) - (x2 - x1) * (z3 - z1);
-    n = (x2 - x1) * (y3 - y1) - (x3 - x1) * (y2 - y1);
+    l = Ns(0);
+    m = Ns(1);
+    n = Ns(2);
 
     if (n < 0)
     {

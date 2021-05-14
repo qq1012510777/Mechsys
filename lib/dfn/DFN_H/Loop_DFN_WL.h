@@ -2,6 +2,7 @@
 #include "Domain_WL.h"
 #include "FEM_DFN_WL.h"
 #include "Mesh_DFN_WL.h"
+#include "../Mesh_H/Mesh_DFN.h"
 #include <omp.h>
 
 namespace DFN
@@ -104,7 +105,7 @@ inline void Loop_DFN::Loop_create_DFNs(gsl_rng *random_seed,
     //if boundary effect is considered,
     //please uncomment the follow part
     double R_up = 0;
-    
+    /*
     if (str_frac_size == "powerlaw")
     {
         R_up = array12[0][2];
@@ -125,7 +126,7 @@ inline void Loop_DFN::Loop_create_DFNs(gsl_rng *random_seed,
     {
         std::cout << "Error! Please define fracture size distribution!\n";
         exit(0);
-    }
+    }*/
 
     array11.resize(3);
     array11[0][0] = -L * 0.5 - R_up;
@@ -319,14 +320,18 @@ inline void Loop_DFN::Loop_create_DFNs(gsl_rng *random_seed,
                 }
             }
 
-            /*
+           
             if (z == 1)
             {
-                DFN::DFN_mesh AA(dom, avg_ele_len, ratio_H, percolation_direction);
+                //DFN::DFN_mesh AA(dom, avg_ele_len, ratio_H, percolation_direction);
                 //std::cout << "mesh finished\n";
-                DFN::FEM_DFN CC(AA, dom);
+                //DFN::FEM_DFN CC(AA, dom);
+                
+                DFN::Mesh_DFN mesh{dom};
+                
+                mesh.Matlab_plot("mesh_DFN.mat", "mesh_DFN.m", dom);
             }
-            */
+            
         }
 
         double P32_total_B = 0;

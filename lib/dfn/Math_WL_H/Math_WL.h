@@ -217,6 +217,11 @@ void Find_normal_vec(double dip_direction,
     a(0) = sin(beta * M_PI / 180) * cos(alpha / 180.0 * M_PI);
     a(1) = sin(beta / 180.0 * M_PI) * sin(alpha / 180.0 * M_PI);
     a(2) = cos(beta / 180.0 * M_PI);
+
+    if(a(2) < 0)
+    {
+        a = -a;
+    }
 };
 
 size_t random_unsigned_integer(size_t x, size_t y)

@@ -1,4 +1,5 @@
 #pragma once
+#include "../Geometry_H/Intersection_Frac.h"
 #include "../Graph_WL_H/Graph_WL.h"
 #include "Fracture_WL.h"
 #include <fstream>
@@ -277,10 +278,11 @@ inline void Domain::Create_whole_model(const size_t n,
         }
     }
 
-#pragma omp critical
-    {
+
+//#pragma omp critical
+  //  {
         Clusters();
-    }
+    //}
 
     Correlation_length_and_gyration_radius();
     Average_number_of_intersections_per_fracture();
@@ -553,390 +555,10 @@ inline void Domain::AddSquareFracture(size_t Tag,
 
 inline bool Domain::Intersect_A(const Fracture F1, const Fracture F2)
 {
-
-    Vector3d A1;
-    A1 << 0, 0, 0;
-
-    Vector3d B1;
-    B1 << 0, 0, 0;
-
-    Vector3d dis_vec = F2.Center - F1.Center;
-    double distance = pow(dis_vec.dot(dis_vec), 0.5);
-    if (distance > F2.Radius + F1.Radius)
-    {
-        return false;
-    }
-
-    size_t e1, e2;
-    Parallel_or_not(F1.Plane_parameter, F2.Plane_parameter, e1, e2);
-    ///std::cout<<"\ne1:"<<e1<<"; e2: " << e2 << std::endl;
-    if (e1 == 1)
-    {
-        if (e2 == 1)
-        {
-            //two infinite plane are overlaped
-            //in real DFN generation, the interval of each kind of input parameter is large enough, which seldom and even does not lead to two overlapped fractures
-            //because it is a random process
-            return false;
-        }
-        else
-        {
-            //two infinite plane are parallel
-            ///std::cout<<"The two fractrues are parallel but not overlapped!\n";
-            return false;
-        }
-    }
-    else if (e1 == 0)
-    {
-        std::vector<Vector3d> Verts_1;
-        std::vector<Vector3d> Verts_2;
-        Verts_1.resize(F1.Nvertices);
-        Verts_2.resize(F2.Nvertices);
-
-        Vector3d temp1;
-        Find_vector_2(F1.Normal_vector, temp1);
-        //std::cout<<"Debug Tag\n"<<"temp1:\n"<<temp1<<"\n";
-        double R_angle_temp1 = 0;
-        double x_temp = F1.Dip_angle;
-        R_angle_temp1 = -x_temp * M_PI / 180;
-        Quaternion_t Q_axis_1;
-
-        if (F1.Dip_angle > 0.0001)
-        {
-
-            NormalizeRotation(R_angle_temp1, temp1, Q_axis_1);
-            for (size_t i = 0; i < F1.Nvertices; ++i)
-            {
-                Rotation(F1.Verts[i], Q_axis_1, Verts_1[i]);
-            }
-            for (size_t i = 0; i < F2.Nvertices; ++i)
-            {
-                Rotation(F2.Verts[i], Q_axis_1, Verts_2[i]);
-            }
-        }
-        else
-        {
-            for (size_t i = 0; i < F1.Nvertices; ++i)
-                Verts_1[i] = F1.Verts[i];
-            for (size_t i = 0; i < F2.Nvertices; ++i)
-                Verts_2[i] = F2.Verts[i];
-        }
-
-        ///std::cout<<"\nafter rotation, first: \n"<<Verts_1<<std::endl<<"    second:\n"<<Verts_2<<"\n";
-
-        //-------a piece of debug code----
-
-        for (size_t i = 0; i < F1.Nvertices; i++)
-        {
-            size_t j = i + 1 - (size_t)((i + 1) / F1.Nvertices) * (i + 1);
-            if (abs(Verts_1[i](2) - Verts_1[j](2)) > 0.001)
-            {
-                std::cout << "Error!!! The Z values of all vertexes of 1st fracture should be the same! (Intersect_A)\n";
-                exit(0);
-            }
-        }
-        //--------------------------------
-
-        double MAX_Z = Find_max_z_value(Verts_2);
-        double MIN_Z = Find_min_z_value(Verts_2);
-        if (Verts_1[0](2) >= MIN_Z && Verts_1[0](2) <= MAX_Z)
-        {
-            ///--------intersection line segment between horizontal plane and 2nd fracture
-            std::vector<Vector3d> Intersection_1;
-            Intersection_between_2ndpolygon_and_infinite_plane(F2.Nvertices, Verts_1[0](2), Verts_2, Intersection_1);
-
-            ///---------now extending the line segment----
-            std::vector<Vector3d> Intersection_infinite;
-            Output_a_relatively_infinite_line(300, Intersection_1, Intersection_infinite);
-            //cout<<"Infinite line: \n"<<Intersection_infinite[0]<<std::endl<<Intersection_infinite[1]<<"\n";
-
-            ///--------now, determine the coordinates of endpoints of intersection line segment between extending line and 1st fracture
-            size_t numOfIntersectionPoint_1; ///which lies in [0,2];
-            std::vector<Vector3d> Intersection_2;
-            //	std::cout<<"\nIntersection_infinite and 1st fracture:\n";
-            Intersection_between_line_segment_and_polygon(numOfIntersectionPoint_1, Verts_1, Intersection_infinite, Intersection_2);
-            if (numOfIntersectionPoint_1 > 2)
-            {
-                std::cout << "Error!!! There shoule not be more than two intersection points! (Intersect_A)\n";
-                exit(0);
-            }
-            //std::cout<<"\nExtending line segment intersect 1st fracture "<< numOfIntersectionPoint_1<<" times"<<std::endl;
-
-            ///-------now, determine the intersection section between 1st and 2nd polygonal fractures
-            if (numOfIntersectionPoint_1 == 0)
-            {
-                ///std::cout<<"No intersection.\n";
-                return false;
-            }
-            else if (numOfIntersectionPoint_1 == 1)
-            {
-                cout << "Polygon vertices (2D):\n";
-                for (size_t upy = 0; upy < Verts_1.size(); ++upy)
-                {
-                    cout << Verts_1[upy].transpose() << endl;
-                }
-                cout << "The checked line segment (2D):\n";
-                cout << Intersection_infinite[0] << endl;
-                cout << Intersection_infinite[1] << endl;
-                std::cout << "Error, infinite line must intersect 0 or 2 sides of the 1st fracture. (Intersect_A)\nIt is impossible just intersect 1 sides!!! (Intersect_A)";
-                exit(0);
-            }
-            else
-            {
-                /// ------------ determine the intersection between intersection_1 and 1st fracture
-                std::vector<Vector3d> Intersection_3;
-                size_t numOfIntersectionPoint_2; ///which also lies in [0,2]
-                Intersection_between_line_segment_and_polygon(numOfIntersectionPoint_2, Verts_1, Intersection_1, Intersection_3);
-                if (numOfIntersectionPoint_2 > 2)
-                {
-                    std::cout << "Error!!! There shoule be no more than two intersection points! (Intersect_A)\n";
-                    exit(0);
-                };
-                //	std::cout<<"The Intersection_1 intersect the 1st fracture "<<numOfIntersectionPoint_2<<" times\n";
-                ///------------- now, determine the include angle between intersection_1 and x-axis
-                double beta_1;
-                double m_1 = Intersection_1[1](1) - Intersection_1[0](1);
-                double l_1 = Intersection_1[1](0) - Intersection_1[0](0);
-                if (m_1 < 0)
-                {
-                    m_1 = -m_1;
-                    l_1 = -l_1;
-                }
-                beta_1 = atan2(m_1, l_1) * 180.0 / M_PI;
-                //	std::cout<<"Intersection_1: \n"<<Intersection_1[0]<<"\n"<<Intersection_1[1]<<"\n"<<"beta_1 is: "<<beta_1<<std::endl;
-                //	std::cout<<"Intersection_2: \n"<<Intersection_2[0]<<"\n"<<Intersection_2[1]<<"\n---------------------\n";
-                ///-----------
-
-                ///------------a piece of debuging code---
-                double beta_2;
-                double m_2 = Intersection_infinite[1](1) - Intersection_infinite[0](1);
-                double l_2 = Intersection_infinite[1](0) - Intersection_infinite[0](0);
-                if (m_2 < 0)
-                {
-                    m_2 = -m_2;
-                    l_2 = -l_2;
-                }
-                beta_2 = atan2(m_2, l_2) * 180.0 / M_PI;
-                //std::cout<<"beta_1 is: "<<beta_1<<std::endl;
-                //std::cout<<"beta_2 is: "<<beta_2<<std::endl;
-                if (beta_2 < 0)
-                    beta_2 = 360 + beta_2;
-                if (abs(beta_1 - beta_2) > 0.001)
-                {
-                    if ((beta_1 == 0 && beta_2 == 180) || (beta_1 == 180 && beta_2 == 0))
-                    {
-                        //beta_1;
-                    }
-                    else
-                    {
-                        std::cout << "The angle of infinit line and x-axis is incorrect!!! (Intersect_A)\n";
-                        exit(0);
-                    }
-                }
-                ///---------------------------------------
-
-                ///-------
-                if (numOfIntersectionPoint_2 == 0)
-                {
-                    //this means the intersection line (between 2nd fracture and horizontal plane) might be inside or outside the 1st fracture
-
-                    std::vector<Vector3d> Intersection_4;
-                    std::vector<Vector3d> Intersection_5;
-                    Intersection_4.resize(2);
-                    Intersection_5.resize(2);
-
-                    Vector3d axis_z_2;
-                    axis_z_2 << 0, 0, 1;
-                    Quaternion_t Q_axis_z_2;
-                    NormalizeRotation(((180 - beta_1) * M_PI / 180.0), axis_z_2, Q_axis_z_2);
-                    Rotation(Intersection_1[0], Q_axis_z_2, Intersection_4[0]);
-                    Rotation(Intersection_1[1], Q_axis_z_2, Intersection_4[1]);
-                    Rotation(Intersection_2[0], Q_axis_z_2, Intersection_5[0]);
-                    Rotation(Intersection_2[1], Q_axis_z_2, Intersection_5[1]);
-                    ///std::cout<<Intersection_4[0]<<"\n"<<Intersection_4[1]<<std::endl<<Intersection_5[0]<<std::endl<<Intersection_5[1]<<"\n";
-
-                    ///--------------a piece error report   ----
-                    if (abs(Intersection_4[0](1) - Intersection_4[1](1)) > 0.001 || abs(Intersection_5[0](1) - Intersection_5[1](1)) > 0.001 || abs(Intersection_4[0](1) - Intersection_5[1](1)) > 0.001)
-                    {
-                        std::cout << "Error!!! The y values of the two intersections shoule be the same in this step! (Intersect_A)\n";
-                        exit(0);
-                    }
-                    ///-----------------------------------------
-
-                    std::vector<Vector3d> Intersection_6;
-                    Intersection_6.resize(2);
-                    Intersection_6[0](0) = 0.001;
-                    Intersection_6[1](0) = 0.002;
-
-                    Intersection_of_1D_intervals(Intersection_4, Intersection_5, Intersection_6);
-                    ///------------- a piece of test code
-                    if (Intersection_6[0](0) == 0.001 && Intersection_6[1](0) == 0.002)
-                    {
-                        ///std::cout<<"No Intersection, because the intersection between 2nd fracture and horizontal plane is totally outside the 1st fracture\n";
-                        return false;
-                    };
-                    //-------------
-
-                    ///if the test code (above) do not work, it indicate the intersection is totally inside the 1st fracture
-
-                    ///std::cout<<"\nIntersection is totally inside the 1st fracture.\n";
-                    std::vector<Vector3d> Intersection_7; // true intersection points
-                    Intersection_7.resize(2);
-                    Intersection_1[0](2) = Verts_1[0](2);
-                    Intersection_1[1](2) = Verts_1[0](2);
-
-                    if (F1.Dip_angle > 0.0001)
-                    {
-                        Vector3d axis_z_4;
-                        axis_z_4 = temp1;
-                        Quaternion_t Q_axis_z_4;
-                        NormalizeRotation(-R_angle_temp1, axis_z_4, Q_axis_z_4);
-                        Rotation(Intersection_1[0], Q_axis_z_4, Intersection_7[0]);
-                        Rotation(Intersection_1[1], Q_axis_z_4, Intersection_7[1]);
-                    }
-                    else
-                    {
-                        Intersection_7[0] = Intersection_1[0];
-                        Intersection_7[1] = Intersection_1[1];
-                    }
-                    A1 = Intersection_7[0];
-                    B1 = Intersection_7[1];
-                }
-                else if (numOfIntersectionPoint_2 == 1)
-                {
-                    //this means the intersection line (between 2nd fracture and horizontal plane) intersect with one edge of fracture 1, and one end is inside the fracture 1
-                    //but we need to know which end is inside the 1st fracture, so which end is closer to the 1st fracture center, that end must be inside the fracture 1
-                    //also, we need to rotate the center of the 1st fracture, since all vertexes have been rotated
-                    ///std::cout<<"\nOne end of the intersection is inside the 1st fracture.\n";
-                    std::vector<Vector3d> Intersection_4;
-                    std::vector<Vector3d> Intersection_5;
-                    Intersection_4.resize(2);
-                    Intersection_5.resize(2);
-
-                    Vector3d axis_z_2;
-                    axis_z_2 << 0, 0, 1;
-                    Quaternion_t Q_axis_z_2;
-                    NormalizeRotation(((180 - beta_1) * M_PI / 180.0), axis_z_2, Q_axis_z_2);
-                    Rotation(Intersection_1[0], Q_axis_z_2, Intersection_4[0]);
-                    Rotation(Intersection_1[1], Q_axis_z_2, Intersection_4[1]);
-                    Rotation(Intersection_2[0], Q_axis_z_2, Intersection_5[0]);
-                    Rotation(Intersection_2[1], Q_axis_z_2, Intersection_5[1]);
-
-                    //std::cout<<Intersection_4[0]<<"\n"<<Intersection_4[1]<<std::endl<<Intersection_5[0]<<std::endl<<Intersection_5[1]<<"\n";
-                    ///--------------a piece error report   ----
-                    if (abs(Intersection_4[0](1) - Intersection_4[1](1)) > 0.001 || abs(Intersection_5[0](1) - Intersection_5[1](1)) > 0.001 || abs(Intersection_4[0](1) - Intersection_5[1](1)) > 0.001)
-                    {
-                        std::cout << "Error!!! The y values of the two intersections shoule be the same in this step! (Intersect_A)\n";
-                        exit(0);
-                    }
-                    ///-----------------------------------------
-                    std::vector<Vector3d> Intersection_6;
-                    Intersection_6.resize(2);
-                    Intersection_6[0](0) = 0.001;
-                    Intersection_6[1](0) = 0.002;
-
-                    Intersection_of_1D_intervals(Intersection_4, Intersection_5, Intersection_6);
-
-                    ///------------- a piece of test code
-                    if (Intersection_6[0](0) == 0.001 && Intersection_6[1](0) == 0.002)
-                    {
-                        ///std::cout<<"No Intersection, because the intersection between 2nd fracture and horizontal plane is totally outside the 1st fracture\n";
-                        return false;
-                    };
-                    ///----------------------------------
-
-                    //---------------------------
-                    Intersection_6[0](1) = Intersection_4[0](1);
-                    Intersection_6[1](1) = Intersection_4[0](1);
-                    ///std::cout<<"y value: "<<Intersection_4[0](1)<<"\n";
-
-                    Intersection_6[0](2) = Verts_1[0](2);
-                    Intersection_6[1](2) = Verts_1[0](2);
-
-                    //	std::cout<<"Intersection_6: "<<Intersection_6[0]<<"\n"<<Intersection_6[1]<<"\n";
-
-                    std::vector<Vector3d> Intersection_7;
-                    Intersection_7.resize(2);
-
-                    Vector3d axis_z_3;
-                    axis_z_3 << 0, 0, 1;
-                    Quaternion_t Q_axis_z_3;
-                    NormalizeRotation(((180 + beta_1) * M_PI / 180.0), axis_z_3, Q_axis_z_3);
-
-                    Rotation(Intersection_6[0], Q_axis_z_3, Intersection_7[0]);
-                    Rotation(Intersection_6[1], Q_axis_z_3, Intersection_7[1]);
-
-                    //	std::cout<<"Intersection_7: "<<Intersection_7[0]<<"\n"<<Intersection_7[1]<<"\n";
-
-                    std::vector<Vector3d> Intersection_8; /// true Intersection point
-                    Intersection_8.resize(2);
-
-                    if (F1.Dip_angle > 0.0001)
-                    {
-                        Vector3d axis_z_4;
-                        axis_z_4 = temp1;
-                        Quaternion_t Q_axis_z_4;
-                        NormalizeRotation(-R_angle_temp1, axis_z_4, Q_axis_z_4);
-                        Rotation(Intersection_7[0], Q_axis_z_4, Intersection_8[0]);
-                        Rotation(Intersection_7[1], Q_axis_z_4, Intersection_8[1]);
-                    }
-                    else
-                    {
-                        Intersection_8[0] = Intersection_7[0];
-                        Intersection_8[1] = Intersection_7[1];
-                    }
-
-                    A1 = Intersection_8[0];
-                    B1 = Intersection_8[1];
-                }
-                else if (numOfIntersectionPoint_2 == 2)
-                {
-                    //this means the intersection line (between 2nd fracture and horizontal plane) might be inside the 1st fracture
-                    ///	std::cout<<"\nBoth two ends of intersection are on the perimeter (sides) of the 1st fracture.\n";
-                    std::vector<Vector3d> Intersection_6;
-                    Intersection_6.resize(2);
-                    std::vector<Vector3d> Intersection_7;
-                    Intersection_7.resize(2);
-
-                    Intersection_6[0] = Intersection_3[0];
-                    Intersection_6[1] = Intersection_3[1];
-                    Intersection_6[0](2) = Verts_1[0](2);
-                    Intersection_6[1](2) = Verts_1[0](2);
-
-                    if (F1.Dip_angle > 0.0001)
-                    {
-                        Vector3d axis_z_4;
-                        axis_z_4 = temp1;
-                        Quaternion_t Q_axis_z_4;
-                        NormalizeRotation(-R_angle_temp1, axis_z_4, Q_axis_z_4);
-                        Rotation(Intersection_6[0], Q_axis_z_4, Intersection_7[0]);
-                        Rotation(Intersection_6[1], Q_axis_z_4, Intersection_7[1]);
-                    }
-                    else
-                    {
-                        Intersection_7[0] = Intersection_6[0];
-                        Intersection_7[1] = Intersection_6[1];
-                    }
-
-                    A1 = Intersection_7[0];
-                    B1 = Intersection_7[1];
-                }
-            }
-        }
-        else
-        {
-            return false;
-        }
-    };
-
-    ///std::cout<<"Intersection points are: \n"<<A1<<"\n"<<B1<<std::endl;
-
-    if (A1(0) != 0 && A1(1) != 0 && A1(2) != 0 && B1(0) != 0 && B1(1) != 0 && B1(2) != 0)
-    {
-        return true;
-    }
-    else
-        return false;
+    DFN::Polygon_convex_3D f1{F1.Verts};
+    DFN::Polygon_convex_3D f2{F2.Verts};
+    DFN::Intersection_Frac Interse{f1, f2};
+    return Interse.If_intersect;
 }
 
 inline void Domain::Modify_fracture_attributes_Zmax(Fracture &F2) ///modify vertexes, area, Nvertices
@@ -969,7 +591,7 @@ inline void Domain::Modify_fracture_attributes_Zmax(Fracture &F2) ///modify vert
                 temp_A(1) = t * m + F2.Verts_trim[i](1);
                 temp_A(2) = Surf;
                 ///----------------------------------------
-                
+
                 Verts_temp1.push_back(temp_A);
                 nt = i + 1;
                 break;
@@ -997,7 +619,7 @@ inline void Domain::Modify_fracture_attributes_Zmax(Fracture &F2) ///modify vert
                 temp_A(0) = t * l + F2.Verts_trim[i](0);
                 temp_A(1) = t * m + F2.Verts_trim[i](1);
                 temp_A(2) = Surf;
-               
+
                 Verts_temp1.push_back(temp_A);
                 nt = i + 1;
                 break;
@@ -1026,7 +648,7 @@ inline void Domain::Modify_fracture_attributes_Zmax(Fracture &F2) ///modify vert
                 temp_A(1) = t * m + F2.Verts_trim[i](1);
                 temp_A(2) = Surf;
                 Verts_temp1.push_back(temp_A);
-                
+
                 nt = i + 1;
                 break;
             }
@@ -1051,7 +673,7 @@ inline void Domain::Modify_fracture_attributes_Zmax(Fracture &F2) ///modify vert
                 temp_A(0) = t * l + F2.Verts_trim[i](0);
                 temp_A(1) = t * m + F2.Verts_trim[i](1);
                 temp_A(2) = Surf;
-                
+
                 Verts_temp1.push_back(temp_A);
 
                 nt = i + 1;
@@ -1131,8 +753,6 @@ inline void Domain::Modify_fracture_attributes_Zmin(Fracture &F2) ///modify vert
                 temp_A(0) = t * l + F2.Verts_trim[i](0);
                 temp_A(1) = t * m + F2.Verts_trim[i](1);
                 temp_A(2) = Surf;
-
-                
 
                 Verts_temp1.push_back(temp_A);
                 nt = i + 1;
@@ -1294,7 +914,7 @@ inline void Domain::Modify_fracture_attributes_Ymin(Fracture &F2) ///modify vert
                 temp_A(0) = t * l + F2.Verts_trim[i](0);
                 temp_A(1) = Surf;
                 temp_A(2) = t * n + F2.Verts_trim[i](2);
-                
+
                 Verts_temp1.push_back(temp_A);
                 nt = i + 1;
                 break;
@@ -1454,7 +1074,6 @@ inline void Domain::Modify_fracture_attributes_Ymax(Fracture &F2) ///modify vert
                 temp_A(0) = t * l + F2.Verts_trim[i](0);
                 temp_A(1) = Surf;
                 temp_A(2) = t * n + F2.Verts_trim[i](2);
-               
 
                 Verts_temp1.push_back(temp_A);
                 nt = i + 1;
@@ -1616,7 +1235,7 @@ inline void Domain::Modify_fracture_attributes_Xmin(Fracture &F2) ///modify vert
                 temp_A(0) = Surf;
                 temp_A(1) = t * m + F2.Verts_trim[i](1);
                 temp_A(2) = t * n + F2.Verts_trim[i](2);
-                
+
                 Verts_temp1.push_back(temp_A);
                 nt = i + 1;
                 break;
@@ -1777,7 +1396,7 @@ inline void Domain::Modify_fracture_attributes_Xmax(Fracture &F2) ///modify vert
                 temp_A(0) = Surf;
                 temp_A(1) = t * m + F2.Verts_trim[i](1);
                 temp_A(2) = t * n + F2.Verts_trim[i](2);
-                
+
                 Verts_temp1.push_back(temp_A);
                 nt = i + 1;
                 break;
@@ -1978,393 +1597,43 @@ inline bool Domain::Intersect(Fracture &F1, Fracture &F2)
     Vector3d B1;
     B1 << 0, 0, 0;
 
-    Vector3d dis_vec = F2.Center - F1.Center;
-    double distance = pow(dis_vec.dot(dis_vec), 0.5);
-    if (distance > F2.Radius + F1.Radius)
+    DFN::Polygon_convex_3D f1{F1.Verts_trim};
+    DFN::Polygon_convex_3D f2{F2.Verts_trim};
+
+    DFN::Intersection_Frac Interse{f1, f2};
+    //return Interse.If_intersect;
+    if (Interse.If_intersect == true)
+    {
+        A1 << round(Interse.Intersection[0](0), 4),
+            round(Interse.Intersection[0](1), 4),
+            round(Interse.Intersection[0](2), 4);
+
+        B1 << round(Interse.Intersection[1](0), 4),
+            round(Interse.Intersection[1](1), 4),
+            round(Interse.Intersection[1](2), 4);
+    }
+    else
     {
         return false;
     }
-    /* std::cout<<"debug\n"; */
-
-    size_t e1, e2;
-    Parallel_or_not(F1.Plane_parameter, F2.Plane_parameter, e1, e2);
-    ///std::cout<<"\ne1:"<<e1<<"; e2: " << e2 << std::endl;
-    if (e1 == 1)
-    {
-        if (e2 == 1)
-        {
-            //two infinite plane are overlaped
-            //in real DFN generation, the interval of each kind of input parameter is large enough, which seldom and even does not lead to two overlapped fractures
-            //because it is a random process
-            return false;
-        }
-        else
-        {
-            //two infinite plane are parallel
-            ///std::cout<<"The two fractrues are parallel but not overlapped!\n";
-            return false;
-        }
-    }
-    else if (e1 == 0)
-    {
-        std::vector<Vector3d> Verts_1;
-        std::vector<Vector3d> Verts_2;
-        Verts_1.resize(F1.Nvertices_trim);
-        Verts_2.resize(F2.Nvertices_trim);
-
-        Vector3d temp1;
-        Find_vector_2(F1.Normal_vector, temp1);
-
-        double R_angle_temp1 = 0;
-        double x_temp = F1.Dip_angle;
-        R_angle_temp1 = -x_temp * M_PI / 180;
-        Quaternion_t Q_axis_1;
-
-        if (F1.Dip_angle > 0.0001)
-        {
-
-            NormalizeRotation(R_angle_temp1, temp1, Q_axis_1);
-            for (size_t i = 0; i < F1.Nvertices_trim; ++i)
-            {
-                Rotation(F1.Verts_trim[i], Q_axis_1, Verts_1[i]);
-            }
-            for (size_t i = 0; i < F2.Nvertices_trim; ++i)
-            {
-                Rotation(F2.Verts_trim[i], Q_axis_1, Verts_2[i]);
-            }
-        }
-        else
-        {
-            for (size_t i = 0; i < F1.Nvertices_trim; ++i)
-                Verts_1[i] = F1.Verts_trim[i];
-            for (size_t i = 0; i < F2.Nvertices_trim; ++i)
-                Verts_2[i] = F2.Verts_trim[i];
-        }
-
-        ///std::cout<<"\nafter rotation, first: \n"<<Verts_1<<std::endl<<"    second:\n"<<Verts_2<<"\n";
-
-        //-------a piece of debug code----
-        for (size_t i = 0; i < F1.Nvertices_trim; i++)
-        {
-            size_t j = i + 1 - (size_t)((i + 1) / F1.Nvertices_trim) * (i + 1);
-            if (abs(Verts_1[i](2) - Verts_1[j](2)) > 0.001)
-            {
-                std::cout << "Error!!! The Z values of all vertexes of 1st fracture should be the same!\n";
-                exit(0);
-            }
-        }
-        //--------------------------------
-
-        double MAX_Z = Find_max_z_value(Verts_2);
-        double MIN_Z = Find_min_z_value(Verts_2);
-        if (Verts_1[0](2) >= MIN_Z && Verts_1[0](2) <= MAX_Z)
-        {
-
-            ///--------intersection line segment between horizontal plane and 2nd fracture
-            std::vector<Vector3d> Intersection_1;
-            Intersection_between_2ndpolygon_and_infinite_plane(F2.Nvertices_trim, Verts_1[0](2), Verts_2, Intersection_1);
-            //std::cout << Intersection_1 << std::endl;
-
-            ///---------now extending the line segment----
-            std::vector<Vector3d> Intersection_infinite;
-            Output_a_relatively_infinite_line(300, Intersection_1, Intersection_infinite);
-            //cout<<"Infinite line: \n"<<Intersection_infinite[0]<<std::endl<<Intersection_infinite[1]<<"\n";
-
-            ///--------now, determine the coordinates of endpoints of intersection line segment between extending line and 1st fracture
-            size_t numOfIntersectionPoint_1; ///which lies in [0,2];
-            std::vector<Vector3d> Intersection_2;
-            //	std::cout<<"\nIntersection_infinite and 1st fracture:\n";
-            Intersection_between_line_segment_and_polygon(numOfIntersectionPoint_1, Verts_1, Intersection_infinite, Intersection_2);
-            if (numOfIntersectionPoint_1 > 2)
-            {
-                std::cout << "Error!!! There shoule not be more than two intersection points!\n";
-                exit(0);
-            }
-            //std::cout<<"\nExtending line segment intersect 1st fracture "<< numOfIntersectionPoint_1<<" times"<<std::endl;
-
-            ///-------now, determine the intersection section between 1st and 2nd polygonal fractures
-            if (numOfIntersectionPoint_1 == 0)
-            {
-                ///std::cout<<"No intersection.\n";
-                return false;
-            }
-            else if (numOfIntersectionPoint_1 == 1)
-            {
-                cout << "Polygon vertices (2D):\n";
-                for (size_t upy = 0; upy < Verts_1.size(); ++upy)
-                {
-                    cout << Verts_1[upy].transpose() << endl;
-                }
-                cout << "The checked line segment (2D):\n";
-                cout << Intersection_infinite[0] << endl;
-                cout << Intersection_infinite[1] << endl;
-                std::cout << "Error, infinite line must intersect 0 or 2 sides of the 1st fracture.\nIt is impossible just intersect 1 sides!!!\n";
-                exit(0);
-            }
-            else
-            {
-                /// ------------ determine the intersection between intersection_1 and 1st fracture
-                std::vector<Vector3d> Intersection_3;
-                size_t numOfIntersectionPoint_2; ///which also lies in [0,2]
-                Intersection_between_line_segment_and_polygon(numOfIntersectionPoint_2, Verts_1, Intersection_1, Intersection_3);
-                if (numOfIntersectionPoint_2 > 2)
-                {
-                    std::cout << "Error!!! There shoule be no more than two intersection points!\n";
-                    exit(0);
-                };
-                //	std::cout<<"The Intersection_1 intersect the 1st fracture "<<numOfIntersectionPoint_2<<" times\n";
-                ///------------- now, determine the include angle between intersection_1 and x-axis
-                double beta_1;
-                double m_1 = Intersection_1[1](1) - Intersection_1[0](1);
-                double l_1 = Intersection_1[1](0) - Intersection_1[0](0);
-                if (m_1 < 0)
-                {
-                    m_1 = -m_1;
-                    l_1 = -l_1;
-                }
-                beta_1 = atan2(m_1, l_1) * 180.0 / M_PI;
-                if (beta_1 < 0)
-                    beta_1 = 360 + beta_1;
-                //	std::cout<<"Intersection_1: \n"<<Intersection_1[0]<<"\n"<<Intersection_1[1]<<"\n"<<"beta_1 is: "<<beta_1<<std::endl;
-                //	std::cout<<"Intersection_2: \n"<<Intersection_2[0]<<"\n"<<Intersection_2[1]<<"\n---------------------\n";
-                ///-----------
-
-                ///------------a piece of debuging code---
-                double beta_2;
-                double m_2 = Intersection_infinite[1](1) - Intersection_infinite[0](1);
-                double l_2 = Intersection_infinite[1](0) - Intersection_infinite[0](0);
-                if (m_2 < 0)
-                {
-                    m_2 = -m_2;
-                    l_2 = -l_2;
-                }
-                beta_2 = atan2(m_2, l_2) * 180.0 / M_PI;
-                if (beta_2 < 0)
-                    beta_2 = 360 + beta_2;
-                //std::cout<<"beta_2 is: "<<beta_2<<std::endl;
-                if (abs(beta_1 - beta_2) > 0.001)
-                {
-                    std::cout << "The angle of infinit line and x-axis is incorrect!!!\n";
-                    exit(0);
-                }
-                ///---------------------------------------
-
-                ///-------
-                if (numOfIntersectionPoint_2 == 0)
-                {
-                    //this means the intersection line (between 2nd fracture and horizontal plane) might be inside or outside the 1st fracture
-
-                    std::vector<Vector3d> Intersection_4;
-                    std::vector<Vector3d> Intersection_5;
-                    Intersection_4.resize(2);
-                    Intersection_5.resize(2);
-
-                    Vector3d axis_z_2;
-                    axis_z_2 << 0, 0, 1;
-                    Quaternion_t Q_axis_z_2;
-                    NormalizeRotation(((180 - beta_1) * M_PI / 180.0), axis_z_2, Q_axis_z_2);
-                    Rotation(Intersection_1[0], Q_axis_z_2, Intersection_4[0]);
-                    Rotation(Intersection_1[1], Q_axis_z_2, Intersection_4[1]);
-                    Rotation(Intersection_2[0], Q_axis_z_2, Intersection_5[0]);
-                    Rotation(Intersection_2[1], Q_axis_z_2, Intersection_5[1]);
-                    ///std::cout<<Intersection_4[0]<<"\n"<<Intersection_4[1]<<std::endl<<Intersection_5[0]<<std::endl<<Intersection_5[1]<<"\n";
-
-                    ///--------------a piece error report   ----
-                    if (abs(Intersection_4[0](1) - Intersection_4[1](1)) > 0.001 || abs(Intersection_5[0](1) - Intersection_5[1](1)) > 0.001 || abs(Intersection_4[0](1) - Intersection_5[1](1)) > 0.001)
-                    {
-                        std::cout << "Error!!! The y values of the two intersections shoule be the same in this step!\n";
-                        exit(0);
-                    }
-                    ///-----------------------------------------
-
-                    std::vector<Vector3d> Intersection_6;
-                    Intersection_6.resize(2);
-                    Intersection_6[0](0) = 0.001;
-                    Intersection_6[1](0) = 0.002;
-
-                    Intersection_of_1D_intervals(Intersection_4, Intersection_5, Intersection_6);
-                    ///------------- a piece of test code
-                    if (Intersection_6[0](0) == 0.001 && Intersection_6[1](0) == 0.002)
-                    {
-                        ///std::cout<<"No Intersection, because the intersection between 2nd fracture and horizontal plane is totally outside the 1st fracture\n";
-                        return false;
-                    };
-                    //-------------
-
-                    ///if the test code (above) do not work, it indicate the intersection is totally inside the 1st fracture
-
-                    ///std::cout<<"\nIntersection is totally inside the 1st fracture.\n";
-                    std::vector<Vector3d> Intersection_7; // true intersection points
-                    Intersection_7.resize(2);
-                    Intersection_1[0](2) = Verts_1[0](2);
-                    Intersection_1[1](2) = Verts_1[0](2);
-
-                    if (F1.Dip_angle > 0.0001)
-                    {
-                        Vector3d axis_z_4;
-                        axis_z_4 = temp1;
-                        Quaternion_t Q_axis_z_4;
-                        NormalizeRotation(-R_angle_temp1, axis_z_4, Q_axis_z_4);
-                        Rotation(Intersection_1[0], Q_axis_z_4, Intersection_7[0]);
-                        Rotation(Intersection_1[1], Q_axis_z_4, Intersection_7[1]);
-                    }
-                    else
-                    {
-                        Intersection_7[0] = Intersection_1[0];
-                        Intersection_7[1] = Intersection_1[1];
-                    }
-                    A1 = Intersection_7[0];
-                    B1 = Intersection_7[1];
-                }
-                else if (numOfIntersectionPoint_2 == 1)
-                {
-                    //this means the intersection line (between 2nd fracture and horizontal plane) intersect with one edge of fracture 1, and one end is inside the fracture 1
-                    //but we need to know which end is inside the 1st fracture, so which end is closer to the 1st fracture center, that end must be inside the fracture 1
-                    //also, we need to rotate the center of the 1st fracture, since all vertexes have been rotated
-                    ///std::cout<<"\nOne end of the intersection is inside the 1st fracture.\n";
-                    std::vector<Vector3d> Intersection_4;
-                    std::vector<Vector3d> Intersection_5;
-                    Intersection_4.resize(2);
-                    Intersection_5.resize(2);
-
-                    Vector3d axis_z_2;
-                    axis_z_2 << 0, 0, 1;
-                    Quaternion_t Q_axis_z_2;
-                    NormalizeRotation(((180 - beta_1) * M_PI / 180.0), axis_z_2, Q_axis_z_2);
-                    Rotation(Intersection_1[0], Q_axis_z_2, Intersection_4[0]);
-                    Rotation(Intersection_1[1], Q_axis_z_2, Intersection_4[1]);
-                    Rotation(Intersection_2[0], Q_axis_z_2, Intersection_5[0]);
-                    Rotation(Intersection_2[1], Q_axis_z_2, Intersection_5[1]);
-
-                    //std::cout<<Intersection_4[0]<<"\n"<<Intersection_4[1]<<std::endl<<Intersection_5[0]<<std::endl<<Intersection_5[1]<<"\n";
-                    ///--------------a piece error report   ----
-                    if (abs(Intersection_4[0](1) - Intersection_4[1](1)) > 0.001 || abs(Intersection_5[0](1) - Intersection_5[1](1)) > 0.001 || abs(Intersection_4[0](1) - Intersection_5[1](1)) > 0.001)
-                    {
-                        std::cout << "Error!!! The y values of the two intersections shoule be the same in this step!\n";
-                        exit(0);
-                    }
-                    ///-----------------------------------------
-                    std::vector<Vector3d> Intersection_6;
-                    Intersection_6.resize(2);
-                    Intersection_6[0](0) = 0.001;
-                    Intersection_6[1](0) = 0.002;
-
-                    Intersection_of_1D_intervals(Intersection_4, Intersection_5, Intersection_6);
-
-                    ///------------- a piece of test code
-                    if (Intersection_6[0](0) == 0.001 && Intersection_6[1](0) == 0.002)
-                    {
-                        ///std::cout<<"No Intersection, because the intersection between 2nd fracture and horizontal plane is totally outside the 1st fracture\n";
-                        return false;
-                    };
-                    ///----------------------------------
-
-                    //---------------------------
-                    Intersection_6[0](1) = Intersection_4[0](1);
-                    Intersection_6[1](1) = Intersection_4[0](1);
-                    ///std::cout<<"y value: "<<Intersection_4[0](1)<<"\n";
-
-                    Intersection_6[0](2) = Verts_1[0](2);
-                    Intersection_6[1](2) = Verts_1[0](2);
-
-                    //	std::cout<<"Intersection_6: "<<Intersection_6[0]<<"\n"<<Intersection_6[1]<<"\n";
-
-                    std::vector<Vector3d> Intersection_7;
-                    Intersection_7.resize(2);
-
-                    Vector3d axis_z_3;
-                    axis_z_3 << 0, 0, 1;
-                    Quaternion_t Q_axis_z_3;
-                    NormalizeRotation(((180 + beta_1) * M_PI / 180.0), axis_z_3, Q_axis_z_3);
-
-                    Rotation(Intersection_6[0], Q_axis_z_3, Intersection_7[0]);
-                    Rotation(Intersection_6[1], Q_axis_z_3, Intersection_7[1]);
-
-                    //	std::cout<<"Intersection_7: "<<Intersection_7[0]<<"\n"<<Intersection_7[1]<<"\n";
-
-                    std::vector<Vector3d> Intersection_8; /// true Intersection point
-                    Intersection_8.resize(2);
-
-                    if (F1.Dip_angle > 0.0001)
-                    {
-                        Vector3d axis_z_4;
-                        axis_z_4 = temp1;
-                        Quaternion_t Q_axis_z_4;
-                        NormalizeRotation(-R_angle_temp1, axis_z_4, Q_axis_z_4);
-                        Rotation(Intersection_7[0], Q_axis_z_4, Intersection_8[0]);
-                        Rotation(Intersection_7[1], Q_axis_z_4, Intersection_8[1]);
-                    }
-                    else
-                    {
-                        Intersection_8[0] = Intersection_7[0];
-                        Intersection_8[1] = Intersection_7[1];
-                    }
-
-                    A1 = Intersection_8[0];
-                    B1 = Intersection_8[1];
-                }
-                else if (numOfIntersectionPoint_2 == 2)
-                {
-                    //this means the intersection line (between 2nd fracture and horizontal plane) might be inside the 1st fracture
-                    ///	std::cout<<"\nBoth two ends of intersection are on the perimeter (sides) of the 1st fracture.\n";
-                    std::vector<Vector3d> Intersection_6;
-                    Intersection_6.resize(2);
-                    std::vector<Vector3d> Intersection_7;
-                    Intersection_7.resize(2);
-
-                    Intersection_6[0] = Intersection_3[0];
-                    Intersection_6[1] = Intersection_3[1];
-                    Intersection_6[0](2) = Verts_1[0](2);
-                    Intersection_6[1](2) = Verts_1[0](2);
-
-                    if (F1.Dip_angle > 0.0001)
-                    {
-                        Vector3d axis_z_4;
-                        axis_z_4 = temp1;
-                        Quaternion_t Q_axis_z_4;
-                        NormalizeRotation(-R_angle_temp1, axis_z_4, Q_axis_z_4);
-                        Rotation(Intersection_6[0], Q_axis_z_4, Intersection_7[0]);
-                        Rotation(Intersection_6[1], Q_axis_z_4, Intersection_7[1]);
-                    }
-                    else
-                    {
-                        Intersection_7[0] = Intersection_6[0];
-                        Intersection_7[1] = Intersection_6[1];
-                    }
-
-                    A1 = Intersection_7[0];
-                    B1 = Intersection_7[1];
-                }
-            }
-        }
-        else
-        {
-            return false;
-        }
-    };
 
     ///std::cout<<"Intersection points are: \n"<<A1<<"\n"<<B1<<std::endl;
 
-    if (A1(0) != 0 && A1(1) != 0 && A1(2) != 0 && B1(0) != 0 && B1(1) != 0 && B1(2) != 0)
-    {
-        //std::cout << "Found intersection between Fracture[" << F1.Tag << "] and Fracture[" << F2.Tag << "]!" << std::endl;
-        ///Clusters(F1,F2, A1, B1);
+    //std::cout << "Found intersection between Fracture[" << F1.Tag << "] and Fracture[" << F2.Tag << "]!" << std::endl;
+    ///Clusters(F1,F2, A1, B1);
 
-        Connections.push_back(F1.Tag); //Fracture F1 and F2 are connected
-        Connections.push_back(F2.Tag);
-        std::pair<size_t, size_t> p = std::make_pair(F1.Tag, F2.Tag); //Saving the intersection line from x1 to x2 into the Intersections map for the pair of fracture 0 and 1
-        Vector3d x1, x2;
-        x1 = A1;
-        x2 = B1;
-        Intersections[p] = std::make_pair(x1, x2);
+    Connections.push_back(F1.Tag); //Fracture F1 and F2 are connected
+    Connections.push_back(F2.Tag);
+    std::pair<size_t, size_t> p = std::make_pair(F1.Tag, F2.Tag); //Saving the intersection line from x1 to x2 into the Intersections map for the pair of fracture 0 and 1
+    Vector3d x1, x2;
+    x1 = A1;
+    x2 = B1;
+    Intersections[p] = std::make_pair(x1, x2);
 
-        // std::set<size_t, size_t> Intersect_other_frac_after_trim;
-        F1.Intersect_other_frac_after_trim.insert(F2.Tag);
-        F2.Intersect_other_frac_after_trim.insert(F1.Tag);
-        return true;
-    }
-    else
-        return false;
+    // std::set<size_t, size_t> Intersect_other_frac_after_trim;
+    F1.Intersect_other_frac_after_trim.insert(F2.Tag);
+    F2.Intersect_other_frac_after_trim.insert(F1.Tag);
+    return true;
 }
 
 inline void Domain::Clusters()

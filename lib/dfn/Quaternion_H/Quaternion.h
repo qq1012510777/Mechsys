@@ -3,6 +3,8 @@
 
 // Std Lib
 #include <cmath>
+#include <iostream>
+using namespace std;
 
 using namespace Eigen;
 
@@ -12,8 +14,7 @@ inline void NormalizeRotation(double Theta, Vector3d const &Axis, Quaternion_t &
 {
     if (Axis.norm() < 1.0e-12)
     {
-        std::cout << 
-            "Quaternion: the norm of the axis is too small, please chose a different one\n";
+        std::cout << "Quaternion: the norm of the axis is too small, please chose a different one\n";
         exit(0);
     }
     Vector3d A = Axis / Axis.norm();

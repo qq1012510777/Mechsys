@@ -5,6 +5,7 @@
 #include <sstream>
 #include <string>
 #include <vector>
+#include "../Geometry_H/Vector_2.h"
 
 // Fade_2D
 #include "DFN_fade2d_WL.h"
@@ -17,7 +18,7 @@ class DFN_mesh
 public:
     std::vector<std::pair<Vector4d, Vector6d>> Rota_angle;
     ///< 1. the rotation angle and the center of the
-    // fracture 
+    // fracture
     //< 2.
     // the normal of fracture and the
     // vector perpendicular to the normal (in xy plane)
@@ -269,7 +270,7 @@ inline DFN_mesh::DFN_mesh(const DFN::Domain dom,
                 {
                     double R_angle_temp1 = 0;
                     double x_temp = dom.Fractures[dom.Listofclusters[dom.Percolation_cluster[P_idx][he]][i]].Dip_angle; ///it is better to create a new variable to represent the dip angle, because debuging shows direct use of 'Dip_angle' to calculate rotation angle leads wrong output
-                    R_angle_temp1 = x_temp * M_PI / 180;
+                    R_angle_temp1 = -x_temp * M_PI / 180;
 
                     Quaternion_t Q_axis_1;
                     NormalizeRotation(R_angle_temp1, temp3, Q_axis_1);
@@ -1170,7 +1171,17 @@ inline void DFN_mesh::Find_pnt_inside_region(const DFN::Domain dom, const std::v
     }
 };
 
-inline void DFN_mesh::Rotation_3D_frac_to_2D(DFN::Domain dom, std::vector<Vector3d> &tem_verts_trim_AAA, std::map<std::pair<double, double>, int> &MapPnt, std::vector<Vector2d> &SegIDtoTD, Vector3d &temp3, Vector3d &Normal_frac, const size_t i, const size_t P_idx, const size_t he, const double d_In, std::vector<std::pair<Vector3d, Vector3d>> &Connection_traces)
+inline void DFN_mesh::Rotation_3D_frac_to_2D(DFN::Domain dom,
+                                             std::vector<Vector3d> &tem_verts_trim_AAA,
+                                             std::map<std::pair<double, double>, int> &MapPnt,
+                                             std::vector<Vector2d> &SegIDtoTD,
+                                             Vector3d &temp3,
+                                             Vector3d &Normal_frac,
+                                             const size_t i,
+                                             const size_t P_idx,
+                                             const size_t he,
+                                             const double d_In,
+                                             std::vector<std::pair<Vector3d, Vector3d>> &Connection_traces)
 {
     std::vector<Vector3d> tem_verts_trim;
     std::vector<std::vector<Vector3d>> Seg_pnt; ///< segment ends (not include domain coordinates)
@@ -1179,7 +1190,9 @@ inline void DFN_mesh::Rotation_3D_frac_to_2D(DFN::Domain dom, std::vector<Vector
     tem_verts_trim.resize(dom.Fractures[dom.Listofclusters[dom.Percolation_cluster[P_idx][he]][i]].Verts_trim.size());
     std::vector<int> no_overlaped_pnt;
     Normal_frac = dom.Fractures[dom.Listofclusters[dom.Percolation_cluster[P_idx][he]][i]].Normal_vector;
-    Find_vector_2(dom.Fractures[dom.Listofclusters[dom.Percolation_cluster[P_idx][he]][i]].Normal_vector, temp3);
+
+    
+    DFN::Vector_2 vd{dom.Fractures[dom.Listofclusters[dom.Percolation_cluster[P_idx][he]][i]].Normal_vector, temp3};
     for (size_t j = 0; j < dom.Fractures[dom.Listofclusters[dom.Percolation_cluster[P_idx][he]][i]].Verts_trim.size(); ++j)
     {
         tem_verts_trim[j] = dom.Fractures[dom.Listofclusters[dom.Percolation_cluster[P_idx][he]][i]].Verts_trim[j] - dom.Fractures[dom.Listofclusters[dom.Percolation_cluster[P_idx][he]][i]].Center;
@@ -1240,7 +1253,7 @@ inline void DFN_mesh::Rotation_3D_frac_to_2D(DFN::Domain dom, std::vector<Vector
     {
         double R_angle_temp1 = 0;
         double x_temp = dom.Fractures[dom.Listofclusters[dom.Percolation_cluster[P_idx][he]][i]].Dip_angle; ///it is better to create a new variable to represent the dip angle, because debuging shows direct use of 'Dip_angle' to calculate rotation angle leads wrong output
-        R_angle_temp1 = -x_temp * M_PI / 180;
+        R_angle_temp1 = x_temp * M_PI / 180;
 
         Quaternion_t Q_axis_1;
         NormalizeRotation(R_angle_temp1, temp3, Q_axis_1);
