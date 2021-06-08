@@ -41,6 +41,7 @@ ADD_DEFINITIONS(-fmessage-length=0) # Each error message will appear on a single
 ADD_DEFINITIONS(-std=c++11)                      # New C++ standard
 ADD_DEFINITIONS(-fpermissive)                    # New C++ standard
 ADD_DEFINITIONS(-Wno-deprecated-declarations)    # Remove depracated warnings
+
 INCLUDE_DIRECTORIES (${INCLUDE_DIRECTORIES} $ENV{HOME}/pkg/boost_1_73_0)
 INCLUDE_DIRECTORIES (${INCLUDE_DIRECTORIES} $ENV{MECHSYS_ROOT}/pkg/boost_1_73_0)
 
@@ -122,15 +123,15 @@ if(A_USE_OCL)
 INCLUDE (FindOpenCL )                                       # 12
 endif(A_USE_OCL)
 INCLUDE (${MECHSYS_SOURCE_DIR}/Modules/FindEIGEN.cmake)  # 13   EIGEN / Dense
-INCLUDE (${MECHSYS_SOURCE_DIR}/Modules/FindFADE2D.cmake)  # 14  fade2d
+#INCLUDE (${MECHSYS_SOURCE_DIR}/Modules/FindFADE2D.cmake)  # 14  fade2d
 
 # 14
-if(FADE2D_FOUND)
-	INCLUDE_DIRECTORIES (${FADE2D_INCLUDE_DIRS})
-	SET (LIBS ${LIBS} ${FADE2D_LIBRARIES})
-else(FADE2D_FOUND)
-    SET (MISSING "${MISSING} Fade_2D")
-endif(FADE2D_FOUND)
+#if(FADE2D_FOUND)
+#	INCLUDE_DIRECTORIES (${FADE2D_INCLUDE_DIRS})
+#	SET (LIBS ${LIBS} ${FADE2D_LIBRARIES})
+#else(FADE2D_FOUND)
+#    SET (MISSING "${MISSING} Fade_2D")
+#endif(FADE2D_FOUND)
 
 # 1
 if(VTK_FOUND AND A_USE_VTK)

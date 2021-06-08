@@ -1,5 +1,6 @@
 #pragma once
 #include "Dense"
+#include "../Error_throw/Error_throw.h"
 
 // Std Lib
 #include <cmath>
@@ -14,8 +15,7 @@ inline void NormalizeRotation(double Theta, Vector3d const &Axis, Quaternion_t &
 {
     if (Axis.norm() < 1.0e-12)
     {
-        std::cout << "Quaternion: the norm of the axis is too small, please chose a different one\n";
-        exit(0);
+        throw Error_throw_ignore("Quaternion: the norm of the axis is too small, please chose a different one\n");
     }
     Vector3d A = Axis / Axis.norm();
 

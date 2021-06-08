@@ -21,6 +21,7 @@ public:
 
 public:
     Polygon_convex_3D(const std::vector<Vector3d> Verts_1);
+    void Optimize();
     Polygon_convex_3D();
     void Create(Polygon_convex_3D A);
     void Print_Polygon();
@@ -43,8 +44,7 @@ inline Polygon_convex_3D::Polygon_convex_3D(const std::vector<Vector3d> Verts_1)
 {
     if (Verts_1.size() < 3)
     {
-        cout << "Polygon_convex_3D::Polygon_convex_3D, cannot create a polygon with less than three vertices!\n";
-        exit(0);
+        throw Error_throw_ignore("Polygon_convex_3D::Polygon_convex_3D, cannot create a polygon with less than three vertices!\n");
     }
     Corners = Verts_1;
     Normal_vector = (Corners[0] - Corners[1]).cross(Corners[0] - Corners[2]);
@@ -59,11 +59,27 @@ inline Polygon_convex_3D::Polygon_convex_3D(const std::vector<Vector3d> Verts_1)
     {
         cout << "Polygon_convex_3D::Polygon_convex_3D, Beta of a normal vector is incorrect!\n";
         cout << "Beta = " << Beta << endl;
-        exit(0);
+        throw Error_throw_ignore("Polygon_convex_3D::Polygon_convex_3D, Beta of a normal vector is incorrect!\n");
     }
 
     Plane_parameter << Normal_vector(0), Normal_vector(1), Normal_vector(2),
         -Normal_vector.dot(Corners[0]);
+};
+
+inline void Polygon_convex_3D::Optimize()
+{
+
+  
+    for (size_t i = 0; i < Corners.size() - 1;)
+    {
+        Vector3d As = Corners[i] - Corners[i + 1];
+        if (As.norm() < 0.01)
+        {
+            Corners.erase(Corners.begin() + i + 1);
+        }
+        else
+            ++i;
+    }
 };
 
 void Polygon_convex_3D::Print_Polygon()

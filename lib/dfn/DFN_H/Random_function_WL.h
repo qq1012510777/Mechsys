@@ -4,6 +4,7 @@
 #include <cmath>
 #include <ctime>
 #include <iostream>
+#include "../Error_throw/Error_throw.h"
 
 namespace DFN
 {
@@ -294,8 +295,7 @@ inline double Random_function::powerlaw(double x0, double x1, double alpha_g)
     //x0 upper,  x1 lower boundary
     if (x0 == 0)
     {
-        cout << "Error! Lower boundary cannot be zero!\n";
-        exit(0);
+        throw Error_throw_pause("Error! Lower boundary cannot be zero!\nIn class 'Random_function', function 'powerlaw'!\n");
     }
     double y_g = rn(); // random double numbers between 0 and 1
     double x_g = (pow(x1, 1 - alpha_g) - pow(x0, 1 - alpha_g)) * y_g + pow(x0, 1 - alpha_g);

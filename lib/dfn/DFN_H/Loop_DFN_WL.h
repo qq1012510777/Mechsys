@@ -1,8 +1,9 @@
 #pragma once
-#include "Domain_WL.h"
-#include "FEM_DFN_WL.h"
-#include "Mesh_DFN_WL.h"
+#include "../FEM_H/FEM_DFN_A.h"
 #include "../Mesh_H/Mesh_DFN.h"
+#include "Domain_WL.h"
+//#include "FEM_DFN_WL.h"
+//#include "Mesh_DFN_WL.h"
 #include <omp.h>
 
 namespace DFN
@@ -46,8 +47,8 @@ public:
                           string str_ori,
                           string str_frac_size,
                           string percolation_direction,
-                          double avg_ele_len,
-                          double ratio_H);
+                          double subtrace,
+                          double subpolygon);
 
     void Data_output_stepBYstep(size_t times,
                                 string FileKey,
@@ -82,8 +83,8 @@ inline void Loop_DFN::Loop_create_DFNs(gsl_rng *random_seed,
                                        string str_ori,
                                        string str_frac_size,
                                        string percolation_direction,
-                                       double avg_ele_len,
-                                       double ratio_H)
+                                       double subtrace,
+                                       double subpolygon)
 {
     size_t nv = nv_MC_TIMES;
     //each density, the MC times
@@ -124,8 +125,7 @@ inline void Loop_DFN::Loop_create_DFNs(gsl_rng *random_seed,
     }
     else
     {
-        std::cout << "Error! Please define fracture size distribution!\n";
-        exit(0);
+        throw Error_throw_pause("Error! Please define fracture size distribution!\n");
     }*/
 
     array11.resize(3);
@@ -194,144 +194,160 @@ inline void Loop_DFN::Loop_create_DFNs(gsl_rng *random_seed,
 #pragma omp parallel for schedule(static) num_threads(Nproc)
         for (size_t i = 0; i < nv; i++)
         {
-            DFN::Domain dom;
-            //std::cout<<"debug1\n";
-
-            dom.Create_whole_model(n,
-                                   DenWeight,
-                                   random_seed,
-                                   model_size,
-                                   str_ori,
-                                   str_frac_size,
-                                   array11,
-                                   array12,
-                                   array13);
-            ///uniform means oritation data
-            //are generated uniformly, so,
-            //actually, array13 is input but not used
-            //std::cout<<"debug2\n";
-
-            size_t z = dom.Identify_percolation_clusters(percolation_direction);
-            if (str_ori == "uniform")
-                dom.Connectivity_uniform_orientation(percolation_direction);
-            else if (str_ori == "fisher")
-                dom.Connectivity_fisher_orientation(percolation_direction);
-            else
+        Regenerate_dfn:;
+            try
             {
-                std::cout << "Error! Please define the orientation distribution!\n";
+                DFN::Domain dom;
+                //std::cout<<"debug1\n";
+
+                dom.Create_whole_model(n,
+                                       DenWeight,
+                                       random_seed,
+                                       model_size,
+                                       str_ori,
+                                       str_frac_size,
+                                       array11,
+                                       array12,
+                                       array13);
+                ///uniform means oritation data
+                //are generated uniformly, so,
+                //actually, array13 is input but not used
+                //std::cout<<"debug2\n";
+
+                size_t z = dom.Identify_percolation_clusters(percolation_direction);
+                if (str_ori == "uniform")
+                    dom.Connectivity_uniform_orientation(percolation_direction);
+                else if (str_ori == "fisher")
+                    dom.Connectivity_fisher_orientation(percolation_direction);
+                else
+                {
+                    throw Error_throw_pause("Error! Please define the orientation distribution!\n");
+                }
+
+                P32_total_A[i] = (dom.P32_total);
+                P32_connected_A[i] = (dom.P32_connected);
+                P30_A[i] = (dom.P30);
+                Percolation_parameter_A_1[i] = (dom.Percolation_parameter_a);
+                Percolation_parameter_A_2[i] = (dom.Percolation_parameter_b);
+                Percolation_parameter_A_3[i] = (dom.Percolation_parameter_c);
+                Percolation_parameter_A_4[i] = (dom.Percolation_parameter_d);
+                Percolation_parameter_A_5[i] = (dom.Percolation_parameter_e);
+                Ratio_of_P32_A[i] = (dom.Ratio_of_P32);
+                n_I_A[i] = (dom.n_I);
+                Correlation_length_A[i] = (dom.Xi);
+                Max_gyration_radius_A[i] = (dom.max_R_s);
+                P30_largest_cluster_A[i] = (dom.P30_largest_cluster);
+                P32_largest_cluster_A[i] = (dom.P32_largest_cluster);
+                P30_connected_A[i] = (dom.P30_connected);
+                Ratio_of_P30_A[i] = (dom.Ratio_of_P30);
+
+                if (z == 1)
+                    Percolation_probability_A[i] = 1;
+                else
+                    Percolation_probability_A[i] = 0;
+
+                if (np == nt && i == nv - 1)
+                {
+
+                    dom.PlotMatlab_DFN("tdfn01_DFN.m");
+                    dom.PlotMatlab_DFN_trim("tdfn01_DFN_trim.m");
+                    dom.PlotMatlab_DFN_and_Intersection("tdfn01_DFN_and_Intersections.m");
+                    dom.PlotMatlab_ORI_SCATTER("tdfn01_ORI_SCATTER.m");
+                    //dom.PlotMatlab_Traces_on_Model_surfaces("tdfn01_Trace_on_surfaces.m");
+                    dom.PlotMatlab_DFN_Highlight_Cluster("tdfn01_DFN_Highlight_Cluster.m");
+                    dom.PLotMatlab_DFN_Cluster_along_a_direction("tdfn01_DFN_Z_clusters.m", "z");
+                    //dom.PlotMatlab_Radius_and_Area_kstest("tdfn01_DFN_Fracture_Radius_and_Area.m");
+                    //dom.PlotMatlab_Radius_and_Perimeter_kstest("tdfn01_DFN_Fracture_Radius_and_Perimeter.m");
+                    //dom.DataFile_Radius_AreaAndPerimeter("tdfn01_DFN_Radius_AreaAndPerimeter.txt");
+                }
+
+                if (str_frac_size == "powerlaw")
+                {
+                    if (i == nv / 2 && np % nk == 0)
+                    {
+                        using namespace std;
+                        std::cout << "The Model NO." << np << " has been created! "
+                                  << "Times: " << i << "; Alpha: " << array12[0][0] << "; thread: " << omp_get_thread_num() << std::endl;
+                    }
+                    if (i == nv - 1 && np % nk == 0)
+                    {
+                        using namespace std;
+                        std::cout << "The Model NO." << np << " has been created! "
+                                  << "Times: " << i << "; Alpha: " << array12[0][0] << "; thread: " << omp_get_thread_num() << std::endl;
+                    }
+                }
+                else if (str_frac_size == "lognormal")
+                {
+                    if (i == nv / 2 && np % nk == 0)
+                    {
+                        using namespace std;
+                        std::cout << "The Model NO." << np << " has been created! "
+                                  << "Times: " << i << "; mean: " << array12[0][0] << "; thread: " << omp_get_thread_num() << std::endl;
+                    }
+                    if (i == nv - 1 && np % nk == 0)
+                    {
+                        using namespace std;
+                        std::cout << "The Model NO." << np << " has been created! "
+                                  << "Times: " << i << "; mean: " << array12[0][0] << "; thread: " << omp_get_thread_num() << std::endl;
+                    }
+                }
+                else if (str_frac_size == "uniform")
+                {
+                    if (i == nv / 2 && np % nk == 0)
+                    {
+                        using namespace std;
+                        std::cout << "The Model NO." << np << " has been created! "
+                                  << "Times: " << i << "; lower: " << array12[0][0] << "; thread: " << omp_get_thread_num() << std::endl;
+                    }
+                    if (i == nv - 1 && np % nk == 0)
+                    {
+                        using namespace std;
+                        std::cout << "The Model NO." << np << " has been created! "
+                                  << "Times: " << i << "; lower: " << array12[0][0] << "; thread: " << omp_get_thread_num() << std::endl;
+                    }
+                }
+                else if (str_frac_size == "single")
+                {
+                    if (i == nv / 2 && np % nk == 0)
+                    {
+                        using namespace std;
+                        std::cout << "The Model NO." << np << " has been created! "
+                                  << "Times: " << i << "; single_size: " << array12[0][0] << "; thread: " << omp_get_thread_num() << std::endl;
+                    }
+                    if (i == nv - 1 && np % nk == 0)
+                    {
+                        using namespace std;
+                        std::cout << "The Model NO." << np << " has been created! "
+                                  << "Times: " << i << "; single_size: " << array12[0][0] << "; thread: " << omp_get_thread_num() << std::endl;
+                    }
+                }
+
+                //-----------------------------------------------------------------------
+
+                if (z == 1)
+                {
+
+                    DFN::Mesh_DFN mesh{dom, subtrace, subpolygon};
+
+                    //mesh.Matlab_plot("mesh_DFN.mat", "mesh_DFN.m", dom);
+
+                    DFN::FEM_DFN_A CC(mesh, dom);
+                    //cout << CC.Permeability << endl;
+                }
+                //cout << 2 << endl;
+            }
+            catch (Error_throw_pause e)
+            {
+                cout << "\033[31mPause now! Because:\n"
+                     << e.msg << "\033[0m" << endl;
                 exit(0);
             }
-
-            P32_total_A[i] = (dom.P32_total);
-            P32_connected_A[i] = (dom.P32_connected);
-            P30_A[i] = (dom.P30);
-            Percolation_parameter_A_1[i] = (dom.Percolation_parameter_a);
-            Percolation_parameter_A_2[i] = (dom.Percolation_parameter_b);
-            Percolation_parameter_A_3[i] = (dom.Percolation_parameter_c);
-            Percolation_parameter_A_4[i] = (dom.Percolation_parameter_d);
-            Percolation_parameter_A_5[i] = (dom.Percolation_parameter_e);
-            Ratio_of_P32_A[i] = (dom.Ratio_of_P32);
-            n_I_A[i] = (dom.n_I);
-            Correlation_length_A[i] = (dom.Xi);
-            Max_gyration_radius_A[i] = (dom.max_R_s);
-            P30_largest_cluster_A[i] = (dom.P30_largest_cluster);
-            P32_largest_cluster_A[i] = (dom.P32_largest_cluster);
-            P30_connected_A[i] = (dom.P30_connected);
-            Ratio_of_P30_A[i] = (dom.Ratio_of_P30);
-
-            if (z == 1)
-                Percolation_probability_A[i] = 1;
-            else
-                Percolation_probability_A[i] = 0;
-
-            if (np == nt && i == nv - 1)
+            catch (Error_throw_ignore e)
             {
-
-                dom.PlotMatlab_DFN("tdfn01_DFN.m");
-                dom.PlotMatlab_DFN_trim("tdfn01_DFN_trim.m");
-                dom.PlotMatlab_DFN_and_Intersection("tdfn01_DFN_and_Intersections.m");
-                dom.PlotMatlab_ORI_SCATTER("tdfn01_ORI_SCATTER.m");
-                //dom.PlotMatlab_Traces_on_Model_surfaces("tdfn01_Trace_on_surfaces.m");
-                dom.PlotMatlab_DFN_Highlight_Cluster("tdfn01_DFN_Highlight_Cluster.m");
-                dom.PLotMatlab_DFN_Cluster_along_a_direction("tdfn01_DFN_Z_clusters.m", "z");
-                //dom.PlotMatlab_Radius_and_Area_kstest("tdfn01_DFN_Fracture_Radius_and_Area.m");
-                //dom.PlotMatlab_Radius_and_Perimeter_kstest("tdfn01_DFN_Fracture_Radius_and_Perimeter.m");
-                //dom.DataFile_Radius_AreaAndPerimeter("tdfn01_DFN_Radius_AreaAndPerimeter.txt");
+                cout << "\033[33mRegenerate a DFN! Because:\n"
+                     << e.msg << "\033[0m" << endl;
+                goto Regenerate_dfn;
             }
-
-            if (str_frac_size == "powerlaw")
-            {
-                if (i == nv / 2 && np % nk == 0)
-                {
-                    using namespace std;
-                    std::cout << "The Model NO." << np << " has been created! "
-                              << "Times: " << i << "; Alpha: " << array12[0][0] << "; thread: " << omp_get_thread_num() << std::endl;
-                }
-                if (i == nv - 1 && np % nk == 0)
-                {
-                    using namespace std;
-                    std::cout << "The Model NO." << np << " has been created! "
-                              << "Times: " << i << "; Alpha: " << array12[0][0] << "; thread: " << omp_get_thread_num() << std::endl;
-                }
-            }
-            else if (str_frac_size == "lognormal")
-            {
-                if (i == nv / 2 && np % nk == 0)
-                {
-                    using namespace std;
-                    std::cout << "The Model NO." << np << " has been created! "
-                              << "Times: " << i << "; mean: " << array12[0][0] << "; thread: " << omp_get_thread_num() << std::endl;
-                }
-                if (i == nv - 1 && np % nk == 0)
-                {
-                    using namespace std;
-                    std::cout << "The Model NO." << np << " has been created! "
-                              << "Times: " << i << "; mean: " << array12[0][0] << "; thread: " << omp_get_thread_num() << std::endl;
-                }
-            }
-            else if (str_frac_size == "uniform")
-            {
-                if (i == nv / 2 && np % nk == 0)
-                {
-                    using namespace std;
-                    std::cout << "The Model NO." << np << " has been created! "
-                              << "Times: " << i << "; lower: " << array12[0][0] << "; thread: " << omp_get_thread_num() << std::endl;
-                }
-                if (i == nv - 1 && np % nk == 0)
-                {
-                    using namespace std;
-                    std::cout << "The Model NO." << np << " has been created! "
-                              << "Times: " << i << "; lower: " << array12[0][0] << "; thread: " << omp_get_thread_num() << std::endl;
-                }
-            }
-            else if (str_frac_size == "single")
-            {
-                if (i == nv / 2 && np % nk == 0)
-                {
-                    using namespace std;
-                    std::cout << "The Model NO." << np << " has been created! "
-                              << "Times: " << i << "; single_size: " << array12[0][0] << "; thread: " << omp_get_thread_num() << std::endl;
-                }
-                if (i == nv - 1 && np % nk == 0)
-                {
-                    using namespace std;
-                    std::cout << "The Model NO." << np << " has been created! "
-                              << "Times: " << i << "; single_size: " << array12[0][0] << "; thread: " << omp_get_thread_num() << std::endl;
-                }
-            }
-
-           
-            if (z == 1)
-            {
-                //DFN::DFN_mesh AA(dom, avg_ele_len, ratio_H, percolation_direction);
-                //std::cout << "mesh finished\n";
-                //DFN::FEM_DFN CC(AA, dom);
-                
-                DFN::Mesh_DFN mesh{dom};
-                
-                mesh.Matlab_plot("mesh_DFN.mat", "mesh_DFN.m", dom);
-            }
-            
         }
 
         double P32_total_B = 0;

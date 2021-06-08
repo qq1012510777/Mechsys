@@ -11,6 +11,8 @@
 using namespace std;
 using namespace Eigen;
 
+#define BOOST_GEOMETRY_DISABLE_DEPRECATED_03_WARNING
+
 #include "boost/assign/std/vector.hpp"
 #include "boost/geometry.hpp"
 #include "boost/geometry/algorithms/area.hpp"
@@ -42,6 +44,9 @@ public:
     bool If_overlap_with_another_pnt(Point_2D AN);
     bool If_lies_on_a_line_seg(const std::vector<Vector2d> Line_seg);
     Vector2d Perpend_foot_on_a_line_seg(const std::vector<Vector2d> Line_seg);
+
+    bool If_lies_within_a_polygon_boost(const vector<Vector2d> Verts_1);
+    bool If_lies_on_the_edges_of_a_polygon_boost(const vector<Vector2d> Verts_1);
 };
 
 inline Point_2D::Point_2D(const Vector2d A)
@@ -174,7 +179,7 @@ inline bool Point_2D::If_lies_on_the_bounds_of_polygon(const vector<Vector3d> Ve
                         cout << "\nThe two points, B and C are (after rotation):\n";
                         cout << Verts4[0].transpose() << endl;
                         cout << Verts6[0].transpose() << endl;
-                        exit(0);
+                        throw Error_throw_ignore("Point_2D::If_lies_on_the_bounds_of_polygon, Rotating to x_axis failed!\n");
                     }
                 }
             }
@@ -208,6 +213,29 @@ inline bool Point_2D::If_overlap_with_another_pnt(Point_2D AN)
 
 inline bool Point_2D::If_lies_on_a_line_seg(const std::vector<Vector2d> Line_seg)
 {
+    if ((Line_seg[0] - Line_seg[1]).norm() < 0.01) // if segment is a point
+    {
+        if ((this->Coordinate - Line_seg[0]).norm() < 0.01)
+        {
+            return true;
+        }
+        else
+            return false;
+    }
+
+    point_type p(Coordinate(0), Coordinate(1));
+
+    segment_type EDGE_POLYGON{{Line_seg[0](0), Line_seg[0](1)},
+                              {Line_seg[1](0), Line_seg[1](1)}};
+
+    double distanceA = boost::geometry::distance(p, EDGE_POLYGON);
+
+    if (distanceA < 0.01)
+        return true;
+
+    return false;
+
+    /*
     double line_ymax = Line_seg[0](1) > Line_seg[1](1) ? Line_seg[0](1) : Line_seg[1](1);
     double line_ymin = Line_seg[0](1) < Line_seg[1](1) ? Line_seg[0](1) : Line_seg[1](1);
 
@@ -276,10 +304,13 @@ inline bool Point_2D::If_lies_on_a_line_seg(const std::vector<Vector2d> Line_seg
             return true;
         }
         else
+        {
             return false;
+        }
     }
 
     return false;
+    */
 };
 
 inline Vector2d Point_2D::Perpend_foot_on_a_line_seg(const std::vector<Vector2d> Line_seg)
@@ -305,6 +336,41 @@ inline Vector2d Point_2D::Perpend_foot_on_a_line_seg(const std::vector<Vector2d>
 
     //move back
     return (Vector2d{Verts6[0](0), Verts6[0](1)} + Line_seg[0]);
-
 };
+
+inline bool Point_2D::If_lies_within_a_polygon_boost(const vector<Vector2d> Verts_1)
+{
+    std::vector<point_type> points(Verts_1.size() + 1);
+
+    for (size_t i = 0; i < Verts_1.size(); ++i)
+        points[i] = point_type(Verts_1[i](0), Verts_1[i](1));
+
+    points[points.size() - 1] = point_type(Verts_1[0](0), Verts_1[0](1));
+
+    polygon_type poly;
+    boost::geometry::assign_points(poly, points);
+
+    point_type p(Coordinate(0), Coordinate(1));
+
+    bool ty = boost::geometry::within(p, poly);
+
+    return ty;
+};
+
+inline bool Point_2D::If_lies_on_the_edges_of_a_polygon_boost(const vector<Vector2d> Verts_1)
+{
+    point_type p(Coordinate(0), Coordinate(1));
+    for (size_t i = 0; i < Verts_1.size(); ++i)
+    {
+        segment_type EDGE_POLYGON{{Verts_1[i](0), Verts_1[i](1)},
+                                  {Verts_1[(i + 1) % Verts_1.size()](0), Verts_1[(i + 1) % Verts_1.size()](1)}};
+
+        double distanceA = boost::geometry::distance(p, EDGE_POLYGON);
+
+        if (distanceA < 0.01)
+            return true;
+    }
+    return false;
+};
+
 }; // namespace DFN

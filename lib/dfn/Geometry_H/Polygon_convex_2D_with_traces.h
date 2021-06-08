@@ -13,436 +13,395 @@
 using namespace std;
 using namespace Eigen;
 
+typedef bool If_trace_segment;
+
+bool compVector2d(Vector2d &a, Vector2d &b)
+{
+    return a.norm() < b.norm();
+}
+
 namespace DFN
 {
 
 class Polygon_convex_2D_with_traces
 {
 public:
-    std::vector<Vector2d> Corners;
-    double x_min;
-    double x_max;
-    double y_min;
-    double y_max;
     std::vector<DFN::Point_2D> Pnt_sets;           // each Point_2D has a NO. which is the IDX of this vector
     std::vector<pair<size_t, size_t>> Topo_struct; // each pair is a segment from pnt NO. n1 to n2; if segment is a pnt actually, then n1 = n2
+    std::vector<If_trace_segment> Topo_struct_attri;
+    size_t Tag_for_Polygon_Pnt;
 
 public:
-    Polygon_convex_2D_with_traces(const DFN::Polygon_convex_2D polygon, const vector<DFN::Line_seg_2D> Traces);
-    void Set_topo_struct(const vector<DFN::Line_seg_2D> Traces);
-    bool Insert_a_pnt_into_topo_line(std::vector<pair<size_t, DFN::Point_2D>> &topoline, DFN::Point_2D pnt, size_t &idx);
-    bool Check_repetitive_line_seg(const size_t A, const size_t B);
-    bool Check_repetitive_pnt(const DFN::Point_2D G, size_t &idx);
+    Polygon_convex_2D_with_traces(const DFN::Polygon_convex_2D polygon,
+                                  const vector<DFN::Line_seg_2D> Traces);
+    void Polygon_structure(const DFN::Polygon_convex_2D polygon);
+
+    //splitting the polygon
+    void Insert_IntersectionPnt_between_edge_and_trace(const vector<DFN::Line_seg_2D> Traces);
+
+    void Split_traces(const vector<DFN::Line_seg_2D> Traces, vector<DFN::Line_seg_2D> &Split_Traces);
+
+    size_t Insert_a_pnt_to_Pnt_sets(Vector2d A);
+
+    void Insert_a_splitting_trace_to_Topo_struct(const size_t ID1, const size_t ID2);
+
+    void Insert_a_splitting_trace(const DFN::Polygon_convex_2D polygon, DFN::Line_seg_2D splitting_trace);
+
+    void Set_Topo_struct_attri(const DFN::Polygon_convex_2D polygon, const vector<DFN::Line_seg_2D> Traces);
+
+    void Pointliked_traces(const vector<DFN::Line_seg_2D> Traces, const DFN::Polygon_convex_2D polygon); // point_like traces and do not intersect any traces or polygon edges
+
     void Matlab_plot(string FileKey);
 };
 
-inline Polygon_convex_2D_with_traces::Polygon_convex_2D_with_traces(const DFN::Polygon_convex_2D polygon, const vector<DFN::Line_seg_2D> Traces)
+inline Polygon_convex_2D_with_traces::Polygon_convex_2D_with_traces(const DFN::Polygon_convex_2D polygon,
+                                                                    const vector<DFN::Line_seg_2D> Traces)
 {
-    this->Corners = polygon.Corners;
-    this->x_min = polygon.x_min;
-    this->x_max = polygon.x_max;
-    this->y_min = polygon.y_min;
-    this->y_max = polygon.y_max;
+    //// create polygon structure first
+    this->Polygon_structure(polygon);
 
+    this->Insert_IntersectionPnt_between_edge_and_trace(Traces);
+    Tag_for_Polygon_Pnt = Pnt_sets.size() - 1;
+    //
+    std::vector<DFN::Line_seg_2D> Split_Traces;
+    this->Split_traces(Traces, Split_Traces);
+
+    // insert trace to structure
+    for (size_t i = 0; i < Split_Traces.size(); ++i)
+    {
+        this->Insert_a_splitting_trace(polygon, Split_Traces[i]);
+    };
+
+    this->Set_Topo_struct_attri(polygon, Traces);
+    this->Pointliked_traces(Traces, polygon);
+};
+
+inline void Polygon_convex_2D_with_traces::Polygon_structure(const DFN::Polygon_convex_2D polygon)
+{
     Pnt_sets.resize(polygon.Corners.size());
 
-    for (size_t i = 0; i < this->Corners.size(); ++i)
+    for (size_t i = 0; i < polygon.Corners.size(); ++i)
     {
-        Pnt_sets[i].Re_constructor(this->Corners[i]);
+        Pnt_sets[i].Re_constructor(polygon.Corners[i]);
     }
 
-    this->Set_topo_struct(Traces);
-};
+    // remove overlapping point
+    for (size_t i = 0; i < polygon.Corners.size();)
+    {
+        DFN::Line_seg_2D LineE{Pnt_sets[i].Coordinate,
+                               Pnt_sets[(i + 1) % polygon.Corners.size()].Coordinate};
 
-inline void Polygon_convex_2D_with_traces::Set_topo_struct(const vector<DFN::Line_seg_2D> Traces)
-{
-    std::vector<std::vector<pair<size_t, DFN::Point_2D>>> Polygon_topo_line_seg(Pnt_sets.size());
+        if (LineE.If_is_a_point() == true)
+        {
+            Pnt_sets.erase(Pnt_sets.begin() + i + 1); // remove the 2nd point
+        }
+        else
+            i++;
+    }
 
+    // structure
+    Topo_struct.resize(Pnt_sets.size());
     for (size_t i = 0; i < Pnt_sets.size(); ++i)
     {
-        Polygon_topo_line_seg[i].push_back(std::make_pair(i, DFN::Point_2D{Corners[i]}));
-        Polygon_topo_line_seg[i].push_back(std::make_pair((i + 1) % Pnt_sets.size(), DFN::Point_2D{Corners[(i + 1) % Pnt_sets.size()]}));
+        Topo_struct[i] = std::make_pair(i, (i + 1) % Pnt_sets.size());
     }
+};
 
-    std::vector<std::vector<pair<size_t, DFN::Point_2D>>> Trace_topo_line_seg(Traces.size());
+inline void Polygon_convex_2D_with_traces::Insert_IntersectionPnt_between_edge_and_trace(const vector<DFN::Line_seg_2D> Traces)
+{
+    std::vector<Vector2d> Intersection_point;
+
     for (size_t i = 0; i < Traces.size(); ++i)
     {
-        Trace_topo_line_seg[i].push_back(std::make_pair(1e10, DFN::Point_2D{Traces[i].Point[0]}));
-        Trace_topo_line_seg[i].push_back(std::make_pair(1e10, DFN::Point_2D{Traces[i].Point[1]}));
-    };
-    for (size_t i = 0; i < this->Corners.size(); ++i)
-    {
-        DFN::Line_seg_2D edge_a{Corners[i], Corners[(i + 1) % Corners.size()]};
+        //DFN::Line_seg_2D Thisline_A{Traces[i].Point[0], Traces[i].Point[1]};
 
-        for (size_t j = 0; j < Traces.size(); ++j)
+        DFN::Point_2D A1{Traces[i].Point[0]};
+        DFN::Point_2D A2{Traces[i].Point[1]};
+
+        for (size_t j = 0; j < Topo_struct.size(); ++j)
         {
-            DFN::Line_seg_2D trace_a{Traces[j].Point[0], Traces[j].Point[1]};
+            std::vector<Vector2d> Intersection_A;
+            DFN::Line_seg_2D Thisline_B{Pnt_sets[Topo_struct[j].first].Coordinate, Pnt_sets[Topo_struct[j].second].Coordinate};
+            //bool pu = Thisline_A.Intersection_between_two_lines(Thisline_B, Intersection_A);
 
-            if (trace_a.If_is_a_point() == false)
+            bool uit1 = A1.If_lies_on_a_line_seg(Thisline_B.Point);
+            bool uit2 = A2.If_lies_on_a_line_seg(Thisline_B.Point);
+
+            if (uit1 == true)
+                Intersection_A.push_back(Traces[i].Point[0]);
+            if (uit2 == true)
+                Intersection_A.push_back(Traces[i].Point[1]);
+
+            //if (pu == true)
+            for (size_t k = 0; k < Intersection_A.size(); ++k)
             {
-                std::vector<Vector2d> Intersection_t_e;
-                bool rt = edge_a.Intersection_between_two_lines(trace_a, Intersection_t_e);
+                Intersection_point.push_back(Intersection_A[k]);
+            }
+        }
+    }
 
-                if (rt == true && Intersection_t_e.size() == 1)
+    //------------------------
+    //cout << Intersection_point.size() << endl;
+    for (size_t tk = 0; tk < Intersection_point.size(); ++tk)
+    {
+
+        Vector2d Pnt = Intersection_point[tk];
+        //cout << Intersection_point[tk].transpose() << endl;
+        // if the point is on the polygon bound, then change the polygon structure
+
+        // first, make sure if the point is repetitive?
+        bool repetitive = false;
+        for (size_t i = 0; i < Pnt_sets.size(); ++i)
+        {
+            Vector2d AS = Pnt - Pnt_sets[i].Coordinate;
+            if (abs(AS.norm()) < 0.01)
+            {
+                repetitive = true;
+                break;
+            }
+        }
+        if (repetitive == true)
+            continue;
+
+        // then, if the point splits the polygon and trace, change the polygon structure
+        DFN::Point_2D AS{Pnt};
+
+        for (size_t i = 0; i < Topo_struct.size(); ++i)
+        {
+            std::vector<Vector2d> LineE = {Pnt_sets[Topo_struct[i].first].Coordinate,
+                                           Pnt_sets[Topo_struct[i].second].Coordinate};
+
+            if (AS.If_lies_on_a_line_seg(LineE) == true)
+            {
+                //cout << 11 << endl;
+                Pnt_sets.push_back(AS); // the point might touch other traces
+
+                size_t PntID = Pnt_sets.size() - 1;
+                std::pair<size_t, size_t> OPS = std::make_pair(PntID, Topo_struct[i].second);
+
+                Topo_struct[i].second = PntID;
+
+                Topo_struct.insert(Topo_struct.begin() + i + 1, OPS);
+                break;
+            }
+            else if (AS.If_lies_on_a_line_seg(LineE) == false && i == Topo_struct.size() - 1)
+            {
+                cout << "error in Class 'Polygon_convex_2D_with_traces', function 'Insert_IntersectionPnt_between_edge_and_trace'!\n";
+                cout << "should lie on one edge!\n";
+                throw Error_throw_ignore("error in Class 'Polygon_convex_2D_with_traces', function 'Insert_IntersectionPnt_between_edge_and_trace'!\n");
+            }
+        }
+    }
+};
+
+inline void Polygon_convex_2D_with_traces::Split_traces(const vector<DFN::Line_seg_2D> Traces, vector<DFN::Line_seg_2D> &Split_Traces)
+{
+    for (size_t i = 0; i < Traces.size(); ++i)
+    {
+        std::vector<Vector2d> Split_seg(1);
+        Split_seg[0] = Traces[i].Point[0];
+
+        DFN::Line_seg_2D LineA{Traces[i].Point[0], Traces[i].Point[1]};
+        //cout << "Trace " << i << ": " << Traces[i].Point[0].transpose() << ", " << Traces[i].Point[1].transpose() << endl;
+
+        for (size_t j = 0 && j != i; j < Traces.size(); ++j)
+        {
+            DFN::Line_seg_2D LineB{Traces[j].Point[0], Traces[j].Point[1]};
+            //cout << "\tTrace " << j << ": " << Traces[j].Point[0].transpose() << ", " << Traces[j].Point[1].transpose() << endl;
+            std::vector<Vector2d> Intersection;
+            bool pot = LineA.Intersection_between_two_lines(LineB, Intersection);
+
+            if (pot == true)
+                for (size_t k = 0; k < Intersection.size(); ++k)
                 {
-                    DFN::Point_2D this_pnt{Intersection_t_e[0]};
-                    size_t iy = 0;
-                    bool ut = this->Insert_a_pnt_into_topo_line(Polygon_topo_line_seg[i], this_pnt, iy);
-
-                    if (ut == true)
-                    {
-                        //insert successfully
-                        Pnt_sets.push_back(this_pnt);
-
-                        Polygon_topo_line_seg[i][iy].first = Pnt_sets.size() - 1;
-                        //how to handle trace
-                        for (size_t k = 0; k < Trace_topo_line_seg[j].size(); ++k)
-                        {
-                            if (Trace_topo_line_seg[j][k].second.If_overlap_with_another_pnt(this_pnt) == true)
-                            {
-                                Trace_topo_line_seg[j][k].first = Pnt_sets.size() - 1;
-                                break;
-                            }
-                        };
-                    }
-                    else if (ut == false && iy != 1e10)
-                    {
-                        //find intersection is overlapping with an end (iy)
-
-                        for (size_t k = 0; k < Trace_topo_line_seg[j].size(); ++k)
-                        {
-                            if (Trace_topo_line_seg[j][k].second.If_overlap_with_another_pnt(this_pnt) == true)
-                            {
-                                Trace_topo_line_seg[j][k].first = iy;
-                                break;
-                            }
-                        };
-                    }
-                    else if (ut == false && iy == 1e10)
-                    {
-                        cout << "Polygon_convex_2D_with_traces::Set_topo_struct, found an intersection between an edge of a polygon and a trace, but this intersection is not on the edge??\n";
-                        cout << "type 1!\n";
-                        exit(0);
-                    }
+                    Split_seg.push_back(Intersection[k]);
+                    //cout << "\t\t" << Intersection[k].transpose() << endl;
                 }
-                else if (rt == true && Intersection_t_e.size() == 2)
-                {
-                    //intersection overlap with the edge
-                    for (size_t k = 0; k < Intersection_t_e.size(); ++k)
-                    {
-                        DFN::Point_2D this_pnt{Intersection_t_e[k]};
-                        size_t iy = 0;
-                        bool ut = this->Insert_a_pnt_into_topo_line(Polygon_topo_line_seg[i], this_pnt, iy);
+        }
+        Split_seg.push_back(Traces[i].Point[1]);
 
-                        if (ut == true)
-                        {
-                            //insert successfully
-                            Pnt_sets.push_back(this_pnt);
+        //sort
+        Vector2d XU = Split_seg[0];
+        for (size_t j = 0; j < Split_seg.size(); ++j)
+            Split_seg[j] = Split_seg[j] - XU;
 
-                            Polygon_topo_line_seg[i][iy].first = Pnt_sets.size() - 1;
-                            //how to handle trace
-                            for (size_t m = 0; m < Trace_topo_line_seg[j].size(); ++m)
-                            {
-                                if (Trace_topo_line_seg[j][m].second.If_overlap_with_another_pnt(this_pnt) == true)
-                                {
-                                    Trace_topo_line_seg[j][m].first = Pnt_sets.size() - 1;
-                                    break;
-                                }
-                            };
-                        }
-                        else if (ut == false && iy != 1e10)
-                        {
-                            //find intersection is overlapping with an end
+        sort(Split_seg.begin(), Split_seg.end(), compVector2d);
 
-                            for (size_t m = 0; m < Trace_topo_line_seg[j].size(); ++m)
-                            {
-                                if (Trace_topo_line_seg[j][m].second.If_overlap_with_another_pnt(this_pnt) == true)
-                                {
-                                    Trace_topo_line_seg[j][m].first = iy;
-                                    break;
-                                }
-                            };
-                        }
-                        else if (ut == false && iy == 1e10)
-                        {
-                            cout << "Polygon_convex_2D_with_traces::Set_topo_struct, found an intersection between an edge of a polygon and a trace, but this intersection is not on the edge??\n";
-                            cout << "type 2!\n";
-                            exit(0);
-                        }
-                    }
-                }
-                else if (rt == false)
-                {
-                    ;
-                    // how to address trace
-                }
+        for (size_t j = 0; j < Split_seg.size(); ++j)
+            Split_seg[j] = Split_seg[j] + XU;
+        //sort finished
+
+        //remove overlapping point
+        for (size_t j = 0; j < Split_seg.size() - 1;)
+        {
+            Vector2d AY = Split_seg[j] - Split_seg[j + 1];
+
+            if (AY.norm() < 0.01)
+            {
+                Split_seg.erase(Split_seg.begin() + j + 1);
             }
             else
-            {
-                Vector3d A, B;
-                A << Corners[i](0), Corners[i](1), 0;
-                B << Corners[(i + 1) % Corners.size()](0), Corners[(i + 1) % Corners.size()](1), 0;
-                std::vector<Vector3d> Verts_1{A, B};
-                DFN::Point_2D this_pnt{Traces[j].Point[0]};
-
-                bool rw = this_pnt.If_lies_on_the_bounds_of_polygon(Verts_1);
-                if (rw == true)
-                {
-                    size_t iy = 0;
-                    bool ut = this->Insert_a_pnt_into_topo_line(Polygon_topo_line_seg[i], this_pnt, iy);
-
-                    if (ut == true)
-                    {
-                        //insert successfully
-                        Pnt_sets.push_back(this_pnt);
-
-                        Polygon_topo_line_seg[i][iy].first = Pnt_sets.size() - 1;
-                        //how to handle trace
-                        for (size_t k = 0; k < Trace_topo_line_seg[j].size(); ++k)
-                        {
-                            if (Trace_topo_line_seg[j][k].second.If_overlap_with_another_pnt(this_pnt) == true)
-                            {
-                                Trace_topo_line_seg[j][k].first = Pnt_sets.size() - 1;
-                                break;
-                            }
-                        };
-                    }
-                    else if (ut == false && iy != 1e10)
-                    {
-                        //find intersection is overlapping with an end
-                        //how to handle trace
-
-                        for (size_t k = 0; k < Trace_topo_line_seg[j].size(); ++k)
-                        {
-                            if (Trace_topo_line_seg[j][k].second.If_overlap_with_another_pnt(this_pnt) == true)
-                            {
-                                Trace_topo_line_seg[j][k].first = iy;
-                                break;
-                            }
-                        };
-                    }
-                    else if (ut == false && iy == 1e10)
-                    {
-                        cout << "Polygon_convex_2D_with_traces::Set_topo_struct, found an intersection between an edge of a polygon and a trace, but this intersection is not on the edge??\n";
-                        cout << "type 2!\n";
-                        exit(0);
-                    }
-                }
-                else
-                {
-                    //how to handle trace
-                    ;
-                }
-            }
+                j++;
         }
-    };
 
-    for (size_t i = 0; i < Trace_topo_line_seg.size(); ++i)
-    {
-
-        for (size_t j = 0; j < Trace_topo_line_seg[i].size(); ++j)
+        // new
+        for (size_t j = 0; j < Split_seg.size() - 1; ++j)
         {
-            if (Trace_topo_line_seg[i][j].first == 1e10)
-            {
-                Pnt_sets.push_back(Trace_topo_line_seg[i][j].second);
-
-                Trace_topo_line_seg[i][j].first = Pnt_sets.size() - 1;
-            }
+            DFN::Line_seg_2D LineO{Split_seg[j], Split_seg[j + 1]};
+            Split_Traces.push_back(LineO);
         }
     }
-
-    for (size_t i = 0; i < Polygon_topo_line_seg.size(); ++i)
-    {
-        for (size_t j = 0; j < Polygon_topo_line_seg[i].size() - 1; ++j)
-        {
-            Topo_struct.push_back(make_pair(Polygon_topo_line_seg[i][j].first, Polygon_topo_line_seg[i][j + 1].first));
-        }
-    }
-
-    if (Trace_topo_line_seg.size() > 0)
-        for (size_t i = 0; i < Trace_topo_line_seg.size() - 1; ++i)
-        {
-
-            DFN::Line_seg_2D A{Trace_topo_line_seg[i][0].second.Coordinate, Trace_topo_line_seg[i][Trace_topo_line_seg[i].size() - 1].second.Coordinate};
-
-            //check if trace overlap with edge of polygon
-            if (this->Check_repetitive_line_seg(Trace_topo_line_seg[i][0].first, Trace_topo_line_seg[i][1].first) == false)
-            {
-                // if this trace intersect other traces?
-                for (size_t j = i + 1; j < Trace_topo_line_seg.size(); ++j)
-                {
-                    DFN::Line_seg_2D B{Trace_topo_line_seg[j][0].second.Coordinate, Trace_topo_line_seg[j][Trace_topo_line_seg[j].size() - 1].second.Coordinate};
-                    std::vector<Vector2d> Intersection_AB;
-                    bool cg = A.Intersection_between_two_lines(B, Intersection_AB);
-                    if (cg == true && Intersection_AB.size() == 1)
-                    {
-                        DFN::Point_2D this_pnt{Intersection_AB[0]};
-                        size_t IDX;
-                        //if this intersection point is overlapping?
-                        bool ft = this->Check_repetitive_pnt(this_pnt, IDX);
-
-                        if (ft == true)
-                        {
-                            //not a new point, so IDX is the point NO
-                            size_t idx_2;
-                            bool pt = this->Insert_a_pnt_into_topo_line(Trace_topo_line_seg[i], this_pnt, idx_2);
-                            if (pt == true)
-                            {
-                                Trace_topo_line_seg[i][idx_2].first = IDX;
-                            }
-
-                            size_t idx_3;
-                            bool gy = this->Insert_a_pnt_into_topo_line(Trace_topo_line_seg[j], this_pnt, idx_3);
-                            if (gy == true)
-                            {
-                                Trace_topo_line_seg[i][idx_3].first = IDX;
-                            }
-                        }
-                        else
-                        {
-                            //must be a new point
-                            size_t idx_2;
-                            bool pt = this->Insert_a_pnt_into_topo_line(Trace_topo_line_seg[i], this_pnt, idx_2);
-                            if (pt == true)
-                            {
-                                Pnt_sets.push_back(this_pnt);
-
-                                Trace_topo_line_seg[i][idx_2].first = Pnt_sets.size() - 1; // a new point
-                            }
-                            else if (pt == false)
-                            {
-                                cout << "i = " << i << endl;
-                                cout << "j = " << j << endl;
-                                cout << "Intersection between traces should be a new point in this case 1!\n";
-                                exit(0);
-                            }
-
-                            size_t idx_3;
-                            bool gy = this->Insert_a_pnt_into_topo_line(Trace_topo_line_seg[j], this_pnt, idx_3);
-                            if (gy == true)
-                            {
-                                Trace_topo_line_seg[j][idx_3].first = Pnt_sets.size() - 1; // a new point
-                            }
-                            else if (pt == false)
-                            {
-                                cout << "i = " << i << endl;
-                                cout << "j = " << j << endl;
-                                cout << "Intersection between traces should be a new point in this case 2!\n";
-                                exit(0);
-                            }
-                        }
-                    }
-                    else if (cg == true && Intersection_AB.size() == 2)
-                    {
-                        //two traces overlapping
-                        for (size_t k = 0; k < Intersection_AB.size(); ++k)
-                        {
-                            DFN::Point_2D this_pnt{Intersection_AB[k]};
-                            size_t IDX;
-                            //if this intersection point is overlapping?
-                            bool ft = this->Check_repetitive_pnt(this_pnt, IDX);
-
-                            if (ft == true)
-                            {
-                                //must be not a new point, so IDX is the point NO
-                                size_t idx_2;
-                                bool pt = this->Insert_a_pnt_into_topo_line(Trace_topo_line_seg[i], this_pnt, idx_2);
-                                if (pt == true)
-                                {
-                                    Trace_topo_line_seg[i][idx_2].first = IDX;
-                                }
-
-                                size_t idx_3;
-                                bool gy = this->Insert_a_pnt_into_topo_line(Trace_topo_line_seg[j], this_pnt, idx_3);
-                                if (gy == true)
-                                {
-                                    Trace_topo_line_seg[j][idx_3].first = IDX;
-                                }
-                            }
-                            else
-                            {
-                                cout << "if two traces overlap, the intersection points cannot be new points!\n";
-                                exit(0);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-    for (size_t i = 0; i < Trace_topo_line_seg.size(); ++i)
-        for (size_t pr = 0; pr < Trace_topo_line_seg[i].size() - 1; ++pr)
-            if (this->Check_repetitive_line_seg(Trace_topo_line_seg[i][pr].first, Trace_topo_line_seg[i][pr + 1].first) == false)
-                Topo_struct.push_back(make_pair(Trace_topo_line_seg[i][pr].first, Trace_topo_line_seg[i][pr + 1].first));
 };
 
-inline bool Polygon_convex_2D_with_traces::Insert_a_pnt_into_topo_line(std::vector<pair<size_t, DFN::Point_2D>> &topoline, DFN::Point_2D pnt, size_t &idx)
+inline size_t Polygon_convex_2D_with_traces::Insert_a_pnt_to_Pnt_sets(Vector2d A)
 {
-    for (size_t i = 0; i < topoline.size(); ++i)
+    for (size_t i = 0; i < Pnt_sets.size(); ++i)
     {
-        bool y = pnt.If_overlap_with_another_pnt(topoline[i].second);
-        if (y == true)
+        Vector2d YU = A - Pnt_sets[i].Coordinate;
+        if (YU.norm() < 0.01)
         {
-            idx = topoline[i].first; // overlapping
-
-            return false;
-        }
-    };
-
-    for (size_t i = 1; i < topoline.size(); ++i)
-    {
-        double distancefront, distanceback;
-        distancefront = (topoline[0].second.Coordinate - pnt.Coordinate).norm();
-        distanceback = (topoline[0].second.Coordinate - topoline[i].second.Coordinate).norm();
-        if (distancefront < distanceback)
-        {
-            idx = i;
-            std::vector<pair<size_t, DFN::Point_2D>>::iterator it = topoline.begin();
-            it = it + i;
-            topoline.insert(it, 1, std::make_pair(1e10, pnt.Coordinate));
-
-            return true;
-        }
-        else if (distancefront > distanceback && i == topoline.size() - 1)
-        {
-            idx = 1e10;
-            return false;
+            return i;
         }
     }
 
-    idx = 1e10;
-    return false;
+    DFN::Point_2D PO{A};
+    Pnt_sets.push_back(PO);
+    return (Pnt_sets.size() - 1);
 };
 
-inline bool Polygon_convex_2D_with_traces::Check_repetitive_line_seg(const size_t A, const size_t B)
+inline void Polygon_convex_2D_with_traces::Insert_a_splitting_trace_to_Topo_struct(const size_t ID1, const size_t ID2)
 {
     for (size_t i = 0; i < Topo_struct.size(); ++i)
     {
-        if ((A == Topo_struct[i].first && B == Topo_struct[i].second) ||
-            (B == Topo_struct[i].first && A == Topo_struct[i].second))
+        if ((Topo_struct[i].first == ID1 && Topo_struct[i].second == ID2) ||
+            (Topo_struct[i].first == ID2 && Topo_struct[i].second == ID1))
         {
-            return true;
+            //existed
+            return;
         }
     }
-    return false;
+    Topo_struct.push_back(std::make_pair(ID1, ID2));
 };
 
-inline bool Polygon_convex_2D_with_traces::Check_repetitive_pnt(const DFN::Point_2D G, size_t &idx)
+inline void Polygon_convex_2D_with_traces::Insert_a_splitting_trace(const DFN::Polygon_convex_2D polygon, DFN::Line_seg_2D splitting_trace)
 {
-    //std::vector<DFN::Point_2D> Pnt_sets;
-    for (size_t i = 0; i < Pnt_sets.size(); ++i)
+    DFN::Line_seg_2D Trace_C{splitting_trace.Point[0], splitting_trace.Point[1]};
+
+    for (size_t i = 0; i < polygon.Corners.size(); ++i)
     {
-        if (Pnt_sets[i].If_overlap_with_another_pnt(G) == true)
+        std::vector<Vector2d> INterO;
+        DFN::Line_seg_2D Trace_D{polygon.Corners[i], polygon.Corners[(i + 1) % polygon.Corners.size()]};
+        bool POF = Trace_C.If_two_lines_overlap(Trace_D, INterO);
+        if (POF == true)
         {
-            idx = i;
-            return true;
+            return; // because the Trace_C overlaps with one edge of the polyon
         }
     }
-    idx = 1e10;
-    return false;
+
+    // if not overlap
+    size_t ID1 = this->Insert_a_pnt_to_Pnt_sets(splitting_trace.Point[0]);
+    size_t ID2 = this->Insert_a_pnt_to_Pnt_sets(splitting_trace.Point[1]);
+    this->Insert_a_splitting_trace_to_Topo_struct(ID1, ID2);
 };
 
-inline void Polygon_convex_2D_with_traces::Matlab_plot(string FileKey)
+inline void Polygon_convex_2D_with_traces::Set_Topo_struct_attri(const DFN::Polygon_convex_2D polygon, const vector<DFN::Line_seg_2D> Traces)
+{
+    Topo_struct_attri.resize(Topo_struct.size());
+
+    for (size_t i = 0; i < Topo_struct.size(); ++i)
+    {
+        Topo_struct_attri[i] = true;
+        size_t pnt1 = Topo_struct[i].first, pnt2 = Topo_struct[i].second;
+        if (pnt1 > Tag_for_Polygon_Pnt || pnt2 > Tag_for_Polygon_Pnt)
+        {
+            Topo_struct_attri[i] = true;
+            continue;
+        }
+
+        DFN::Line_seg_2D Thisline_A{Pnt_sets[pnt1].Coordinate, Pnt_sets[pnt2].Coordinate};
+        DFN::Point_2D MidPnt{(Pnt_sets[pnt1].Coordinate + Pnt_sets[pnt2].Coordinate) * 0.50};
+
+        for (size_t j = 0; j < polygon.Corners.size(); ++j)
+        {
+            std::vector<Vector2d> Thisline = {polygon.Corners[j], polygon.Corners[(j + 1) % polygon.Corners.size()]};
+
+            bool iflieon = MidPnt.If_lies_on_a_line_seg(Thisline);
+
+            if (iflieon == true)
+            {
+                Topo_struct_attri[i] = false;
+                break;
+            }
+        }
+
+        for (size_t j = 0; j < Traces.size(); ++j)
+        {
+            std::vector<Vector2d> Thisline = Traces[j].Point;
+
+            bool iflieon = MidPnt.If_lies_on_a_line_seg(Thisline);
+
+            if (iflieon == true)
+            {
+                Topo_struct_attri[i] = true;
+                break;
+            }
+        }
+    }
+};
+
+inline void Polygon_convex_2D_with_traces::Pointliked_traces(const vector<DFN::Line_seg_2D> Traces, const DFN::Polygon_convex_2D polygon)
+{
+    for (size_t i = 0; i < Traces.size(); ++i)
+    {
+        DFN::Line_seg_2D Traces_this{Traces[i].Point[0], Traces[i].Point[1]};
+
+        if (Traces_this.If_is_a_point() == true)
+        {
+            DFN::Point_2D Thispnt{Traces[i].Point[0]};
+            bool IfLiesOn = false;
+            for (size_t j = 0; j < polygon.Corners.size(); ++j)
+            {
+                DFN::Line_seg_2D SEGA{polygon.Corners[j], polygon.Corners[(j + 1) % polygon.Corners.size()]};
+                bool yui = Thispnt.If_lies_on_a_line_seg(SEGA.Point);
+
+                if (yui == true && SEGA.If_is_a_point() == false)
+                {
+                    IfLiesOn = true;
+                    break;
+                }
+            }
+
+            if (IfLiesOn == true)
+            {
+                continue;
+            }
+
+            for (size_t j = 0; j < Traces.size(); ++j)
+            {
+                if (j != i)
+                {
+                    DFN::Line_seg_2D SEGA{Traces[j].Point[0], Traces[j].Point[1]};
+                    bool yui = Thispnt.If_lies_on_a_line_seg(SEGA.Point);
+
+                    if (yui == true && SEGA.If_is_a_point() == false)
+                    {
+                        IfLiesOn = true;
+                        break;
+                    }
+                }
+            }
+
+            if (IfLiesOn == false)
+            {
+                Pnt_sets.push_back(Thispnt);  
+                Topo_struct.push_back(std::make_pair(Pnt_sets.size() - 1, Pnt_sets.size() - 1));
+                Topo_struct_attri.push_back(true);
+            }
+        }
+    }
+};
+
+void Polygon_convex_2D_with_traces::Matlab_plot(string FileKey)
 {
     std::ofstream oss(FileKey, ios::out);
     oss << "clc;\nclose all;\nclear all;\n";
@@ -454,10 +413,19 @@ inline void Polygon_convex_2D_with_traces::Matlab_plot(string FileKey)
     oss << "];\n";
     oss << "hold on;\n";
 
+    //std::vector<string> IRE = {"-o", "-+", "-x"};
     for (size_t i = 0; i < Topo_struct.size(); ++i)
     {
-        oss << "plot([Pnt_sets(" << Topo_struct[i].first + 1 << ",1), Pnt_sets(" << Topo_struct[i].second + 1 << ",1)],[Pnt_sets(" << Topo_struct[i].first + 1 << ",2), Pnt_sets(" << Topo_struct[i].second + 1 << ",2)], 'LineWidth',2);\n";
-        oss << "hold on;\n";
+        if (Topo_struct_attri[i] == false)
+        {
+            oss << "P" << i + 1 << " = plot([Pnt_sets(" << Topo_struct[i].first + 1 << ",1), Pnt_sets(" << Topo_struct[i].second + 1 << ",1)],[Pnt_sets(" << Topo_struct[i].first + 1 << ",2), Pnt_sets(" << Topo_struct[i].second + 1 << ",2)], 'k-o', 'LineWidth',2);\n";
+            oss << "hold on;\n";
+        }
+        else
+        {
+            oss << "P" << i + 1 << " = plot([Pnt_sets(" << Topo_struct[i].first + 1 << ",1), Pnt_sets(" << Topo_struct[i].second + 1 << ",1)],[Pnt_sets(" << Topo_struct[i].first + 1 << ",2), Pnt_sets(" << Topo_struct[i].second + 1 << ",2)], 'LineWidth',2);\n";
+            oss << "hold on;\n";
+        }
     }
 
     oss.close();

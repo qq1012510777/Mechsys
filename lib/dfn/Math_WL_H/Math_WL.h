@@ -1375,8 +1375,7 @@ double Numerical_integration_linear_3(VectorXd Vec_q_normal, double L)
 {
     if (Vec_q_normal.size() != 3)
     {
-        cout << "Error! The boundary edge of an element should be divided into two sub-segments\n";
-        exit(0);
+        throw Error_throw_ignore("Error! The boundary edge of an element should be divided into two sub-segments\n");
     }
     double q0 = Vec_q_normal(0);
     double q1 = Vec_q_normal(1);
@@ -1388,8 +1387,7 @@ double Numerical_integration_linear_2(VectorXd Vec_q_normal, double L)
 {
     if (Vec_q_normal.size() != 3)
     {
-        cout << "Error! The boundary edge of an element should be divided into two sub-segments\n";
-        exit(0);
+        throw Error_throw_ignore("Error! The boundary edge of an element should be divided into two sub-segments\n");
     }
     double q0 = Vec_q_normal(0);
     //double q1 = Vec_q_normal(1);
@@ -1438,10 +1436,7 @@ void intersection_between_two_overlaped_line_segments(std::vector<Vector3d> Inte
     y2 -= y0;
     x3 -= x0;
     y3 -= y0;
-    //x0 = 0;
-    //y0 = 0;
 
-    //rotation to x-axis
     Vector3d axis_z;
     axis_z << 0, 0, -1;
     double R_angle_temp1 = atan2(y1, x1);

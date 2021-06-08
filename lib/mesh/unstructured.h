@@ -444,7 +444,7 @@ inline void Unstructured::Generate (bool O2, double GlobalMaxArea, bool Quiet, d
     Util::Stopwatch stopwatch(/*activated*/WithInfo);
 
     // parameters
-    String prms("pqzAYYo2"); // Q=quiet, p=poly, q=quality, z=zero, Y = ? Y= ?
+    String prms("pqzAo2"); // Q=quiet, p=poly, q=quality, z=zero, Y = ? Y= ?
     if (Quiet)           prms.Printf("Q%s",   prms.CStr());
     if (GlobalMaxArea>0) prms.Printf("%sa%f", prms.CStr(), GlobalMaxArea);
     if (MinAngle>0)      prms.Printf("%sq%f", prms.CStr(), MinAngle);

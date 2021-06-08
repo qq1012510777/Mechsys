@@ -32,6 +32,7 @@ public:
     double Perimeter;      ///< perimeter
     double Area_trim;      ///< area after fracture is trimed
     double Perimeter_trim; ///< perimeter after fracture is trimed
+    double Conductivity = 1.;
 
     std::vector<Vector3d> Verts;
     std::vector<Vector3d> Verts_trim;
@@ -83,8 +84,7 @@ inline Fracture::Fracture(string string_ori,
     Clus = -1;
     if (array1.size() != 3)
     {
-        std::cout << "Error! The order of Array (model range) is incorrect!\n";
-        exit(0);
+        throw Error_throw_pause("Error! The order of Array (model range) is incorrect!\nIn class 'Fracture', function 'Fracture' 1!\n");
     }
     //--------------------randomly generated fracture center
     Center(0) = c.unifrm(array1[0][0], array1[0][1]);
@@ -160,15 +160,13 @@ inline Fracture::Fracture(string string_ori,
     }
     else
     {
-        std::cout << "Error! Please define orientation distribution!\n";
-        exit(0);
+        throw Error_throw_pause("Error! Please define orientation distribution!\n");
     }
 
     ///---------------------a piece of debuging code---
     if (Dip_direction > 360 || Dip_angle > 90 || Dip_direction < 0 || Dip_angle < 0)
     {
-        std::cout << "Error!!! The orientation is incorrect!\n";
-        exit(0);
+        throw Error_throw_ignore("Error!!! The orientation is incorrect!\n");
     };
 
     //--------------------random number of vertexes
@@ -245,8 +243,7 @@ inline Fracture::Fracture(string string_ori,
         temp_radius = pow(temp_radius, 0.5);
         if (abs(temp_radius - Radius) > 0.001)
         {
-            std::cout << "Error!!! Distance from center to a vertex is not equal to Radius";
-            exit(0);
+            throw Error_throw_ignore("Error!!! Distance from center to a vertex is not equal to Radius\n");
         }
     }
 
@@ -264,7 +261,7 @@ inline Fracture::Fracture(string string_ori,
             abs(x1 - x2) > 1e-6)
         {
             cout << "Questionable normal vector!\n";
-            exit(0);
+        
         }
     }*/
 
@@ -308,8 +305,7 @@ inline Fracture::Fracture(string string_ori,
 
     if (array1.size() != 3)
     {
-        std::cout << "Error! The order of Array (model range) is incorrect!\n";
-        exit(0);
+        throw Error_throw_pause("Error! The order of Array (model range) is incorrect!\n");
     }
 
     //--------------------randomly generated fracture center
@@ -352,16 +348,15 @@ inline Fracture::Fracture(string string_ori,
     }
     else
     {
-        std::cout << "Error! Please define orientation distribution!\n";
-        exit(0);
+        throw Error_throw_pause("Error! Please define orientation distribution!\n");
     }
 
     ///---------------------a piece of debuging code---
     if (Dip_direction > 360 || Dip_angle > 90 || Dip_direction < 0 || Dip_angle < 0)
     {
-        std::cout << "Error!!! The orientation is incorrect!\n";
-        exit(0);
+        throw Error_throw_ignore("Error!!! The orientation is incorrect!\n");
     };
+    //cout << "Dip_direction: " << Dip_direction << " Dip_angle: " << Dip_angle << endl;
 
     //-------------------------------------------------
 
@@ -442,8 +437,7 @@ inline Fracture::Fracture(string string_ori,
         temp_radius = pow(temp_radius, 0.5);
         if (abs(temp_radius - Radius) > 0.001)
         {
-            std::cout << "Error!!! Distance from center to a vertex is not equal to Radius";
-            exit(0);
+            throw Error_throw_ignore("Error!!! Distance from center to a vertex is not equal to Radius\n");
         }
     }
     ///------------------------------------------------

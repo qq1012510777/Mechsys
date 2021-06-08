@@ -36,31 +36,42 @@ public:
     ///< JXY[0].size() is the number of vertices of
 
     std::vector<std::vector<Vector3d>> JXY_3D;
+    std::vector<size_t> Num_pressure;
 
     std::vector<std::vector<RowVector6i>> JM;
     ///< each Vector3d is the ID values of
     ///< the three nodes
 
+    std::vector<vector<bool>> IfCorner;
+
     std::vector<std::vector<size_t>> Trace_Tag; // record point Tags belonging to traces of each fracture
-    std::vector<std::vector<Eigen::Vector3d>> Guide_frac;
+    std::vector<std::vector<Eigen::Vector4d>> Guide_frac;
     ///< (0): an index referring if this is
     //a repetitive point;
     //(1): i; (2): j;(if repetitive)
 
-    size_t FEM_matrix_dimension;
+    size_t NUM_of_NODES;
+    size_t NUM_of_linear_NODES;
+
+    std::map<std::pair<size_t, size_t>, std::vector<Vector3d>> Trace_been_split;
 
 public:
-    Mesh_DFN(DFN::Domain dom);
-    void Create_structure_of_a_frac(DFN::Domain dom, const size_t FracID, std::vector<Vector3d> &Verts, vector<std::pair<Vector3d, Vector3d>> &Traces, DFN::Remove_unnecess_frac Remove_f);
+    Mesh_DFN(DFN::Domain dom, double subtrace, double subpolygon);
+    void Create_structure_of_a_frac(DFN::Domain dom, const size_t FracID, std::vector<Vector3d> &Verts, vector<std::pair<Vector3d, Vector3d>> &Traces, DFN::Remove_unnecess_frac Remove_f, std::vector<std::pair<size_t, size_t>> &Trace_ID);
     void Matlab_plot(string FileKey_mat, string FileKey_m, DFN::Domain dom);
     void Ident_Model_Bound_Pnt(DFN::Domain dom);
     void Find_repetitive_pnt(DFN::Domain dom);
+    void Check_overall_pnt_sets(DFN::Domain dom);
+    bool If_this_fracture_intersects_top_and_or_bot(std::vector<Vector3d> Verts_frac, double &toplength, double &botlength, DFN::Domain dom);
+    void Identify_splitting_traces(const std::vector<std::pair<size_t, size_t>> Trace_ID, const std::vector<Vector3d> Traces_frac_f_rotated,
+                                   std::map<std::pair<size_t, size_t>, std::vector<Vector2d>> &Trace_been_split_2D);
 };
 
-inline Mesh_DFN::Mesh_DFN(DFN::Domain dom)
+inline Mesh_DFN::Mesh_DFN(DFN::Domain dom, double subtrace, double subpolygon)
 {
+    double toplength = 0;
+    double botlength = 0;
     DFN::Remove_unnecess_frac Remove_f(dom);
-
     for (size_t i = 0; i < Remove_f.Listofclusters_remove_fracs.size(); ++i)
     {
         for (size_t j = 0; j < Remove_f.Listofclusters_remove_fracs[i].size(); ++j)
@@ -72,9 +83,13 @@ inline Mesh_DFN::Mesh_DFN(DFN::Domain dom)
                 size_t FracID = Remove_f.Listofclusters_remove_fracs[i][j];
                 std::vector<Vector3d> Verts_frac;
                 std::vector<std::pair<Vector3d, Vector3d>> Traces_frac;
-                this->Create_structure_of_a_frac(dom, FracID, Verts_frac, Traces_frac, Remove_f);
+                std::vector<std::pair<size_t, size_t>> Trace_ID;
+                this->Create_structure_of_a_frac(dom, FracID, Verts_frac, Traces_frac, Remove_f, Trace_ID);
+
+                this->If_this_fracture_intersects_top_and_or_bot(Verts_frac, toplength, botlength, dom);
 
                 DFN::Polygon_convex_3D poly{Verts_frac};
+                poly.Optimize();
                 Vector3d temp1;
                 DFN::Vector_2 v(poly.Normal_vector, temp1);
 
@@ -116,12 +131,53 @@ inline Mesh_DFN::Mesh_DFN(DFN::Domain dom)
                     Traces_frac_f_rotated[k](2) = 0;
 
                 std::vector<DFN::Line_seg_2D> Traces_Line(Traces_frac.size());
+                //std::vector<DFN::Line_seg_2D> Traces_Line;
 
                 for (size_t k = 0; k < Traces_frac_f_rotated.size(); k = k + 2)
                 {
                     size_t pd = k / 2;
                     Traces_Line[pd].Re_constructor(Vector2d{Traces_frac_f_rotated[k](0), Traces_frac_f_rotated[k](1)}, Vector2d{Traces_frac_f_rotated[k + 1](0), Traces_frac_f_rotated[k + 1](1)});
                 }
+
+                ///--------------remove the trace that has been split and add the split trace segments
+                /*
+                for (size_t k = 0; k < Trace_ID.size(); ++k)
+                {
+                    std::map<std::pair<size_t, size_t>, std::vector<Vector3d>>::iterator ity = Trace_been_split.find(Trace_ID[k]);
+
+                    if (ity == Trace_been_split.end())
+                    {
+                        DFN::Line_seg_2D Trace_ER{
+                            Vector2d{Traces_frac_f_rotated[k * 2](0), Traces_frac_f_rotated[k * 2](1)},
+                            Vector2d{Traces_frac_f_rotated[k * 2 + 1](0), Traces_frac_f_rotated[k * 2 + 1](1)},
+                        };
+                        Traces_Line.push_back(Trace_ER);
+                    }
+                    else
+                    {
+                        //
+                        std::vector<Vector3d> Trace_SEG_3D = ity->second;
+                        std::vector<Vector3d> Trace_SEG_2D = ity->second;
+                        //rotate
+                        if (poly.Beta > 0.0001)
+                        {
+                            DFN::Rotation_verts R3(Trace_SEG_3D, R_angle_temp1, Q_axis_1, temp1, Trace_SEG_2D);
+                        }
+
+                        //
+                        for (size_t l = 0; l < Trace_SEG_2D.size() - 1; ++l)
+                        {
+                            DFN::Line_seg_2D Trace_ER{
+                                Vector2d{Trace_SEG_2D[l](0), Trace_SEG_2D[l](1)},
+                                Vector2d{Trace_SEG_2D[l + 1](0), Trace_SEG_2D[l + 1](1)},
+                            };
+                            Traces_Line.push_back(Trace_ER);
+                        }
+                    }
+                }
+                */
+                //-------------------------------------------------------------------------------------
+
                 // there should be a pre_handle code to divide polygon2D if extream traces exist
                 // extream means: the trace nearly intersect edges but actually not
                 // and very tiny trace but not a point
@@ -130,8 +186,8 @@ inline Mesh_DFN::Mesh_DFN(DFN::Domain dom)
 
                 DFN::Polygon_convex_2D_with_traces poly2D{polyframe, Traces_Line};
 
-                DFN::Splitting_Polygon_convex_2D_with_traces splitting_poly2D{poly2D, 1};
-
+                DFN::Splitting_Polygon_convex_2D_with_traces splitting_poly2D{poly2D, subtrace, Traces_Line};
+                //splitting_poly2D.Matlab_plot("D333frac.m");
                 std::vector<std::vector<std::pair<size_t, Eigen::Vector2d>>> neigh_shared_A;
 
                 size_t NO_Nodes_p_A = 0;
@@ -139,18 +195,44 @@ inline Mesh_DFN::Mesh_DFN(DFN::Domain dom)
                 DFN::Mesh_Polygon_2D_with_traces mesh{
                     splitting_poly2D.Pnt_sets,
                     splitting_poly2D.Topo_struct,
-                    29,
-                    0.001,
-                    3,
+                    splitting_poly2D.Topo_struct_attri,
+                    subpolygon,
                     neigh_shared_A,
-                    NO_Nodes_p_A};
+                    NO_Nodes_p_A,
+                    polyframe,
+                    splitting_poly2D,
+                    Traces_Line};
 
-                mesh.Identifying_Frac_bound(polyframe, Traces_Line);
+                Num_pressure.push_back(NO_Nodes_p_A);
                 this->Pnt_attribute.push_back(mesh.Pnt_attribute);
 
                 this->JXY.push_back(mesh.JXY);
                 this->JM.push_back(mesh.JM);
                 this->Trace_Tag.push_back(mesh.Trace_Tag);
+                this->IfCorner.push_back(mesh.IfCorner);
+
+                //-----------------
+                // need a code to identify split traces
+                std::map<std::pair<size_t, size_t>, std::vector<Vector2d>> Trace_been_split_2D;
+                this->Identify_splitting_traces(Trace_ID, Traces_frac_f_rotated, Trace_been_split_2D);
+                std::vector<std::vector<Vector3d>> TMP_trace_splitting_2D(Trace_been_split_2D.size()), TMP_trace_splitting_3D(Trace_been_split_2D.size());
+
+                size_t k_idx = 0;
+                for (std::map<std::pair<size_t, size_t>, std::vector<Vector2d>>::iterator iters = Trace_been_split_2D.begin();
+                     iters != Trace_been_split_2D.end(); ++iters)
+                {
+                    TMP_trace_splitting_2D[k_idx].resize(iters->second.size());
+                    TMP_trace_splitting_3D[k_idx].resize(iters->second.size());
+
+                    for (size_t k = 0; k < iters->second.size(); ++k)
+                    {
+                        TMP_trace_splitting_2D[k_idx][k] << iters->second[k](0), iters->second[k](1), 0;
+                        TMP_trace_splitting_3D[k_idx][k] << iters->second[k](0), iters->second[k](1), 0;
+                    }
+
+                    k_idx++;
+                }
+                //----------------
 
                 std::vector<Vector3d> Verts_2D_tmp(mesh.JXY.size());
                 for (size_t k = 0; k < Verts_2D_tmp.size(); ++k)
@@ -160,57 +242,83 @@ inline Mesh_DFN::Mesh_DFN(DFN::Domain dom)
                 if (poly.Beta > 0.0001)
                 {
                     DFN::Rotation_verts R2(Verts_2D_tmp, -R_angle_temp1, Q_axis_1, temp1, Verts_rotated_back);
+
+                    for (size_t k = 0; k < TMP_trace_splitting_2D.size(); ++k)
+                        DFN::Rotation_verts R3(TMP_trace_splitting_2D[k], -R_angle_temp1, Q_axis_1, temp1, TMP_trace_splitting_3D[k]);
                 }
                 else
                 {
                     Verts_rotated_back = Verts_2D_tmp;
                 }
                 this->JXY_3D.push_back(Verts_rotated_back);
+
+                k_idx = 0;
+                for (std::map<std::pair<size_t, size_t>, std::vector<Vector2d>>::iterator iters = Trace_been_split_2D.begin();
+                     iters != Trace_been_split_2D.end(); ++iters)
+                {
+                    std::pair<std::pair<size_t, size_t>, std::vector<Vector3d>> tmp_pair;
+                    tmp_pair.first = iters->first;
+                    tmp_pair.second = TMP_trace_splitting_3D[k_idx];
+                    this->Trace_been_split.insert(tmp_pair);
+
+                    k_idx++;
+                }
+                //-----------------------------
             }
         }
     }
 
     this->Ident_Model_Bound_Pnt(dom);
     this->Find_repetitive_pnt(dom);
+    //cout << "toplength: " << toplength << endl;
+    //cout << "botlength: " << botlength << endl;
+
+    if (toplength / subpolygon < 5)
+    {
+        throw Error_throw_ignore("Inlet length is too small!\n");
+    }
+
+    if (botlength / subpolygon < 5)
+    {
+        throw Error_throw_ignore("Outlet length is too small!\n");
+    }
 };
 
-inline void Mesh_DFN::Create_structure_of_a_frac(DFN::Domain dom, const size_t FracID, std::vector<Vector3d> &Verts, std::vector<std::pair<Vector3d, Vector3d>> &Traces, DFN::Remove_unnecess_frac Remove_f)
+inline void Mesh_DFN::Create_structure_of_a_frac(DFN::Domain dom,
+                                                 const size_t FracID,
+                                                 std::vector<Vector3d> &Verts,
+                                                 std::vector<std::pair<Vector3d, Vector3d>> &Traces,
+                                                 DFN::Remove_unnecess_frac Remove_f,
+                                                 std::vector<std::pair<size_t, size_t>> &Trace_ID)
 {
+    //
 
+    // fracture vertices
     Verts.resize(dom.Fractures[FracID].Verts_trim.size());
     for (size_t i = 0; i < Verts.size(); ++i)
         Verts[i] = dom.Fractures[FracID].Verts_trim[i];
 
-    std::set<size_t>::iterator it_a = dom.Fractures[FracID].Intersect_other_frac_after_trim.begin();
-
-    while (it_a != dom.Fractures[FracID].Intersect_other_frac_after_trim.end())
+    // traces
+    for (size_t i = 0; i < Remove_f.Listofclusters_remove_fracs.size(); ++i)
     {
-        size_t other_fracID = *it_a;
-
-        // if other frac is removed?
-        bool removed = false;
-        for (size_t i = 0; i < Remove_f.Listofclusters_remove_fracs.size(); ++i)
+        for (size_t j = 0; j < Remove_f.Listofclusters_remove_fracs[i].size(); ++j)
         {
-            std::vector<int>::iterator it_r = find(Remove_f.Listofclusters_remove_fracs[i].begin(), Remove_f.Listofclusters_remove_fracs[i].end(), other_fracID);
-            if (it_r == Remove_f.Listofclusters_remove_fracs[i].end())
+            if ((size_t)Remove_f.Listofclusters_remove_fracs[i][j] != FracID)
             {
-                removed = true;
-                break;
+                size_t other_fracID = Remove_f.Listofclusters_remove_fracs[i][j];
+                size_t ID_1 = FracID < other_fracID ? FracID : other_fracID;
+                size_t ID_2 = FracID > other_fracID ? FracID : other_fracID;
+
+                std::pair<size_t, size_t> Trace_key = std::make_pair(ID_1, ID_2);
+                std::map<std::pair<size_t, size_t>, std::pair<Vector3d, Vector3d>>::iterator iter = dom.Intersections.find(Trace_key);
+
+                if (iter != dom.Intersections.end())
+                {
+                    Traces.push_back(std::make_pair(dom.Intersections[Trace_key].first, dom.Intersections[Trace_key].second));
+                    Trace_ID.push_back(std::make_pair(ID_1, ID_2));
+                }
             }
         }
-        if (removed == true)
-        {
-            it_a++;
-            continue;
-        }
-
-        size_t ID_1 = FracID < other_fracID ? FracID : other_fracID;
-        size_t ID_2 = FracID > other_fracID ? FracID : other_fracID;
-
-        std::pair<size_t, size_t> Trace_key = std::make_pair(ID_1, ID_2);
-
-        Traces.push_back(std::make_pair(dom.Intersections[Trace_key].first, dom.Intersections[Trace_key].second));
-        it_a++;
     }
 };
 
@@ -224,8 +332,7 @@ void Mesh_DFN::Matlab_plot(string FileKey_mat, string FileKey_m, DFN::Domain dom
 
     if (!pMatFile)
     {
-        cout << "cannot create mat file in class Mesh_DFN\n";
-        exit(0);
+        throw Error_throw_ignore("cannot create mat file in class Mesh_DFN\n");
     }
     // frac
     for (size_t i = 0; i < Frac_Tag.size(); ++i)
@@ -266,14 +373,12 @@ void Mesh_DFN::Matlab_plot(string FileKey_mat, string FileKey_m, DFN::Domain dom
 
         if (!pMxArray1 || !pMxArray2 || !pMxArray3 || !pMxArray4 || !pMxArray5 || !pMxArray6 || !pMxArray7)
         {
-            cout << "cannot create pMxArray in class Mesh_DFN\n";
-            exit(0);
+            throw Error_throw_ignore("cannot create pMxArray in class Mesh_DFN\n");
         }
 
         if (!pData1 || !pData2 || !pData3 || !pData4 || !pData5 || !pData6 || !pData7)
         {
-            cout << "cannot create pData in class Mesh_DFN\n";
-            exit(0);
+            throw Error_throw_ignore("cannot create pData in class Mesh_DFN\n");
         }
 
         for (size_t j = 0; j < len; j++)
@@ -394,6 +499,7 @@ void Mesh_DFN::Matlab_plot(string FileKey_mat, string FileKey_m, DFN::Domain dom
     // m file
     std::ofstream oss(FileKey_m, ios::out);
     oss << "clc;\nclose all;\nclear all;\n";
+    oss << "%% matrix dimension is " << this->NUM_of_NODES * 2 + this->NUM_of_linear_NODES << endl;
     oss << "load('" << FileKey_mat << "');\n";
     for (size_t i = 0; i < Frac_Tag.size(); ++i)
     {
@@ -622,59 +728,167 @@ inline void Mesh_DFN::Ident_Model_Bound_Pnt(DFN::Domain dom)
 
 inline void Mesh_DFN::Find_repetitive_pnt(DFN::Domain dom)
 {
-    FEM_matrix_dimension = 0;
+    NUM_of_NODES = 0;
+    NUM_of_linear_NODES = 0;
+
     Guide_frac.resize(JXY_3D.size());
     for (size_t i = 0; i < JXY_3D.size(); ++i)
     {
         Guide_frac[i].resize(JXY_3D[i].size());
         for (size_t j = 0; j < JXY_3D[i].size(); ++j)
         {
-            Guide_frac[i][j] = Eigen::Vector3d::Zero();
+            Guide_frac[i][j] = Eigen::Vector4d::Zero();
         }
     }
 
-    for (size_t i = 0; i < Trace_Tag.size(); ++i)
+    for (size_t i = 0; i < JXY.size(); ++i)
     {
-        for (size_t j = 0; j < Trace_Tag[i].size(); ++j)
+        for (size_t j = 0; j < JXY[i].size(); ++j)
         {
-            size_t PointID = Trace_Tag[i][j];
+            size_t PointID = j;
 
             if (Guide_frac[i][PointID](0) == 0)
             {
-                FEM_matrix_dimension++;
-                Vector3d thisPnt = JXY_3D[i][PointID];
+                Guide_frac[i][PointID](0) = NUM_of_NODES;
+                NUM_of_NODES++;
 
-                size_t FracID = Frac_Tag[i];
-
-                for (std::set<size_t>::iterator it_k = dom.Fractures[FracID].Intersect_other_frac_after_trim.begin(); it_k != dom.Fractures[FracID].Intersect_other_frac_after_trim.end(); it_k++)
+                if (this->IfCorner[i][PointID] == true)
                 {
-                    for (size_t k = 0; k < Frac_Tag.size(); ++k)
+                    Guide_frac[i][PointID](3) = NUM_of_linear_NODES;
+                    NUM_of_linear_NODES++;
+                }
+                else
+                {
+                    Guide_frac[i][PointID](3) = -2; // meaning that it is not a pressure point / corner
+                }
+
+                if (Pnt_attribute[i][j].If_trace == true) // if it is a trace point
+                {
+
+                    Vector3d thisPnt = JXY_3D[i][PointID];
+
+                    size_t FracID = Frac_Tag[i];
+                    size_t NumOfShareTime = 0;
+                    for (std::set<size_t>::iterator it_k = dom.Fractures[FracID].Intersect_other_frac_after_trim.begin();
+                         it_k != dom.Fractures[FracID].Intersect_other_frac_after_trim.end();
+                         it_k++)
                     {
-                        if (*it_k == Frac_Tag[k])
+                        for (size_t k = 0; k < Frac_Tag.size(); ++k)
                         {
-                            for (size_t l = 0; l < Trace_Tag[k].size(); ++l)
+                            if (*it_k == Frac_Tag[k])
                             {
-                                size_t otherPntID = Trace_Tag[k][l];
-                                Vector3d otherPnt = JXY_3D[k][otherPntID];
-                                Vector3d KKO = thisPnt - otherPnt;
-                                if (abs(KKO(0)) < 0.001 &&
-                                    abs(KKO(1)) < 0.001 &&
-                                    abs(KKO(2)) < 0.001)
+                                for (size_t l = 0; l < Trace_Tag[k].size(); ++l)
                                 {
-                                    if (Guide_frac[k][otherPntID](0) == 0)
+                                    size_t otherPntID = Trace_Tag[k][l];
+                                    Vector3d otherPnt = JXY_3D[k][otherPntID];
+                                    Vector3d KKO = thisPnt - otherPnt;
+                                    if ((abs(KKO(0)) < 0.1 &&
+                                         abs(KKO(1)) < 0.1 &&
+                                         abs(KKO(2)) < 0.1) ||
+                                        KKO.norm() < 0.1)
                                     {
-                                        Guide_frac[k][otherPntID](0) = 1;       // repetitive point
-                                        Guide_frac[k][otherPntID](1) = i;       // the i th frac
-                                        Guide_frac[k][otherPntID](2) = PointID; // the PointID th point
+                                        NumOfShareTime++;
+                                        if (Guide_frac[k][otherPntID](0) == 0)
+                                        {
+                                            Guide_frac[k][otherPntID](0) = -1;      // repetitive point
+                                            Guide_frac[k][otherPntID](1) = i;       // the i th frac
+                                            Guide_frac[k][otherPntID](2) = PointID; // the PointID th point
+
+                                            if (IfCorner[i][PointID] == true)
+                                                Guide_frac[k][otherPntID](3) = -1;
+                                            else
+                                                Guide_frac[k][otherPntID](3) = -2; // not a corner point
+                                        }
                                     }
                                 }
                             }
                         }
+                    }
+                    if (NumOfShareTime == 0)
+                    {
+                        cout << "cannot find the shared point in another intersecting fracture, in class Mesh_DFN!\n";
+                        //cout << "FracID: " << i << endl;
+                        //cout << "This point (3D) is:\n";
+                        //cout << "\t[" << thisPnt(0) << ", 18], [" << thisPnt(1) << ", 18], [" << thisPnt(2) << ", 18]" << endl;
+                        //cout << "Output the mesh file (mesh_check_pnt.m) now to check!\n";
+                        //this->Matlab_plot("mesh_check_pnt.mat", "mesh_check_pnt.m", dom);
+                        //dom.PlotMatlab_DFN_and_Intersection("tdfn01_DFN_and_Intersections2_V.m");
+                        //dom.PLotMatlab_DFN_Cluster_along_a_direction("tdfn01_DFN_Z_clusters.m", "z");
+                        throw Error_throw_ignore("cannot find the shared point in another intersecting fracture, in class Mesh_DFN!\n");
                     }
                 }
             }
         }
     }
 }
+
+inline bool Mesh_DFN::If_this_fracture_intersects_top_and_or_bot(std::vector<Vector3d> Verts_frac, double &toplength, double &botlength, DFN::Domain dom)
+{
+    bool intersect = false;
+    for (size_t i = 0; i < Verts_frac.size(); ++i)
+    {
+        double z1 = Verts_frac[i](2), z2 = Verts_frac[(i + 1) % Verts_frac.size()](2);
+
+        if (abs(z1 - dom.Model_domain(0)) < 0.001 && abs(z2 - dom.Model_domain(0)) < 0.001)
+        {
+            intersect = true;
+            Vector3d asd = Verts_frac[i] - Verts_frac[(i + 1) % Verts_frac.size()];
+
+            toplength += asd.norm();
+        }
+
+        if (abs(z1 - dom.Model_domain(1)) < 0.001 && abs(z2 - dom.Model_domain(1)) < 0.001)
+        {
+            intersect = true;
+            Vector3d asd = Verts_frac[i] - Verts_frac[(i + 1) % Verts_frac.size()];
+
+            botlength += asd.norm();
+        }
+    }
+
+    return intersect;
+};
+
+inline void Mesh_DFN::Identify_splitting_traces(const std::vector<std::pair<size_t, size_t>> Trace_ID, const std::vector<Vector3d> Traces_frac_f_rotated,
+                                                std::map<std::pair<size_t, size_t>, std::vector<Vector2d>> &Trace_been_split_2D)
+{
+    //-----------
+    for (size_t i = 0; i < Trace_ID.size(); ++i)
+    {
+        std::map<std::pair<size_t, size_t>, std::vector<Vector3d>>::iterator iter = this->Trace_been_split.find(Trace_ID[i]);
+
+        if (iter == this->Trace_been_split.end()) // means that the splitting trace segments are not been recorded yet
+        {
+            std::pair<std::pair<size_t, size_t>, std::vector<Vector2d>> tmp_trace_seg;
+            tmp_trace_seg.first = Trace_ID[i];
+
+            DFN::Line_seg_2D Thisline{Vector2d{Traces_frac_f_rotated[i * 2](0), Traces_frac_f_rotated[i * 2](1)},
+                                      Vector2d{Traces_frac_f_rotated[i * 2 + 1](0), Traces_frac_f_rotated[i * 2 + 1](1)}};
+
+            for (size_t j = 0; j < this->JXY[this->JXY.size() - 1].size(); ++j)
+            {
+                DFN::Point_2D Thepnt{this->JXY[this->JXY.size() - 1][j]};
+                bool AKI = Thepnt.If_lies_on_a_line_seg(Thisline.Point);
+                if (AKI == true)
+                {
+                    tmp_trace_seg.second.push_back(Thepnt.Coordinate);
+                }
+            }
+
+            //--------minus the first end
+            for (size_t j = 0; j < tmp_trace_seg.second.size(); ++j)
+                tmp_trace_seg.second[j] -= Vector2d{Traces_frac_f_rotated[i * 2](0), Traces_frac_f_rotated[i * 2](1)};
+
+            //sort
+            sort(tmp_trace_seg.second.begin(), tmp_trace_seg.second.end(), compVector2d);
+
+            // plus back
+            for (size_t j = 0; j < tmp_trace_seg.second.size(); ++j)
+                tmp_trace_seg.second[j] += Vector2d{Traces_frac_f_rotated[i * 2](0), Traces_frac_f_rotated[i * 2](1)};
+
+            Trace_been_split_2D.insert(tmp_trace_seg);
+        }
+    }
+};
 
 }; // namespace DFN

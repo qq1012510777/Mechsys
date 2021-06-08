@@ -24,7 +24,7 @@ inline Remove_unnecess_frac::Remove_unnecess_frac(DFN::Domain dom)
             Listofclusters_remove_fracs[i][j] = dom.Listofclusters[dom.Percolation_cluster[2][i]][j];
         }
     }
-
+/*
     for (size_t i = 0; i < Listofclusters_remove_fracs.size(); ++i)
     {
         for (size_t j = 0; j < Listofclusters_remove_fracs[i].size(); ++j)
@@ -46,5 +46,6 @@ inline Remove_unnecess_frac::Remove_unnecess_frac(DFN::Domain dom)
             }
         }
     }
+*/
 };
 }; // namespace DFN

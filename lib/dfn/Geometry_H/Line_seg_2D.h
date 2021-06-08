@@ -40,7 +40,6 @@ public:
     vector<Vector2d> Exact_pnts_along_this_line_seg_evenly(const double sub_seg);
 
 private:
-    
 };
 
 inline Line_seg_2D::Line_seg_2D()
@@ -107,11 +106,37 @@ inline bool Line_seg_2D::Intersection_between_two_lines(const Line_seg_2D Bs, st
             }
             return true;
         }
+        else
+        {
+            DFN::Point_2D A_re{Bs.Point[0]};
+            DFN::Point_2D B_re{Bs.Point[1]};
+            std::vector<Vector2d> Line_1(2);
+            Line_1[0] << this->Point[0](0), this->Point[0](1);
+            Line_1[1] << this->Point[1](0), this->Point[1](1);
+
+            bool Prw = A_re.If_lies_on_a_line_seg(Line_1);
+            if (Prw == true)
+            {
+                Intersection.resize(1);
+                Intersection[0] << Bs.Point[0](0), Bs.Point[0](1);
+                return true;
+            }
+
+            Prw = B_re.If_lies_on_a_line_seg(Line_1);
+            if (Prw == true)
+            {
+                Intersection.resize(1);
+                Intersection[0] << Bs.Point[1](0), Bs.Point[1](1);
+                return true;
+            }
+
+            return false;
+        }
+
         return false;
     }
     else
     {
-
         // if two lines are overlapping
         std::vector<Vector2d> Intersection_A;
         bool yi = If_two_lines_overlap(Bs, Intersection_A);
@@ -137,6 +162,7 @@ inline bool Line_seg_2D::If_two_lines_overlap(const Line_seg_2D Bs, std::vector<
     By << this->Point[1](0), this->Point[1](1);
     Cy << Bs.Point[0](0), Bs.Point[0](1);
     Dy << Bs.Point[1](0), Bs.Point[1](1);
+
 
     bool T1, T2;
     DFN::Collinear_2D At{Ay, By, Cy, T1};
@@ -201,7 +227,7 @@ inline bool Line_seg_2D::If_two_lines_overlap(const Line_seg_2D Bs, std::vector<
             cout << Verts4[2].transpose() << endl;
 
             cout << "angle of 1st line: " << angle_tmp * 180. / M_PI << endl;
-            exit(0);
+            throw Error_throw_ignore("Line_seg_2D::If_two_lines_overlap, Rotating to x_axis failed!\n");
         }
 
         //now they are rotated to be adhering to x-axis
@@ -290,8 +316,8 @@ inline void Line_seg_2D::Intersection_between_a_line_and_a_convex_polygon(const 
             bool aka = false;
             for (size_t j = i - 1;; j--)
             {
-                if (abs(Intersection[i](0) - Intersection[j](0)) < 0.0001 ||
-                    abs(Intersection[i](1) - Intersection[j](1)) < 0.0001)
+                if (abs(Intersection[i](0) - Intersection[j](0)) < 0.01 ||
+                    abs(Intersection[i](1) - Intersection[j](1)) < 0.01)
                 {
                     aka = true;
                     break;
@@ -311,7 +337,16 @@ inline void Line_seg_2D::Intersection_between_a_line_and_a_convex_polygon(const 
         if (Intersection_A.size() > 2)
         {
             cout << "Line_seg_2D::Intersection_between_a_line_and_a_convex_polygon, a line cannot intersect a convex polygon more than two times!\n";
-            exit(0);
+            cout << "The intersection:\n";
+            for (size_t k = 0; k < Intersection_A.size(); ++k)
+                cout << "\t" << Intersection_A[k].transpose() << endl;
+            cout << "\nThe line seg:\n";
+            cout << "\t" << this->Point[0].transpose() << endl;
+            cout << "\t" << this->Point[1].transpose() << endl;
+            cout << "\nThe polygon:\n";
+            for (size_t k = 0; k < Verts_1.size(); ++k)
+                cout << "\t" << Verts_1[k](0) << ", " << Verts_1[k](1)  << endl;
+            throw Error_throw_ignore("Line_seg_2D::Intersection_between_a_line_and_a_convex_polygon, a line cannot intersect a convex polygon more than two times!\n");
         }
 
         Intersection.resize(Intersection_A.size());
@@ -326,7 +361,7 @@ inline void Line_seg_2D::Intersection_between_a_line_and_a_convex_polygon(const 
         cout << "\tIntersection is:\n";
         for (size_t i = 0; i < Intersection.size(); ++i)
             cout << "\t" << Intersection[i].transpose() << endl;
-        exit(0);
+        throw Error_throw_ignore("\tA line segment cannot intersect a convex polygon more than two times!\n");
     }
     else if (Intersection.size() <= 1)
     {
@@ -448,7 +483,7 @@ inline bool Line_seg_2D::If_is_a_point()
     Vector2d su;
     su = this->Point[0] - this->Point[1];
 
-    if (abs(su(0)) < 0.0001 && abs(su(1)) < 0.0001)
+    if (su.norm() < 0.001)
     {
         return true;
     }

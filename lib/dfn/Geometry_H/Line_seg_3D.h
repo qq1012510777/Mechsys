@@ -65,7 +65,7 @@ inline Vector3d Line_seg_3D::z_Coordin_of_a_Point_in_the_Line_seg_3D(const doubl
         cout << directional_vector.transpose() << endl;
         cout << Point[0].transpose() << endl;
         cout << Point[1].transpose() << endl;
-        exit(0);
+        throw Error_throw_ignore("Line_seg_3D, Undefined behavior!\n");
     }
 
     Vector3d SO;

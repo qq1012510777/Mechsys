@@ -137,8 +137,7 @@ void Handle_Polygon_2D_with_extream_traces::Insert_a_point(std::vector<Vector3d>
 
             if (i == Verts_sort_sub.size() - 1)
             {
-                cout << "This point is not above or below the line seg!\nIn class: Handle_Polygon_2D_with_extream_traces, function: Insert_a_point\n";
-                exit(0);
+               throw Error_throw_ignore("This point is not above or below the line seg!\nIn class: Handle_Polygon_2D_with_extream_traces, function: Insert_a_point\n");
             }
         }
         else

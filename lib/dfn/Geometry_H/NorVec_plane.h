@@ -29,8 +29,7 @@ inline NorVec_plane::NorVec_plane(const std::vector<Vector3d> _Verts)
 {
     if (_Verts.size() < 3)
     {
-        cout << "cannot calculate the normal vector of a plane with less than three point\n";
-        exit(0);
+        throw Error_throw_ignore("cannot calculate the normal vector of a plane with less than three point\n");
     }
 
     Vector3d Ns = (_Verts[0] - _Verts[1]).cross(_Verts[1] - _Verts[2]);

@@ -1,5 +1,6 @@
 #pragma once
-#include "../Geometry_H/Intersection_Frac.h"
+//#include "../Geometry_H/Intersection_Frac.h"
+#include "../Geometry_H/Intersection_Frac_boost.h"
 #include "../Graph_WL_H/Graph_WL.h"
 #include "Fracture_WL.h"
 #include <fstream>
@@ -278,10 +279,9 @@ inline void Domain::Create_whole_model(const size_t n,
         }
     }
 
-
-//#pragma omp critical
-  //  {
-        Clusters();
+    //#pragma omp critical
+    //  {
+    Clusters();
     //}
 
     Correlation_length_and_gyration_radius();
@@ -306,8 +306,7 @@ inline void Domain::Create_whole_model(const size_t n,
         }
         else
         {
-            std::cout << "Error! You do not define fracture size distribution!\n";
-            exit(0);
+            throw Error_throw_pause("Error! Did not define fracture size distribution!\n");
         }
     }
     else if (str_ori == "fisher")
@@ -330,14 +329,12 @@ inline void Domain::Create_whole_model(const size_t n,
         }
         else
         {
-            std::cout << "Error! You do not define fracture size distribution!\n";
-            exit(0);
+            throw Error_throw_pause("Error! Did not define fracture size distribution!\n");
         }
     }
     else
     {
-        std::cout << "Error! You do not define fracture orientation distribution!\n";
-        exit(0);
+        throw Error_throw_pause("Error! Did not define fracture orientation distribution!\n");
     }
 };
 
@@ -557,7 +554,10 @@ inline bool Domain::Intersect_A(const Fracture F1, const Fracture F2)
 {
     DFN::Polygon_convex_3D f1{F1.Verts};
     DFN::Polygon_convex_3D f2{F2.Verts};
-    DFN::Intersection_Frac Interse{f1, f2};
+    f1.Optimize();
+    f2.Optimize();
+    //DFN::Intersection_Frac Interse{f1, f2};
+    DFN::Intersection_Frac_boost Interse{f1, f2};
     return Interse.If_intersect;
 }
 
@@ -1530,13 +1530,11 @@ inline void Domain::If_fracture_intersect_boundary(Fracture &F2)
 {
     if (F2.If_boundary.size() > 1)
     {
-        std::cout << "Error! In class of 'Domain', function 'If_fracture_intersect_boundary', fracture array 'If_boundary' should be initialized\n";
-        exit(0);
+        throw Error_throw_pause("Error! In class of 'Domain', function 'If_fracture_intersect_boundary', fracture array 'If_boundary' should be initialized\n");
     }
     if (Surfaces.size() != 6)
     {
-        std::cout << "Error! In class of 'Domain', function 'If_fracture_intersect_boundary', Surfaces array 'Surfaces' should be initialized\n";
-        exit(0);
+        throw Error_throw_pause("Error! In class of 'Domain', function 'If_fracture_intersect_boundary', Surfaces array 'Surfaces' should be initialized\n");
     }
     for (size_t i = 0; i < F2.Verts_trim.size(); ++i)
     {
@@ -1599,8 +1597,11 @@ inline bool Domain::Intersect(Fracture &F1, Fracture &F2)
 
     DFN::Polygon_convex_3D f1{F1.Verts_trim};
     DFN::Polygon_convex_3D f2{F2.Verts_trim};
+    f1.Optimize();
+    f2.Optimize();
 
-    DFN::Intersection_Frac Interse{f1, f2};
+    //DFN::Intersection_Frac Interse{f1, f2};
+    DFN::Intersection_Frac_boost Interse{f1, f2};
     //return Interse.If_intersect;
     if (Interse.If_intersect == true)
     {
@@ -2046,8 +2047,7 @@ inline void Domain::Determine_excluded_volume(const string str_ori, const string
     }
     else
     {
-        std::cout << "Error! Please define the orientation distribution!\n";
-        exit(0);
+        throw Error_throw_pause("Error! Please define the orientation distribution!\n");
     }
 };
 
@@ -2138,8 +2138,7 @@ inline size_t Domain::Identify_percolation_clusters(string str)
     }
     else
     {
-        std::cout << "Please define a percolation direction with x, y, z\n";
-        exit(0);
+        throw Error_throw_pause("Please define a percolation direction with x, y, z\n");
     }
 }
 
@@ -2168,8 +2167,7 @@ inline void Domain::Connectivity_uniform_orientation(string str_perco_dir)
     }
     else
     {
-        std::cout << "please define the percolation direction with char 'x', 'y' or 'z'\n";
-        exit(0);
+        throw Error_throw_pause("please define the percolation direction with char 'x', 'y' or 'z'\n");
     }
     P32_connected = 0;
     P32_total = 0;
@@ -2231,8 +2229,8 @@ inline void Domain::Connectivity_fisher_orientation(string str_perco_dir)
     }
     else
     {
-        std::cout << "please define the percolation direction with char 'x', 'y' or 'z'\n";
-        exit(0);
+        throw Error_throw_pause("please define the percolation direction with char 'x', 'y' or 'z'\n");
+
     }
     P32_connected = 0;
     P32_total = 0;
@@ -2396,7 +2394,7 @@ inline void Domain::PlotMatlab_DFN_and_Intersection(string FileKey)
                 cout << "nv_1: " << nv_1 << endl;
                 cout << "Verts_trim[nv_1]: " << Fractures[nf].Verts_trim[nv_1].transpose() << endl;
                 cout << "found isnan!\n";
-                exit(0);
+          
             }*/
         }
         oss << "],[";
@@ -2416,17 +2414,26 @@ inline void Domain::PlotMatlab_DFN_and_Intersection(string FileKey)
 
     //Plotting the intersections
     //std::cout<<Connections.size()<<std::endl;
-    for (size_t nc = 0; nc < Connections.size() / 2; nc++)
+
+    for (std::map<std::pair<size_t, size_t>, std::pair<Vector3d, Vector3d>>::iterator its = Intersections.begin();
+         its != Intersections.end(); its++)
     {
-        size_t i1 = Connections[2 * nc];
-        size_t i2 = Connections[2 * nc + 1];
+        size_t i1 = its->first.first;
+        size_t i2 = its->first.second;
         Vector3d x1 = Intersections[std::make_pair(i1, i2)].first;
         Vector3d x2 = Intersections[std::make_pair(i1, i2)].second;
-        oss << "plot3(";
-        oss << "[" << x1(0) << " " << x2(0) << "],";
-        oss << "[" << x1(1) << " " << x2(1) << "],";
-        oss << "[" << x1(2) << " " << x2(2) << "],";
-        oss << "'color',[0 0 1],'Linewidth',3);\ngrid on;\nhold on;\n";
+        if ((x1 - x2).norm() > 0.01)
+        {
+            oss << "plot3(";
+            oss << "[" << x1(0) << " " << x2(0) << "],";
+            oss << "[" << x1(1) << " " << x2(1) << "],";
+            oss << "[" << x1(2) << " " << x2(2) << "],";
+            oss << "'color',[0 0 1],'Linewidth',3);\ngrid on;\nhold on;\n";
+        }
+        else
+        {
+            oss << "scatter3(" << x1(0) << "," << x1(1) << ", " << x1(2) << ", '*', 'linewidth', 3);\nhold on;\n";
+        }
     }
 
     //Plotting the model domain
@@ -2606,8 +2613,7 @@ inline void Domain::PLotMatlab_DFN_Cluster_along_a_direction(string FileKey, str
     }
     else
     {
-        std::cout << "please define the percolation direction with char 'x', 'y' or 'z'\n";
-        exit(0);
+        throw Error_throw_pause("please define the percolation direction with char 'x', 'y' or 'z'\n");
     };
 
     for (size_t i = 0; i < temp.size(); ++i)

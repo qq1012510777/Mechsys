@@ -9,15 +9,9 @@
 #include <string>
 #include <vector>
 
-// Fade_2D
-#include "Fade_2D.h"
-/*_______________________________
-here, we added an open source triangulation library, Fade_2D
-https://www.geom.at/fade2d/html/
-Dr. Bernhard Kornberger
-_______________________________*/
+//
+#include "gmsh.h"
 
-using namespace GEOM_FADE2D;
 using namespace std;
 
 typedef Eigen::Matrix<int, 1, 6> RowVector6i;
@@ -43,142 +37,154 @@ typedef struct If_special_pnt
 namespace DFN
 {
 //---------------------------------
-class YourPeelPredicate_s : public UserPredicateT
-{
-public:
-    bool operator()(const Triangle2 *pT)
-    {
-        // Return true when the triangle has an interior angle below 1.0
-        for (int i = 0; i < 3; ++i)
-        {
-            if (pT->getInteriorAngle2D(i) < 1.0)
-                return true;
-        }
-        return false;
-    }
-};
-//---------------------------------
 class Mesh_Polygon_2D_with_traces
 {
 public:
     std::vector<RowVector6i> JM;
     std::vector<Eigen::Vector2d> JXY;
     std::vector<spe_pnt> Pnt_attribute;
-    std::vector<size_t> Trace_Tag;
+    std::vector<size_t> Trace_Tag; // record trace point
+
+    std::vector<bool> IfCorner;
 
 public:
     Mesh_Polygon_2D_with_traces(const std::vector<Vector2d> Pnt_sets,
                                 const std::vector<pair<size_t, size_t>> Topo_struct,
-                                const double min_angle,
-                                const double min_edge_tri,
-                                const double max_edge_tri,
+                                const std::vector<If_trace_segment> Topo_struct_attri,
+                                const double subpolygon,
                                 std::vector<std::vector<std::pair<size_t, Eigen::Vector2d>>> &neigh_shared,
-                                size_t &NO_Nodes_p);
-
-    void Find_neighbor_ele_and_shared_edge(const std::vector<RowVector6i> JM,
-                                           std::vector<std::vector<std::pair<size_t, Eigen::Vector2d>>> &neigh_shared);
-
-    void Insert_central_pnt(std::vector<Eigen::Vector2d> &JXY,
-                            std::vector<RowVector6i> &JM,
-                            const std::vector<std::vector<std::pair<size_t, Eigen::Vector2d>>> neigh_shared);
+                                size_t &NO_Nodes_p,
+                                DFN::Polygon_convex_2D polyframe,
+                                DFN::Splitting_Polygon_convex_2D_with_traces splitted_polygon,
+                                std::vector<DFN::Line_seg_2D> Traces_Line);
 
     void Matlab_plot(string FileKey, const DFN::Splitting_Polygon_convex_2D_with_traces Poly_t);
 
     void Identifying_Frac_bound(const DFN::Polygon_convex_2D polygon, const vector<DFN::Line_seg_2D> Traces);
+
+    bool If_new_pnt_generates_and_splits_traces(std::vector<DFN::Line_seg_2D> Traces_Line, std::vector<Vector2d> Trace_pnts);
+
+    void Identify_corner_middle_point(size_t &NO_Nodes_p);
 };
 
 inline Mesh_Polygon_2D_with_traces::Mesh_Polygon_2D_with_traces(const std::vector<Vector2d> Pnt_sets,
                                                                 const std::vector<pair<size_t, size_t>> Topo_struct,
-                                                                const double min_angle,
-                                                                const double min_edge_tri,
-                                                                const double max_edge_tri,
+                                                                const std::vector<If_trace_segment> Topo_struct_attri,
+                                                                const double subpolygon,
                                                                 std::vector<std::vector<std::pair<size_t, Eigen::Vector2d>>> &neigh_shared,
-                                                                size_t &NO_Nodes_p)
+                                                                size_t &NO_Nodes_p,
+                                                                DFN::Polygon_convex_2D polyframe,
+                                                                DFN::Splitting_Polygon_convex_2D_with_traces splitted_polygon,
+                                                                std::vector<DFN::Line_seg_2D> Traces_Line)
 {
-    std::vector<Point2> vInputPoints;
-    vInputPoints.resize(Pnt_sets.size());
+
+    //----------------
+    gmsh::initialize();
+    gmsh::option::setNumber("General.Verbosity", 2); // default level is 5
+    gmsh::model::add("t2");
 
     for (size_t i = 0; i < Pnt_sets.size(); ++i)
     {
-        vInputPoints[i] = Point2(Pnt_sets[i](0), Pnt_sets[i](1));
+        gmsh::model::geo::addPoint(Pnt_sets[i](0), Pnt_sets[i](1), 0, subpolygon, i + 1);
     }
 
-    Fade_2D dt;
-    dt.insert(vInputPoints);
-    std::vector<Segment2> vSegments;
-    vSegments.resize(Topo_struct.size());
+    size_t line_Tag = 1;
+
     for (size_t i = 0; i < Topo_struct.size(); ++i)
     {
-        vSegments[i] = Segment2(vInputPoints[Topo_struct[i].first], vInputPoints[Topo_struct[i].second]);
-    }
-
-    dt.createConstraint(vSegments, CIS_CONSTRAINED_DELAUNAY);
-
-    Zone2 *pZoneGlobal(dt.createZone(NULL, ZL_GLOBAL));
-
-    Zone2 *pBoundedZone(pZoneGlobal->convertToBoundedZone());
-    dt.refine(pBoundedZone, min_angle, min_edge_tri, max_edge_tri, false);
-
-    YourPeelPredicate_s decider;
-    Zone2 *pPeeledZone = peelOffIf(pBoundedZone, &decider, false);
-    if (pPeeledZone == NULL)
-    {
-        std::cout << "It seems a faulty predicate has peeled off all triangles, stop" << endl;
-        exit(0);
-    }
-
-    std::vector<Triangle2 *> vTriangles;
-    pPeeledZone->getTriangles(vTriangles);
-    //std::cout << "after peelOff, size of vTriangles: " << vTriangles.size() << "\n";
-
-    //std::vector<Point2 *> vVertices;
-    //pPeeledZone->getVertices(vVertices);
-    //std::cout << "after peelOff, size of vVertices: " << vVertices.size() << "\n";
-
-    std::map<std::pair<double, double>, int> Map_Tri_JXY;
-    //std::vector<RowVector6i> JM;
-    //std::vector<Eigen::Vector3d> JM_linear;
-    JM.resize(vTriangles.size());
-    //JM_linear.resize(vTriangles.size());
-    int pnt_ID = 0;
-
-    for (size_t i = 0; i < vTriangles.size(); ++i)
-    {
-        RowVector6i tmp1;
-        tmp1 << -1, -1, -1, -1, -1, -1;
-        JM[i] = tmp1;
-        for (size_t j = 0; j < 3; ++j)
+        gmsh::model::geo::addLine(Topo_struct[i].first + 1, Topo_struct[i].second + 1, i + 1);
+        line_Tag = i + 1;
+        if (Topo_struct[i].second == 0)
         {
-            Point2 *A = vTriangles[i]->getCorner(j); // the point coordinates
-            std::pair<double, double> B;
-            B.first = round(A->x(), 4);
-            B.second = round(A->y(), 4);
-            std::pair<std::pair<double, double>, int> SF = std::make_pair(B, pnt_ID);
-
-            std::pair<std::map<std::pair<double, double>, int>::iterator, bool> ret = Map_Tri_JXY.insert(SF);
-
-            size_t jk = 0;
-            if (j == 1)
-                jk = 2;
-            else if (j == 2)
-                jk = 4;
-
-            if (ret.second)
-            {
-                //JM_linear[i](j) = pnt_ID;
-                JM[i](0, jk) = pnt_ID;
-                // std::cout << "add PNT ID = " << pnt_ID << std::endl;
-                pnt_ID++;
-            }
-            else
-            {
-                std::map<std::pair<double, double>, int>::iterator it_s;
-                it_s = Map_Tri_JXY.find(B);
-                JM[i](0, jk) = it_s->second;
-                //JM_linear[i](j) = it_s->second;
-            }
+            break;
         }
     }
+
+    std::vector<int> curveloop(line_Tag);
+    for (size_t i = 0; i < curveloop.size(); ++i)
+        curveloop[i] = i + 1;
+    gmsh::model::geo::addCurveLoop(curveloop, 1);
+
+    std::vector<int> surfaceloop = {1};
+    gmsh::model::geo::addPlaneSurface(surfaceloop, 1);
+
+    gmsh::model::geo::synchronize();
+    //cout << 1000 << endl;
+
+    //------------------trace
+    size_t SizeOfEmbededPoint = 0;
+    for (size_t i = line_Tag; i < Topo_struct.size(); ++i)
+    {
+        if (Topo_struct[i].first != Topo_struct[i].second)
+            gmsh::model::geo::addLine(Topo_struct[i].first + 1,
+                                      Topo_struct[i].second + 1,
+                                      i + 1);
+        else
+            SizeOfEmbededPoint++;
+    }
+    //cout << 1001 << endl;
+    gmsh::model::geo::synchronize();
+
+    std::vector<int> embeded_curveloop(Topo_struct.size() - line_Tag - SizeOfEmbededPoint);
+    for (size_t i = line_Tag; i < Topo_struct.size() - SizeOfEmbededPoint; ++i)
+    {
+        embeded_curveloop[i - line_Tag] = i + 1;
+        //cout << "embeded_curveloop[i] " << embeded_curveloop[i] << endl;
+    }
+    //cout << 1002 << endl;
+    if (embeded_curveloop.size() > 0)
+    {
+        gmsh::model::mesh::embed(1, embeded_curveloop, 2, 1);
+    }
+    //cout << 1003 << endl;
+    if (embeded_curveloop.size() > 0)
+        gmsh::model::geo::synchronize();
+
+    if (SizeOfEmbededPoint > 0)
+    {
+        gmsh::model::geo::synchronize();
+        std::vector<int> embeded_pnt(SizeOfEmbededPoint);
+        for (size_t i = 0; i < SizeOfEmbededPoint; ++i)
+        {
+            embeded_pnt[i] = Topo_struct[Topo_struct.size() - 1 - i].first + 1;
+        }
+        gmsh::model::mesh::embed(0, embeded_pnt, 2, 1);
+        gmsh::model::geo::synchronize();
+    }
+
+    gmsh::model::mesh::setOrder(2);
+    gmsh::option::setNumber("Mesh.ElementOrder", 2);
+
+    gmsh::model::mesh::generate(2);
+
+    std::vector<std::size_t> nodes;
+    std::vector<double> coord, coordParam;
+    gmsh::model::mesh::getNodes(nodes, coord, coordParam);
+
+    this->JXY.resize(coord.size() / 3);
+    for (size_t i = 0; i < this->JXY.size(); i++)
+    {
+        this->JXY[i] << coord[i * 3], coord[i * 3 + 1];
+    }
+
+    std::vector<int> elemTypes;
+    std::vector<std::vector<std::size_t>> elemTags, elemNodeTags;
+    gmsh::model::mesh::getElements(elemTypes, elemTags, elemNodeTags, 2, -1);
+
+    this->JM.resize(elemNodeTags[0].size() / 6);
+
+    for (size_t i = 0; i < this->JM.size(); i++)
+    {
+        JM[i] << elemNodeTags[0][i * 6 + 0] - 1,
+            elemNodeTags[0][i * 6 + 3] - 1,
+            elemNodeTags[0][i * 6 + 1] - 1,
+            elemNodeTags[0][i * 6 + 4] - 1,
+            elemNodeTags[0][i * 6 + 2] - 1,
+            elemNodeTags[0][i * 6 + 5] - 1;
+    }
+
+    gmsh::clear();
+    gmsh::finalize();
 
     /*
     std::cout << "JM:\n";
@@ -197,236 +203,18 @@ inline Mesh_Polygon_2D_with_traces::Mesh_Polygon_2D_with_traces(const std::vecto
         std::cout << "; \n";
     }
     */
-    //std::vector<Eigen::Vector2d> JXY;
-    JXY.resize(Map_Tri_JXY.size());
-    std::map<std::pair<double, double>, int>::iterator it = Map_Tri_JXY.begin();
-    while (it != Map_Tri_JXY.end())
+
+    //--------------
+    this->Identifying_Frac_bound(polyframe, Traces_Line);
+    this->Identify_corner_middle_point(NO_Nodes_p);
+
+    bool If_new_pnt_splits_trace = this->If_new_pnt_generates_and_splits_traces(Traces_Line, splitted_polygon.Trace_pnts);
+
+    if (If_new_pnt_splits_trace == true)
     {
-        Eigen::Vector2d UO;
-        UO(0) = it->first.first;
-        UO(1) = it->first.second;
-        JXY[it->second] = UO;
-        it++;
+        throw Error_throw_ignore("Error! new pnt generates and splits the trace!\n");  
     }
-    NO_Nodes_p = JXY.size();
-    Find_neighbor_ele_and_shared_edge(JM, neigh_shared);
-    Insert_central_pnt(JXY, JM, neigh_shared);
-};
-
-inline void Mesh_Polygon_2D_with_traces::Find_neighbor_ele_and_shared_edge(const std::vector<RowVector6i> JM, std::vector<std::vector<std::pair<size_t, Eigen::Vector2d>>> &neigh_shared)
-{
-    neigh_shared.resize(JM.size());
-    for (size_t i = 0; i < JM.size(); ++i)
-    {
-        size_t A0, B0, C0;
-        A0 = JM[i](0, 0);
-        B0 = JM[i](0, 2);
-        C0 = JM[i](0, 4);
-
-        size_t A1, B1, C1;
-        for (size_t j = 0; j < JM.size(); ++j)
-        {
-            if (j != i)
-            {
-                std::vector<size_t> VUY1, VUY0;
-                A1 = JM[j](0, 0);
-                B1 = JM[j](0, 2);
-                C1 = JM[j](0, 4);
-                /*
-                std::cout << A0 << ", " << B0 << ", " << C0 << std::endl;
-                std::cout << A1 << ", " << B1 << ", " << C1 << std::endl;
-                std::cout << ";;;;;;\n";
-                */
-                size_t tag2 = 0;
-                if (A0 == A1)
-                {
-                    tag2++;
-                    VUY0.push_back(0);
-                    VUY1.push_back(0);
-                }
-                else if (A0 == B1)
-                {
-                    tag2++;
-                    VUY0.push_back(0);
-                    VUY1.push_back(1);
-                }
-                else if (A0 == C1)
-                {
-                    tag2++;
-                    VUY0.push_back(0);
-                    VUY1.push_back(2);
-                }
-
-                if (B0 == A1)
-                {
-                    tag2++;
-                    VUY0.push_back(1);
-                    VUY1.push_back(0);
-                }
-                else if (B0 == B1)
-                {
-                    tag2++;
-                    VUY0.push_back(1);
-                    VUY1.push_back(1);
-                }
-                else if (B0 == C1)
-                {
-                    tag2++;
-                    VUY0.push_back(1);
-                    VUY1.push_back(2);
-                }
-
-                if (C0 == A1)
-                {
-                    tag2++;
-                    VUY0.push_back(2);
-                    VUY1.push_back(0);
-                }
-                else if (C0 == B1)
-                {
-                    tag2++;
-                    VUY0.push_back(2);
-                    VUY1.push_back(1);
-                }
-                else if (C0 == C1)
-                {
-                    tag2++;
-                    VUY0.push_back(2);
-                    VUY1.push_back(2);
-                }
-                /*
-                if (tag2 == 2 && (VUY0.size() != 2 || VUY1.size() != 2))
-                {
-                    std::cout << "VUY0 size: " << VUY0.size() << std::endl;
-                    std::cout << "VUY1 size: " << VUY1.size() << std::endl;
-                    exit(0);
-                }*/
-
-                if (tag2 == 2 && VUY0.size() == 2 && VUY1.size() == 2)
-                {
-                    std::pair<size_t, Eigen::Vector2d> PUK;
-                    PUK.first = j;
-                    int Edge_no = -1;
-                    if ((VUY0[0] == 0 && VUY0[1] == 1) || (VUY0[0] == 1 && VUY0[1] == 0))
-                    {
-                        Edge_no = 0;
-                    }
-                    else if ((VUY0[0] == 1 && VUY0[1] == 2) || (VUY0[0] == 2 && VUY0[1] == 1))
-                    {
-                        Edge_no = 1;
-                    }
-                    else if ((VUY0[0] == 0 && VUY0[1] == 2) || (VUY0[0] == 2 && VUY0[1] == 0))
-                    {
-                        Edge_no = 2;
-                    }
-                    PUK.second(0) = Edge_no;
-
-                    //-----------
-                    Edge_no = -1;
-                    if ((VUY1[0] == 0 && VUY1[1] == 1) || (VUY1[0] == 1 && VUY1[1] == 0))
-                    {
-                        Edge_no = 0;
-                    }
-                    else if ((VUY1[0] == 1 && VUY1[1] == 2) || (VUY1[0] == 2 && VUY1[1] == 1))
-                    {
-                        Edge_no = 1;
-                    }
-                    else if ((VUY1[0] == 0 && VUY1[1] == 2) || (VUY1[0] == 2 && VUY1[1] == 0))
-                    {
-                        Edge_no = 2;
-                    }
-                    PUK.second(1) = Edge_no;
-
-                    neigh_shared[i].push_back(PUK);
-                }
-                else if (tag2 > 2)
-                {
-                    std::cout << "Class: Mesh_Polygon_2D_with_traces. Error! shared edge just have two vertices!\n";
-                    cout << "1st ele: " << A0 << ", " << B0 << ", "<< C0 << endl;
-                    cout << "2nd ele: " << A1 << ", " << B1 << ", "<< C1 << endl;
-                    cout << "tag2: " << tag2 << endl;
-                    exit(0);
-                }
-            }
-        }
-    }
-
-    // std::vector<std::vector<std::pair<size_t, Eigen::Vector2d>>> &neigh_shared
-    /*
-        for (size_t i = 0; i < neigh_shared.size(); ++i)
-        {
-            std::cout << "element NO " << i << ";\n";
-            for (size_t j = 0; j < neigh_shared[i].size(); ++j)
-            {
-                std::cout << "\tele: " << neigh_shared[i][j].first << "; shared edged: " << neigh_shared[i][j].second(0) << ", " << neigh_shared[i][j].second(1) << std::endl;
-            }
-        }*/
-};
-
-inline void Mesh_Polygon_2D_with_traces::Insert_central_pnt(std::vector<Eigen::Vector2d> &JXY, std::vector<RowVector6i> &JM, const std::vector<std::vector<std::pair<size_t, Eigen::Vector2d>>> neigh_shared)
-{
-    int update_pnt_ID = JXY.size();
-    for (size_t i = 0; i < JM.size(); ++i)
-    {
-        for (size_t j = 0; j < 3; ++j)
-        {
-            size_t jk = 0;
-            if (j == 0)
-                jk = 1;
-            else if (j == 1)
-                jk = 3;
-            else if (j == 2)
-                jk = 5;
-
-            if (JM[i](0, jk) == -1)
-            {
-                Eigen::Vector2d FG;
-                FG(0) = .5 * (JXY[JM[i](0, jk - 1)](0) + JXY[JM[i](0, (jk + 1) % 6)](0));
-                FG(1) = .5 * (JXY[JM[i](0, jk - 1)](1) + JXY[JM[i](0, (jk + 1) % 6)](1));
-                JM[i](0, jk) = update_pnt_ID;
-                size_t edge1;
-                if (jk == 1)
-                    edge1 = 0;
-                else if (jk == 3)
-                    edge1 = 1;
-                else if (jk == 5)
-                    edge1 = 2;
-                //size_t ele1 = i;
-                //std::cout << "now add pnt to elemen " << i << ", edge is " << edge1 << ", pnt No is: " << jk << ", define as " << JM[i](0, jk) << std::endl;
-                for (size_t k = 0; k < neigh_shared[i].size(); ++k)
-                {
-                    if (edge1 == neigh_shared[i][k].second(0))
-                    {
-                        size_t ele2 = neigh_shared[i][k].first;
-                        size_t edg2 = neigh_shared[i][k].second(1);
-                        /*
-                        std::cout << "\tele1: " << ele1 << "; "
-                                  << "edge1: " << edge1 << "; ";
-                        std::cout << "ele2: " << ele2 << "; "
-                                  << "edge2: " << edg2 << "\n";*/
-                        size_t sorted_node = 0;
-                        if (edg2 == 0)
-                            sorted_node = 1;
-                        else if (edg2 == 1)
-                            sorted_node = 3;
-                        else if (edg2 == 2)
-                            sorted_node = 5;
-
-                        if (JM[ele2](0, sorted_node) == -1)
-                            JM[ele2](0, sorted_node) = update_pnt_ID;
-                        else
-                        {
-                            std::cout << "ERROR! the same pnt should have only one ID!\n";
-                            exit(0);
-                        }
-                    }
-                }
-                JXY.push_back(FG);
-                update_pnt_ID++;
-            }
-        }
-    }
-};
+}
 
 inline void Mesh_Polygon_2D_with_traces::Identifying_Frac_bound(const DFN::Polygon_convex_2D polygon, const vector<DFN::Line_seg_2D> Traces)
 {
@@ -463,6 +251,79 @@ inline void Mesh_Polygon_2D_with_traces::Identifying_Frac_bound(const DFN::Polyg
             }
         }
     }
+};
+
+inline void Mesh_Polygon_2D_with_traces::Identify_corner_middle_point(size_t &NO_Nodes_p)
+{
+    NO_Nodes_p = 0;
+
+    Eigen::VectorXd JXY_op;
+    JXY_op = Eigen::VectorXd::Zero(this->JXY.size());
+    IfCorner.resize(this->JXY.size());
+
+    for (size_t i = 0; i < JM.size(); ++i)
+    {
+        for (size_t j = 0; j < 6; ++j)
+        {
+            size_t pntIU = JM[i][j];
+
+            if (JXY_op[pntIU] == 0) // not accessed
+            {
+                JXY_op[pntIU] = 1;
+
+                if (j % 2 != 0)
+                {
+                    IfCorner[pntIU] = false; // mid
+                }
+                else
+                {
+                    IfCorner[pntIU] = true; // corner
+                    NO_Nodes_p++;
+                };
+            }
+        }
+    }
+};
+
+inline bool Mesh_Polygon_2D_with_traces::If_new_pnt_generates_and_splits_traces(std::vector<DFN::Line_seg_2D> Traces_Line, std::vector<Vector2d> Trace_pnts)
+{
+    for (size_t i = 0; i < this->JXY.size(); ++i)
+    {
+        if (this->IfCorner[i] == true && this->Pnt_attribute[i].If_trace == true)
+        {
+            DFN::Point_2D thisPNT{JXY[i]};
+
+            for (size_t k = 0; k < Trace_pnts.size(); ++k)
+            {
+                Vector2d UIO = thisPNT.Coordinate - Trace_pnts[k];
+                if ((abs(UIO(0)) < 0.05 && abs(UIO(1)) < 0.05) || UIO.norm() < 0.05)
+                {
+                    break; //
+                }
+                else
+                {
+                    if (k == Trace_pnts.size() - 1)
+                    {
+                        cout << "-----------------------\n";
+                        cout << "\tNew point: ";
+                        cout << thisPNT.Coordinate.transpose() << endl;
+
+                        cout << "\nTrace point:\n";
+                        for (size_t io = 0; io < Trace_pnts.size(); ++io)
+                            cout << Trace_pnts[io].transpose() << endl;
+
+                        cout << "\nTrace Line seg:\n";
+                        for (size_t io = 0; io < Traces_Line.size(); ++io)
+                            cout << Traces_Line[io].Point[0].transpose() << ", " << Traces_Line[io].Point[1].transpose() << endl;
+                        cout << "-----------------------\n";
+
+                        return true; // this pnt splits constraints
+                    }
+                }
+            }
+        }
+    }
+    return false;
 };
 
 inline void Mesh_Polygon_2D_with_traces::Matlab_plot(string FileKey, const DFN::Splitting_Polygon_convex_2D_with_traces Poly_t)
@@ -506,6 +367,12 @@ inline void Mesh_Polygon_2D_with_traces::Matlab_plot(string FileKey, const DFN::
     for (size_t i = 0; i < Poly_t.Topo_struct.size(); ++i)
     {
         oss << "plot([Pnt_sets2(" << Poly_t.Topo_struct[i].first + 1 << ",1), Pnt_sets2(" << Poly_t.Topo_struct[i].second + 1 << ",1)],[Pnt_sets2(" << Poly_t.Topo_struct[i].first + 1 << ",2), Pnt_sets2(" << Poly_t.Topo_struct[i].second + 1 << ",2)], 'LineWidth',2);\n";
+        oss << "hold on;\n";
+    }
+
+    for (size_t i = 0; i < Poly_t.Trace_pnts.size(); ++i)
+    {
+        oss << "scatter(" << Poly_t.Trace_pnts[i](0) << ", " << Poly_t.Trace_pnts[i](1) << ", 'o');\n";
         oss << "hold on;\n";
     }
 
