@@ -55,6 +55,7 @@ public:
     std::map<std::pair<size_t, size_t>, std::pair<Vector3d, Vector3d>> Intersections_S; ///< Map of line intersection between fractures and surfaces
 
 public:
+    void Re_identify_intersection_considering_trimmed_frac();
     // method
     void Create_whole_model(const size_t n,
                             const std::vector<double> DenWeight,
@@ -90,7 +91,7 @@ public:
     // if a fracture intersects boundary, then
     // label it
 
-    bool Intersect(Fracture &F1, Fracture &F2);
+    bool Intersect(Fracture &F1, Fracture &F2, const bool if_use_trim_frac);
     ///< Function to check if two fractures
     // intersect, and return intersection
 
@@ -275,14 +276,14 @@ inline void Domain::Create_whole_model(const size_t n,
     {
         for (size_t j = i + 1; j < nz; ++j)
         {
-            Intersect(Fractures[i], Fractures[j]);
+            Intersect(Fractures[i], Fractures[j], false);
         }
     }
 
-    //#pragma omp critical
-    //  {
-    Clusters();
-    //}
+#pragma omp critical
+    {
+        Clusters();
+    }
 
     Correlation_length_and_gyration_radius();
     Average_number_of_intersections_per_fracture();
@@ -1584,7 +1585,7 @@ inline void Domain::If_fracture_intersect_boundary(Fracture &F2)
     }
 };
 
-inline bool Domain::Intersect(Fracture &F1, Fracture &F2)
+inline bool Domain::Intersect(Fracture &F1, Fracture &F2, const bool if_use_trim_frac)
 {
     F1.Nvertices_trim = F1.Verts_trim.size();
     F2.Nvertices_trim = F2.Verts_trim.size();
@@ -1595,8 +1596,24 @@ inline bool Domain::Intersect(Fracture &F1, Fracture &F2)
     Vector3d B1;
     B1 << 0, 0, 0;
 
-    DFN::Polygon_convex_3D f1{F1.Verts_trim};
-    DFN::Polygon_convex_3D f2{F2.Verts_trim};
+    DFN::Polygon_convex_3D f1;
+    DFN::Polygon_convex_3D f2;
+
+    if (if_use_trim_frac == false)
+    {
+        DFN::Polygon_convex_3D x1{F1.Verts};
+        DFN::Polygon_convex_3D x2{F2.Verts};
+        f1.Create(x1);
+        f2.Create(x2);
+    }
+    else
+    {
+        DFN::Polygon_convex_3D x1{F1.Verts_trim};
+        DFN::Polygon_convex_3D x2{F2.Verts_trim};
+        f1.Create(x1);
+        f2.Create(x2);
+    }
+
     f1.Optimize();
     f2.Optimize();
 
@@ -2230,7 +2247,6 @@ inline void Domain::Connectivity_fisher_orientation(string str_perco_dir)
     else
     {
         throw Error_throw_pause("please define the percolation direction with char 'x', 'y' or 'z'\n");
-
     }
     P32_connected = 0;
     P32_total = 0;
@@ -2381,33 +2397,24 @@ inline void Domain::PlotMatlab_DFN_and_Intersection(string FileKey)
     //Plotting the fractures
     for (size_t nf = 0; nf < Fractures.size(); nf++)
     {
-        size_t n_verts = Fractures[nf].Verts_trim.size();
+        size_t n_verts = Fractures[nf].Verts.size();
         oss << "frac" << nf + 1 << " = fill3([";
         for (size_t nv = 0; nv < n_verts + 1; ++nv)
         {
             size_t nv_1 = nv - (size_t)(nv / n_verts) * n_verts;
-            oss << Fractures[nf].Verts_trim[nv_1](0) << " ";
-            /*
-            if (isnan(Fractures[nf].Verts_trim[nv_1](0)) == 1)
-            {
-                cout << "nf: " << nf << endl;
-                cout << "nv_1: " << nv_1 << endl;
-                cout << "Verts_trim[nv_1]: " << Fractures[nf].Verts_trim[nv_1].transpose() << endl;
-                cout << "found isnan!\n";
-          
-            }*/
+            oss << Fractures[nf].Verts[nv_1](0) << " ";
         }
         oss << "],[";
         for (size_t nv = 0; nv < n_verts + 1; ++nv)
         {
             size_t nv_1 = nv - (size_t)(nv / n_verts) * n_verts;
-            oss << Fractures[nf].Verts_trim[nv_1](1) << " ";
+            oss << Fractures[nf].Verts[nv_1](1) << " ";
         }
         oss << "],[";
         for (size_t nv = 0; nv < n_verts + 1; ++nv)
         {
             size_t nv_1 = nv - (size_t)(nv / n_verts) * n_verts;
-            oss << Fractures[nf].Verts_trim[nv_1](2) << " ";
+            oss << Fractures[nf].Verts[nv_1](2) << " ";
         }
         oss << "],[rand rand rand]);\ngrid on;\nhold on;\n";
     }
@@ -2744,4 +2751,25 @@ inline void Domain::DataFile_Radius_AreaAndPerimeter(string FileKey)
 
     oss.close();
 }
+
+inline void Domain::Re_identify_intersection_considering_trimmed_frac()
+{
+    Connections.clear();
+    Listofclusters.clear();
+    Percolation_cluster.clear();
+    Intersections.erase(Intersections.begin(), Intersections.end());
+    size_t nz = Fractures.size();
+    for (size_t i = 0; i < nz - 1; ++i)
+    {
+        for (size_t j = i + 1; j < nz; ++j)
+        {
+            Intersect(Fractures[i], Fractures[j], true);
+        }
+    }
+
+#pragma omp critical
+    {
+        Clusters();
+    }
+};
 }; // namespace DFN

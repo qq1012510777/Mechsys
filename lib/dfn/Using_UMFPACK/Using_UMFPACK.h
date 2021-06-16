@@ -12,15 +12,12 @@ namespace DFN
 class Using_UMFPACK
 {
 public:
-    double *X_K;
-public:
     Using_UMFPACK(const double *K_a,
                   const size_t Dim /*dimension of the square matrix*/,
-                  const double *B);
-    ~Using_UMFPACK();
+                  double *B);
 };
 
-inline Using_UMFPACK::Using_UMFPACK(const double *K_a, const size_t Dim, const double *B)
+inline Using_UMFPACK::Using_UMFPACK(const double *K_a, const size_t Dim, double *B)
 {
     std::vector<double> Ax_xx;
 
@@ -80,22 +77,14 @@ inline Using_UMFPACK::Using_UMFPACK(const double *K_a, const size_t Dim, const d
     status = umfpack_di_solve(UMFPACK_A, Ap, Ai, Ax, x, B, Numeric, null, null);
     umfpack_di_free_numeric(&Numeric);
 
-    X_K = (double *)calloc(Dim, sizeof(double));
-
     for (size_t is = 0; is < Dim; is++)
-        X_K[is] = x[is];   
+        B[is] = x[is];
 
     free(Ai);
     free(Ap);
     free(Ax);
 
     status++;
-};
-
-inline Using_UMFPACK::~Using_UMFPACK()
-{
-    //cout << "free X_K\n";
-    free(X_K);
 };
 
 } // namespace DFN

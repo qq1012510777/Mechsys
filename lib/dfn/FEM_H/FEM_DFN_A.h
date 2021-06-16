@@ -18,6 +18,8 @@ public:
     double Q_out;
     double Permeability;
 
+    double *F_overall;
+
 public:
     FEM_DFN_A(DFN::Mesh_DFN_overall DFN_mesh, DFN::Domain dom);
     void Assemble_overall_matrix(DFN::Mesh_DFN_overall DFN_mesh, double *K_overall, double *F_overall, DFN::Domain dom);
@@ -82,6 +84,8 @@ public:
     void FEM_results(DFN::Mesh_DFN_overall DFN_mesh, double *F_overall, DFN::Domain dom);
 
     void In_and_out_flux(DFN::Mesh_DFN_overall DFN_mesh, DFN::Domain dom);
+
+    ~FEM_DFN_A();
 };
 
 inline FEM_DFN_A::FEM_DFN_A(DFN::Mesh_DFN_overall DFN_mesh, DFN::Domain dom)
@@ -90,7 +94,7 @@ inline FEM_DFN_A::FEM_DFN_A(DFN::Mesh_DFN_overall DFN_mesh, DFN::Domain dom)
     size_t NUM_NODES_p = DFN_mesh.NUM_of_linear_NODES;
     size_t Matrix_D = (NUM_NODES_velocity * 2 + NUM_NODES_p);
 
-    if(Matrix_D > 4e4)
+    if (Matrix_D > 4e4)
     {
         throw Error_throw_pause("The dimension of the matrix is too large!\n");
     }
@@ -108,8 +112,8 @@ inline FEM_DFN_A::FEM_DFN_A(DFN::Mesh_DFN_overall DFN_mesh, DFN::Domain dom)
             K_overall[i] = 0;
         }
     }
-    
-    double *F_overall = new double[Matrix_D];
+
+    F_overall = new double[Matrix_D];
     if (F_overall == NULL)
     {
         throw Error_throw_ignore("Error! Cannot alloc to matrix 'F_overall'!\n");
@@ -121,9 +125,9 @@ inline FEM_DFN_A::FEM_DFN_A(DFN::Mesh_DFN_overall DFN_mesh, DFN::Domain dom)
             F_overall[i] = 0;
         }
     }
-   
+
     this->Assemble_overall_matrix(DFN_mesh, K_overall, F_overall, dom);
-   
+
     // K x = F
     //int n = Matrix_D; // dimensions of coefficient matrix K (2D)
     //int m = 1;        // dimensions of F matrix
@@ -184,18 +188,14 @@ inline FEM_DFN_A::FEM_DFN_A(DFN::Mesh_DFN_overall DFN_mesh, DFN::Domain dom)
     std::cout << "\033[32mstart solving matrix;\n\033[0m";
     DFN::Using_UMFPACK U{K_overall, Matrix_D, F_overall};
     std::cout << "\033[32mfinish solving matrix;\n\033[0m";
-    this->FEM_results(DFN_mesh, U.X_K, dom);
-
-    this->matlab_plot("FEM_DFN.mat", "FEM_DFN.m", dom, DFN_mesh, U.X_K);
+    this->FEM_results(DFN_mesh, F_overall, dom);
 
     this->In_and_out_flux(DFN_mesh, dom);
-    cout << "in : " << this->Q_in << endl;
-    cout << "out: " << this->Q_out << endl;
+    //cout << "in : " << this->Q_in << endl;
+    //cout << "out: " << this->Q_out << endl;
 
     //delete[] ipiv;
     //ipiv = NULL;
-    delete[] F_overall;
-    F_overall = NULL;
     delete[] K_overall;
     K_overall = NULL;
 };
@@ -1314,6 +1314,12 @@ inline void FEM_DFN_A::matlab_plot(string FileKey_mat, string FileKey_m, DFN::Do
     oss << "axis([" << xmin_1 << " " << xmax_1 << " " << ymin_1 << " " << ymax_1 << " " << zmin_1 << " " << zmax_1 << "])\nhold on;\nxlabel('x (m)');\nylabel('y (m)');\nzlabel('z (m)');\n";
     */
     oss.close();
+};
+
+inline FEM_DFN_A::~FEM_DFN_A()
+{
+    delete[] F_overall;
+    F_overall = NULL;
 };
 
 }; // namespace DFN

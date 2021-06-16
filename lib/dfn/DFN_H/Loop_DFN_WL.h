@@ -48,7 +48,7 @@ public:
                           string str_ori,
                           string str_frac_size,
                           string percolation_direction,
-                          const double min_ele_edge, 
+                          const double min_ele_edge,
                           const double max_ele_edge);
 
     void Data_output_stepBYstep(size_t times,
@@ -77,6 +77,29 @@ public:
 
     void Sign_of_finding_pc(string FileKey);
     ///< if Pc is found, outputs a file
+
+    void Matlab_Data_output_stepBYstep(const size_t np,
+                                       string FileKey_mat,
+                                       std::vector<double> P32_total_A,
+                                       std::vector<double> P32_connected_A,
+                                       std::vector<double> P30_A,
+                                       std::vector<double> Percolation_parameter_A_1,
+                                       std::vector<double> Percolation_parameter_A_2,
+                                       std::vector<double> Percolation_parameter_A_3,
+                                       std::vector<double> Percolation_parameter_A_4,
+                                       std::vector<double> Percolation_parameter_A_5,
+                                       std::vector<double> Ratio_of_P32_A,
+                                       std::vector<double> Percolation_probability_A,
+                                       std::vector<double> n_I_A,
+                                       std::vector<double> Correlation_length_A,
+                                       std::vector<double> Max_gyration_radius_A,
+                                       std::vector<double> P30_largest_cluster_A,
+                                       std::vector<double> P32_largest_cluster_A,
+                                       std::vector<double> P30_connected_A,
+                                       std::vector<double> Ratio_of_P30_A,
+                                       std::vector<double> Permeability_A);
+
+    void Matlab_command(string FileKey_m, string FileKey_mat, size_t np, size_t ny);
 };
 
 //****************************
@@ -84,7 +107,7 @@ inline void Loop_DFN::Loop_create_DFNs(gsl_rng *random_seed,
                                        string str_ori,
                                        string str_frac_size,
                                        string percolation_direction,
-                                       const double min_ele_edge, 
+                                       const double min_ele_edge,
                                        const double max_ele_edge)
 {
     size_t nv = nv_MC_TIMES;
@@ -173,6 +196,7 @@ inline void Loop_DFN::Loop_create_DFNs(gsl_rng *random_seed,
         std::vector<double> P32_largest_cluster_A;
         std::vector<double> P30_connected_A;
         std::vector<double> Ratio_of_P30_A;
+        std::vector<double> Permeability_A;
 
         P32_total_A.resize(nv);
         P32_connected_A.resize(nv);
@@ -191,6 +215,7 @@ inline void Loop_DFN::Loop_create_DFNs(gsl_rng *random_seed,
         P32_largest_cluster_A.resize(nv);
         P30_connected_A.resize(nv);
         Ratio_of_P30_A.resize(nv);
+        Permeability_A.resize(nv);
 
 #pragma omp parallel for schedule(static) num_threads(Nproc)
         for (size_t i = 0; i < nv; i++)
@@ -327,17 +352,28 @@ inline void Loop_DFN::Loop_create_DFNs(gsl_rng *random_seed,
 
                 if (z == 1)
                 {
-
-                    //DFN::Mesh_DFN mesh{dom, subtrace, subpolygon};
-
-                    //mesh.Matlab_plot("mesh_DFN.mat", "mesh_DFN.m", dom);
-
-                    //DFN::FEM_DFN_A CC(mesh, dom);
-                    //cout << CC.Permeability << endl;
-                    DFN::Mesh_DFN_overall mesh(dom, min_ele_edge, max_ele_edge);
-                    mesh.Matlab_plot("mesh_DFN.mat", "mesh_DFN.m", dom);
-                    DFN::FEM_DFN_A CC(mesh, dom);
-                
+                    dom.Re_identify_intersection_considering_trimmed_frac();
+                    size_t z2 = dom.Identify_percolation_clusters(percolation_direction);
+                    //dom.PlotMatlab_DFN_and_Intersection("tdfn01_DFN_and_Intersections_II.m");
+                    if (z2 != z)
+                    {
+                        throw Error_throw_pause("Error! After fractures are trimmed, percolation cluster does not exist!\nEven fractures are trimmed, Percolation cluster is supposed to be existing!\n");
+                    }
+#pragma omp critical
+                    {
+                        DFN::Mesh_DFN_overall mesh(dom, min_ele_edge, max_ele_edge);
+                        DFN::FEM_DFN_A CC(mesh, dom);
+                        if (np == nt && i == nv - 1)
+                        {
+                            mesh.Matlab_plot("mesh_DFN.mat", "mesh_DFN.m", dom);
+                            CC.matlab_plot("FEM_DFN.mat", "FEM_DFN.m", dom, mesh, CC.F_overall);
+                        }
+                        Permeability_A[i] = CC.Permeability;
+                    }
+                }
+                else
+                {
+                    Permeability_A[i] = 0;
                 }
                 //cout << 2 << endl;
             }
@@ -351,10 +387,30 @@ inline void Loop_DFN::Loop_create_DFNs(gsl_rng *random_seed,
             {
                 cout << "\033[33mRegenerate a DFN! Because:\n"
                      << e.msg << "\033[0m" << endl;
-                exit(0);
                 goto Regenerate_dfn;
             }
         }
+
+        this->Matlab_Data_output_stepBYstep(np,
+                                            "percolation_data.mat",
+                                            P32_total_A,
+                                            P32_connected_A,
+                                            P30_A,
+                                            Percolation_parameter_A_1,
+                                            Percolation_parameter_A_2,
+                                            Percolation_parameter_A_3,
+                                            Percolation_parameter_A_4,
+                                            Percolation_parameter_A_5,
+                                            Ratio_of_P32_A,
+                                            Percolation_probability_A,
+                                            n_I_A,
+                                            Correlation_length_A,
+                                            Max_gyration_radius_A,
+                                            P30_largest_cluster_A,
+                                            P32_largest_cluster_A,
+                                            P30_connected_A,
+                                            Ratio_of_P30_A,
+                                            Permeability_A);
 
         double P32_total_B = 0;
         for (size_t i = 0; i < P32_total_A.size(); ++i)
@@ -479,6 +535,7 @@ inline void Loop_DFN::Loop_create_DFNs(gsl_rng *random_seed,
         }
         n_I_1.push_back(n_I_B / n_I_A.size());
 
+        /*
         if (str_frac_size == "powerlaw")
         {
             Data_output_stepBYstep(np, "tdfn01_datafile_step_by_step.txt", array12[0][1], array12[0][2], L, nx, P32_total_B / nv, P32_connected_B / nv, P30_B / nv, Ratio_of_P32_B / nv, Percolation_parameter_B_1 / nv, Percolation_parameter_B_2 / nv, Percolation_parameter_B_3 / nv, Percolation_parameter_B_4 / nv, Percolation_parameter_B_5 / nv, n_I_B / n_I_A.size(), Percolation_probability_B, Correlation_length_B / nv, Max_gyration_radius_B / nv, P30_largest_cluster_B / nv, P32_largest_cluster_B / nv, P30_connected_B / nv, Ratio_of_P30_B / nv);
@@ -495,7 +552,7 @@ inline void Loop_DFN::Loop_create_DFNs(gsl_rng *random_seed,
         {
             Data_output_stepBYstep(np, "tdfn01_datafile_step_by_step.txt", array12[0][0], array12[0][0], L, nx, P32_total_B / nv, P32_connected_B / nv, P30_B / nv, Ratio_of_P32_B / nv, Percolation_parameter_B_1 / nv, Percolation_parameter_B_2 / nv, Percolation_parameter_B_3 / nv, Percolation_parameter_B_4 / nv, Percolation_parameter_B_5 / nv, n_I_B / n_I_A.size(), Percolation_probability_B, Correlation_length_B / nv, Max_gyration_radius_B / nv, P30_largest_cluster_B / nv, P32_largest_cluster_B / nv, P30_connected_B / nv, Ratio_of_P30_B / nv);
         }
-
+        */
         if (njk == 0 && Percolation_probability_B > 0.49999)
         {
             njk++;
@@ -511,6 +568,7 @@ inline void Loop_DFN::Loop_create_DFNs(gsl_rng *random_seed,
         }
     };
 
+    this->Matlab_command("data.m", "percolation_data.mat", np, np);
     std::cout << "Loop finished!\n";
 };
 
@@ -596,6 +654,594 @@ inline void Loop_DFN::Data_output_stepBYstep(size_t times,
 
         oss.close();
     }
+};
+
+inline void Loop_DFN::Matlab_Data_output_stepBYstep(const size_t np,
+                                                    string FileKey_mat,
+                                                    std::vector<double> P32_total_A,
+                                                    std::vector<double> P32_connected_A,
+                                                    std::vector<double> P30_A,
+                                                    std::vector<double> Percolation_parameter_A_1,
+                                                    std::vector<double> Percolation_parameter_A_2,
+                                                    std::vector<double> Percolation_parameter_A_3,
+                                                    std::vector<double> Percolation_parameter_A_4,
+                                                    std::vector<double> Percolation_parameter_A_5,
+                                                    std::vector<double> Ratio_of_P32_A,
+                                                    std::vector<double> Percolation_probability_A,
+                                                    std::vector<double> n_I_A,
+                                                    std::vector<double> Correlation_length_A,
+                                                    std::vector<double> Max_gyration_radius_A,
+                                                    std::vector<double> P30_largest_cluster_A,
+                                                    std::vector<double> P32_largest_cluster_A,
+                                                    std::vector<double> P30_connected_A,
+                                                    std::vector<double> Ratio_of_P30_A,
+                                                    std::vector<double> Permeability_A)
+
+{
+
+    if (np == 1)
+    {
+        const char *filename = FileKey_mat.c_str();
+        MATFile *pMatFile;
+        pMatFile = matOpen(filename, "w");
+
+        if (!pMatFile)
+        {
+            throw Error_throw_ignore("cannot create mat file in class Mesh_DFN\n");
+        }
+
+        double *pData1,
+            *pData2,
+            *pData3,
+            *pData4,
+            *pData5,
+            *pData6,
+            *pData7,
+            *pData8,
+            *pData9,
+            *pData10,
+            *pData11,
+            *pData12,
+            *pData13,
+            *pData14,
+            *pData15,
+            *pData16,
+            *pData17,
+            *pData18;
+
+        pData1 = (double *)mxCalloc(P32_total_A.size(), sizeof(double));
+        pData2 = (double *)mxCalloc(P32_connected_A.size(), sizeof(double));
+        pData3 = (double *)mxCalloc(P30_A.size(), sizeof(double));
+        pData4 = (double *)mxCalloc(Percolation_parameter_A_1.size(), sizeof(double));
+        pData5 = (double *)mxCalloc(Percolation_parameter_A_2.size(), sizeof(double));
+        pData6 = (double *)mxCalloc(Percolation_parameter_A_3.size(), sizeof(double));
+        pData7 = (double *)mxCalloc(Percolation_parameter_A_4.size(), sizeof(double));
+        pData8 = (double *)mxCalloc(Percolation_parameter_A_5.size(), sizeof(double));
+        pData9 = (double *)mxCalloc(Ratio_of_P32_A.size(), sizeof(double));
+        pData10 = (double *)mxCalloc(Percolation_probability_A.size(), sizeof(double));
+        pData11 = (double *)mxCalloc(n_I_A.size(), sizeof(double));
+        pData12 = (double *)mxCalloc(Correlation_length_A.size(), sizeof(double));
+        pData13 = (double *)mxCalloc(Max_gyration_radius_A.size(), sizeof(double));
+        pData14 = (double *)mxCalloc(P30_largest_cluster_A.size(), sizeof(double));
+        pData15 = (double *)mxCalloc(P32_largest_cluster_A.size(), sizeof(double));
+        pData16 = (double *)mxCalloc(P30_connected_A.size(), sizeof(double));
+        pData17 = (double *)mxCalloc(Ratio_of_P30_A.size(), sizeof(double));
+        pData18 = (double *)mxCalloc(Permeability_A.size(), sizeof(double));
+
+        mxArray *pMxArray1;
+        mxArray *pMxArray2;
+        mxArray *pMxArray3;
+        mxArray *pMxArray4;
+        mxArray *pMxArray5;
+        mxArray *pMxArray6;
+        mxArray *pMxArray7;
+        mxArray *pMxArray8;
+        mxArray *pMxArray9;
+        mxArray *pMxArray10;
+        mxArray *pMxArray11;
+        mxArray *pMxArray12;
+        mxArray *pMxArray13;
+        mxArray *pMxArray14;
+        mxArray *pMxArray15;
+        mxArray *pMxArray16;
+        mxArray *pMxArray17;
+        mxArray *pMxArray18;
+
+        pMxArray1 = mxCreateDoubleMatrix(P32_total_A.size(), 1, mxREAL);
+        pMxArray2 = mxCreateDoubleMatrix(P32_connected_A.size(), 1, mxREAL);
+        pMxArray3 = mxCreateDoubleMatrix(P30_A.size(), 1, mxREAL);
+        pMxArray4 = mxCreateDoubleMatrix(Percolation_parameter_A_1.size(), 1, mxREAL);
+        pMxArray5 = mxCreateDoubleMatrix(Percolation_parameter_A_2.size(), 1, mxREAL);
+        pMxArray6 = mxCreateDoubleMatrix(Percolation_parameter_A_3.size(), 1, mxREAL);
+        pMxArray7 = mxCreateDoubleMatrix(Percolation_parameter_A_4.size(), 1, mxREAL);
+        pMxArray8 = mxCreateDoubleMatrix(Percolation_parameter_A_5.size(), 1, mxREAL);
+        pMxArray9 = mxCreateDoubleMatrix(Ratio_of_P32_A.size(), 1, mxREAL);
+        pMxArray10 = mxCreateDoubleMatrix(Percolation_probability_A.size(), 1, mxREAL);
+        pMxArray11 = mxCreateDoubleMatrix(n_I_A.size(), 1, mxREAL);
+        pMxArray12 = mxCreateDoubleMatrix(Correlation_length_A.size(), 1, mxREAL);
+        pMxArray13 = mxCreateDoubleMatrix(Max_gyration_radius_A.size(), 1, mxREAL);
+        pMxArray14 = mxCreateDoubleMatrix(P30_largest_cluster_A.size(), 1, mxREAL);
+        pMxArray15 = mxCreateDoubleMatrix(P32_largest_cluster_A.size(), 1, mxREAL);
+        pMxArray16 = mxCreateDoubleMatrix(P30_connected_A.size(), 1, mxREAL);
+        pMxArray17 = mxCreateDoubleMatrix(Ratio_of_P30_A.size(), 1, mxREAL);
+        pMxArray18 = mxCreateDoubleMatrix(Permeability_A.size(), 1, mxREAL);
+
+        if (!pMxArray1 ||
+            !pMxArray2 ||
+            !pMxArray3 ||
+            !pMxArray4 ||
+            !pMxArray5 ||
+            !pMxArray6 ||
+            !pMxArray7 ||
+            !pMxArray8 ||
+            !pMxArray9 ||
+            !pMxArray10 ||
+            !pMxArray11 ||
+            !pMxArray12 ||
+            !pMxArray13 ||
+            !pMxArray14 ||
+            !pMxArray15 ||
+            !pMxArray16 ||
+            !pMxArray17 ||
+            !pMxArray18)
+        {
+            throw Error_throw_pause("cannot create pMxArray in class FEM_DFN_A\n");
+        }
+
+        if (!pData1 ||
+            !pData2 ||
+            !pData3 ||
+            !pData4 ||
+            !pData5 ||
+            !pData6 ||
+            !pData7 ||
+            !pData8 ||
+            !pData9 ||
+            !pData10 ||
+            !pData11 ||
+            !pData12 ||
+            !pData13 ||
+            !pData14 ||
+            !pData15 ||
+            !pData16 ||
+            !pData17 ||
+            !pData18)
+        {
+            throw Error_throw_pause("cannot create pData in class FEM_DFN_A\n");
+        }
+
+        for (size_t i = 0; i < P32_total_A.size(); ++i)
+        {
+            pData1[i] = P32_total_A[i];
+            pData2[i] = P32_connected_A[i];
+            pData3[i] = P30_A[i];
+            pData4[i] = Percolation_parameter_A_1[i];
+            pData5[i] = Percolation_parameter_A_2[i];
+            pData6[i] = Percolation_parameter_A_3[i];
+            pData7[i] = Percolation_parameter_A_4[i];
+            pData8[i] = Percolation_parameter_A_5[i];
+            pData9[i] = Ratio_of_P32_A[i];
+            pData10[i] = Percolation_probability_A[i];
+            pData11[i] = n_I_A[i];
+            pData12[i] = Correlation_length_A[i];
+            pData13[i] = Max_gyration_radius_A[i];
+            pData14[i] = P30_largest_cluster_A[i];
+            pData15[i] = P32_largest_cluster_A[i];
+            pData16[i] = P30_connected_A[i];
+            pData17[i] = Ratio_of_P30_A[i];
+            if (i < Permeability_A.size())
+                pData18[i] = Permeability_A[i];
+        }
+
+        mxSetData(pMxArray1, pData1);
+        mxSetData(pMxArray2, pData2);
+        mxSetData(pMxArray3, pData2);
+        mxSetData(pMxArray4, pData4);
+        mxSetData(pMxArray5, pData5);
+        mxSetData(pMxArray6, pData6);
+        mxSetData(pMxArray7, pData7);
+        mxSetData(pMxArray8, pData8);
+        mxSetData(pMxArray9, pData9);
+        mxSetData(pMxArray10, pData10);
+        mxSetData(pMxArray11, pData11);
+        mxSetData(pMxArray12, pData12);
+        mxSetData(pMxArray13, pData13);
+        mxSetData(pMxArray14, pData14);
+        mxSetData(pMxArray15, pData15);
+        mxSetData(pMxArray16, pData16);
+        mxSetData(pMxArray17, pData17);
+        mxSetData(pMxArray18, pData18);
+
+        string ft = to_string(np);
+
+        string string_P32_total = "P32_total_" + ft;
+        string string_P32_connected = "P32_connected_" + ft;
+        string string_P30 = "P30_" + ft;
+        string string_Percolation_parameter_A_1 = "Percolation_parameter_1A_" + ft;
+        string string_Percolation_parameter_A_2 = "Percolation_parameter_2A_" + ft;
+        string string_Percolation_parameter_A_3 = "Percolation_parameter_3A_" + ft;
+        string string_Percolation_parameter_A_4 = "Percolation_parameter_4A_" + ft;
+        string string_Percolation_parameter_A_5 = "Percolation_parameter_5A_" + ft;
+        string string_Ratio_of_P32 = "Ratio_of_P32_" + ft;
+        string string_Percolation_probability = "Percolation_probability_" + ft;
+        string string_n_I = "n_I_" + ft;
+        string string_Correlation_length = "Correlation_length_" + ft;
+        string string_Max_gyration_radius = "Max_gyration_radius_" + ft;
+        string string_P30_largest_cluster = "P30_largest_cluster_" + ft;
+        string string_P32_largest_cluster = "P32_largest_cluster_" + ft;
+        string string_P30_connected = "P30_connected_" + ft;
+        string string_Ratio_of_P30 = "Ratio_of_P30_" + ft;
+        string string_Permeability = "Permeability_" + ft;
+
+        const char *char_P32_total = string_P32_total.c_str();
+        const char *char_P32_connected = string_P32_connected.c_str();
+        const char *char_P30 = string_P30.c_str();
+        const char *char_Percolation_parameter_A_1 = string_Percolation_parameter_A_1.c_str();
+        const char *char_Percolation_parameter_A_2 = string_Percolation_parameter_A_2.c_str();
+        const char *char_Percolation_parameter_A_3 = string_Percolation_parameter_A_3.c_str();
+        const char *char_Percolation_parameter_A_4 = string_Percolation_parameter_A_4.c_str();
+        const char *char_Percolation_parameter_A_5 = string_Percolation_parameter_A_5.c_str();
+        const char *char_Ratio_of_P32 = string_Ratio_of_P32.c_str();
+        const char *char_Percolation_probability = string_Percolation_probability.c_str();
+        const char *char_n_I = string_n_I.c_str();
+        const char *char_Correlation_length = string_Correlation_length.c_str();
+        const char *char_Max_gyration_radius = string_Max_gyration_radius.c_str();
+        const char *char_P30_largest_cluster = string_P30_largest_cluster.c_str();
+        const char *char_P32_largest_cluster = string_P32_largest_cluster.c_str();
+        const char *char_P30_connected = string_P30_connected.c_str();
+        const char *char_Ratio_of_P30 = string_Ratio_of_P30.c_str();
+        const char *char_Permeability = string_Permeability.c_str();
+
+        matPutVariable(pMatFile, char_P32_total, pMxArray1);
+        matPutVariable(pMatFile, char_P32_connected, pMxArray2);
+        matPutVariable(pMatFile, char_P30, pMxArray3);
+        matPutVariable(pMatFile, char_Percolation_parameter_A_1, pMxArray4);
+        matPutVariable(pMatFile, char_Percolation_parameter_A_2, pMxArray5);
+        matPutVariable(pMatFile, char_Percolation_parameter_A_3, pMxArray6);
+        matPutVariable(pMatFile, char_Percolation_parameter_A_4, pMxArray7);
+        matPutVariable(pMatFile, char_Percolation_parameter_A_5, pMxArray8);
+        matPutVariable(pMatFile, char_Ratio_of_P32, pMxArray9);
+        matPutVariable(pMatFile, char_Percolation_probability, pMxArray10);
+        matPutVariable(pMatFile, char_n_I, pMxArray11);
+        matPutVariable(pMatFile, char_Correlation_length, pMxArray12);
+        matPutVariable(pMatFile, char_Max_gyration_radius, pMxArray13);
+        matPutVariable(pMatFile, char_P30_largest_cluster, pMxArray14);
+        matPutVariable(pMatFile, char_P32_largest_cluster, pMxArray15);
+        matPutVariable(pMatFile, char_P30_connected, pMxArray16);
+        matPutVariable(pMatFile, char_Ratio_of_P30, pMxArray17);
+        matPutVariable(pMatFile, char_Permeability, pMxArray18);
+
+        mxFree(pData1);
+        mxFree(pData2);
+        mxFree(pData3);
+        mxFree(pData4);
+        mxFree(pData5);
+        mxFree(pData6);
+        mxFree(pData7);
+        mxFree(pData8);
+        mxFree(pData9);
+        mxFree(pData10);
+        mxFree(pData11);
+        mxFree(pData12);
+        mxFree(pData13);
+        mxFree(pData14);
+        mxFree(pData15);
+        mxFree(pData16);
+        mxFree(pData17);
+
+        matClose(pMatFile);
+    }
+    else
+    {
+        const char *filename = FileKey_mat.c_str();
+        MATFile *pMatFile;
+        pMatFile = matOpen(filename, "u");
+
+        if (!pMatFile)
+        {
+            throw Error_throw_ignore("cannot create mat file in class Mesh_DFN\n");
+        }
+
+        double *pData1,
+            *pData2,
+            *pData3,
+            *pData4,
+            *pData5,
+            *pData6,
+            *pData7,
+            *pData8,
+            *pData9,
+            *pData10,
+            *pData11,
+            *pData12,
+            *pData13,
+            *pData14,
+            *pData15,
+            *pData16,
+            *pData17,
+            *pData18;
+
+        pData1 = (double *)mxCalloc(P32_total_A.size(), sizeof(double));
+        pData2 = (double *)mxCalloc(P32_connected_A.size(), sizeof(double));
+        pData3 = (double *)mxCalloc(P30_A.size(), sizeof(double));
+        pData4 = (double *)mxCalloc(Percolation_parameter_A_1.size(), sizeof(double));
+        pData5 = (double *)mxCalloc(Percolation_parameter_A_2.size(), sizeof(double));
+        pData6 = (double *)mxCalloc(Percolation_parameter_A_3.size(), sizeof(double));
+        pData7 = (double *)mxCalloc(Percolation_parameter_A_4.size(), sizeof(double));
+        pData8 = (double *)mxCalloc(Percolation_parameter_A_5.size(), sizeof(double));
+        pData9 = (double *)mxCalloc(Ratio_of_P32_A.size(), sizeof(double));
+        pData10 = (double *)mxCalloc(Percolation_probability_A.size(), sizeof(double));
+        pData11 = (double *)mxCalloc(n_I_A.size(), sizeof(double));
+        pData12 = (double *)mxCalloc(Correlation_length_A.size(), sizeof(double));
+        pData13 = (double *)mxCalloc(Max_gyration_radius_A.size(), sizeof(double));
+        pData14 = (double *)mxCalloc(P30_largest_cluster_A.size(), sizeof(double));
+        pData15 = (double *)mxCalloc(P32_largest_cluster_A.size(), sizeof(double));
+        pData16 = (double *)mxCalloc(P30_connected_A.size(), sizeof(double));
+        pData17 = (double *)mxCalloc(Ratio_of_P30_A.size(), sizeof(double));
+        pData18 = (double *)mxCalloc(Permeability_A.size(), sizeof(double));
+
+        mxArray *pMxArray1;
+        mxArray *pMxArray2;
+        mxArray *pMxArray3;
+        mxArray *pMxArray4;
+        mxArray *pMxArray5;
+        mxArray *pMxArray6;
+        mxArray *pMxArray7;
+        mxArray *pMxArray8;
+        mxArray *pMxArray9;
+        mxArray *pMxArray10;
+        mxArray *pMxArray11;
+        mxArray *pMxArray12;
+        mxArray *pMxArray13;
+        mxArray *pMxArray14;
+        mxArray *pMxArray15;
+        mxArray *pMxArray16;
+        mxArray *pMxArray17;
+        mxArray *pMxArray18;
+
+        pMxArray1 = mxCreateDoubleMatrix(P32_total_A.size(), 1, mxREAL);
+        pMxArray2 = mxCreateDoubleMatrix(P32_connected_A.size(), 1, mxREAL);
+        pMxArray3 = mxCreateDoubleMatrix(P30_A.size(), 1, mxREAL);
+        pMxArray4 = mxCreateDoubleMatrix(Percolation_parameter_A_1.size(), 1, mxREAL);
+        pMxArray5 = mxCreateDoubleMatrix(Percolation_parameter_A_2.size(), 1, mxREAL);
+        pMxArray6 = mxCreateDoubleMatrix(Percolation_parameter_A_3.size(), 1, mxREAL);
+        pMxArray7 = mxCreateDoubleMatrix(Percolation_parameter_A_4.size(), 1, mxREAL);
+        pMxArray8 = mxCreateDoubleMatrix(Percolation_parameter_A_5.size(), 1, mxREAL);
+        pMxArray9 = mxCreateDoubleMatrix(Ratio_of_P32_A.size(), 1, mxREAL);
+        pMxArray10 = mxCreateDoubleMatrix(Percolation_probability_A.size(), 1, mxREAL);
+        pMxArray11 = mxCreateDoubleMatrix(n_I_A.size(), 1, mxREAL);
+        pMxArray12 = mxCreateDoubleMatrix(Correlation_length_A.size(), 1, mxREAL);
+        pMxArray13 = mxCreateDoubleMatrix(Max_gyration_radius_A.size(), 1, mxREAL);
+        pMxArray14 = mxCreateDoubleMatrix(P30_largest_cluster_A.size(), 1, mxREAL);
+        pMxArray15 = mxCreateDoubleMatrix(P32_largest_cluster_A.size(), 1, mxREAL);
+        pMxArray16 = mxCreateDoubleMatrix(P30_connected_A.size(), 1, mxREAL);
+        pMxArray17 = mxCreateDoubleMatrix(Ratio_of_P30_A.size(), 1, mxREAL);
+        pMxArray18 = mxCreateDoubleMatrix(Permeability_A.size(), 1, mxREAL);
+
+        if (!pMxArray1 ||
+            !pMxArray2 ||
+            !pMxArray3 ||
+            !pMxArray4 ||
+            !pMxArray5 ||
+            !pMxArray6 ||
+            !pMxArray7 ||
+            !pMxArray8 ||
+            !pMxArray9 ||
+            !pMxArray10 ||
+            !pMxArray11 ||
+            !pMxArray12 ||
+            !pMxArray13 ||
+            !pMxArray14 ||
+            !pMxArray15 ||
+            !pMxArray16 ||
+            !pMxArray17 ||
+            !pMxArray18)
+        {
+            throw Error_throw_pause("cannot create pMxArray in class FEM_DFN_A\n");
+        }
+
+        if (!pData1 ||
+            !pData2 ||
+            !pData3 ||
+            !pData4 ||
+            !pData5 ||
+            !pData6 ||
+            !pData7 ||
+            !pData8 ||
+            !pData9 ||
+            !pData10 ||
+            !pData11 ||
+            !pData12 ||
+            !pData13 ||
+            !pData14 ||
+            !pData15 ||
+            !pData16 ||
+            !pData17 ||
+            !pData18)
+        {
+            throw Error_throw_pause("cannot create pData in class FEM_DFN_A\n");
+        }
+
+        for (size_t i = 0; i < P32_total_A.size(); ++i)
+        {
+            pData1[i] = P32_total_A[i];
+            pData2[i] = P32_connected_A[i];
+            pData3[i] = P30_A[i];
+            pData4[i] = Percolation_parameter_A_1[i];
+            pData5[i] = Percolation_parameter_A_2[i];
+            pData6[i] = Percolation_parameter_A_3[i];
+            pData7[i] = Percolation_parameter_A_4[i];
+            pData8[i] = Percolation_parameter_A_5[i];
+            pData9[i] = Ratio_of_P32_A[i];
+            pData10[i] = Percolation_probability_A[i];
+            pData11[i] = n_I_A[i];
+            pData12[i] = Correlation_length_A[i];
+            pData13[i] = Max_gyration_radius_A[i];
+            pData14[i] = P30_largest_cluster_A[i];
+            pData15[i] = P32_largest_cluster_A[i];
+            pData16[i] = P30_connected_A[i];
+            pData17[i] = Ratio_of_P30_A[i];
+            if (i < Permeability_A.size())
+                pData18[i] = Permeability_A[i];
+        }
+
+        mxSetData(pMxArray1, pData1);
+        mxSetData(pMxArray2, pData2);
+        mxSetData(pMxArray3, pData2);
+        mxSetData(pMxArray4, pData4);
+        mxSetData(pMxArray5, pData5);
+        mxSetData(pMxArray6, pData6);
+        mxSetData(pMxArray7, pData7);
+        mxSetData(pMxArray8, pData8);
+        mxSetData(pMxArray9, pData9);
+        mxSetData(pMxArray10, pData10);
+        mxSetData(pMxArray11, pData11);
+        mxSetData(pMxArray12, pData12);
+        mxSetData(pMxArray13, pData13);
+        mxSetData(pMxArray14, pData14);
+        mxSetData(pMxArray15, pData15);
+        mxSetData(pMxArray16, pData16);
+        mxSetData(pMxArray17, pData17);
+        mxSetData(pMxArray18, pData18);
+
+        string ft = to_string(np);
+
+        string string_P32_total = "P32_total_" + ft;
+        string string_P32_connected = "P32_connected_" + ft;
+        string string_P30 = "P30_" + ft;
+        string string_Percolation_parameter_A_1 = "Percolation_parameter_1A_" + ft;
+        string string_Percolation_parameter_A_2 = "Percolation_parameter_2A_" + ft;
+        string string_Percolation_parameter_A_3 = "Percolation_parameter_3A_" + ft;
+        string string_Percolation_parameter_A_4 = "Percolation_parameter_4A_" + ft;
+        string string_Percolation_parameter_A_5 = "Percolation_parameter_5A_" + ft;
+        string string_Ratio_of_P32 = "Ratio_of_P32_" + ft;
+        string string_Percolation_probability = "Percolation_probability_" + ft;
+        string string_n_I = "n_I_" + ft;
+        string string_Correlation_length = "Correlation_length_" + ft;
+        string string_Max_gyration_radius = "Max_gyration_radius_" + ft;
+        string string_P30_largest_cluster = "P30_largest_cluster_" + ft;
+        string string_P32_largest_cluster = "P32_largest_cluster_" + ft;
+        string string_P30_connected = "P30_connected_" + ft;
+        string string_Ratio_of_P30 = "Ratio_of_P30_" + ft;
+        string string_Permeability = "Permeability_" + ft;
+
+        const char *char_P32_total = string_P32_total.c_str();
+        const char *char_P32_connected = string_P32_connected.c_str();
+        const char *char_P30 = string_P30.c_str();
+        const char *char_Percolation_parameter_A_1 = string_Percolation_parameter_A_1.c_str();
+        const char *char_Percolation_parameter_A_2 = string_Percolation_parameter_A_2.c_str();
+        const char *char_Percolation_parameter_A_3 = string_Percolation_parameter_A_3.c_str();
+        const char *char_Percolation_parameter_A_4 = string_Percolation_parameter_A_4.c_str();
+        const char *char_Percolation_parameter_A_5 = string_Percolation_parameter_A_5.c_str();
+        const char *char_Ratio_of_P32 = string_Ratio_of_P32.c_str();
+        const char *char_Percolation_probability = string_Percolation_probability.c_str();
+        const char *char_n_I = string_n_I.c_str();
+        const char *char_Correlation_length = string_Correlation_length.c_str();
+        const char *char_Max_gyration_radius = string_Max_gyration_radius.c_str();
+        const char *char_P30_largest_cluster = string_P30_largest_cluster.c_str();
+        const char *char_P32_largest_cluster = string_P32_largest_cluster.c_str();
+        const char *char_P30_connected = string_P30_connected.c_str();
+        const char *char_Ratio_of_P30 = string_Ratio_of_P30.c_str();
+        const char *char_Permeability = string_Permeability.c_str();
+
+        matPutVariable(pMatFile, char_P32_total, pMxArray1);
+        matPutVariable(pMatFile, char_P32_connected, pMxArray2);
+        matPutVariable(pMatFile, char_P30, pMxArray3);
+        matPutVariable(pMatFile, char_Percolation_parameter_A_1, pMxArray4);
+        matPutVariable(pMatFile, char_Percolation_parameter_A_2, pMxArray5);
+        matPutVariable(pMatFile, char_Percolation_parameter_A_3, pMxArray6);
+        matPutVariable(pMatFile, char_Percolation_parameter_A_4, pMxArray7);
+        matPutVariable(pMatFile, char_Percolation_parameter_A_5, pMxArray8);
+        matPutVariable(pMatFile, char_Ratio_of_P32, pMxArray9);
+        matPutVariable(pMatFile, char_Percolation_probability, pMxArray10);
+        matPutVariable(pMatFile, char_n_I, pMxArray11);
+        matPutVariable(pMatFile, char_Correlation_length, pMxArray12);
+        matPutVariable(pMatFile, char_Max_gyration_radius, pMxArray13);
+        matPutVariable(pMatFile, char_P30_largest_cluster, pMxArray14);
+        matPutVariable(pMatFile, char_P32_largest_cluster, pMxArray15);
+        matPutVariable(pMatFile, char_P30_connected, pMxArray16);
+        matPutVariable(pMatFile, char_Ratio_of_P30, pMxArray17);
+        matPutVariable(pMatFile, char_Permeability, pMxArray18);
+
+        mxFree(pData1);
+        mxFree(pData2);
+        mxFree(pData3);
+        mxFree(pData4);
+        mxFree(pData5);
+        mxFree(pData6);
+        mxFree(pData7);
+        mxFree(pData8);
+        mxFree(pData9);
+        mxFree(pData10);
+        mxFree(pData11);
+        mxFree(pData12);
+        mxFree(pData13);
+        mxFree(pData14);
+        mxFree(pData15);
+        mxFree(pData16);
+        mxFree(pData17);
+
+        matClose(pMatFile);
+    }
+};
+
+inline void Loop_DFN::Matlab_command(string FileKey_m, string FileKey_mat, size_t np, size_t ny)
+{
+    std::ofstream oss(FileKey_m, ios::out);
+    //oss << "clc;\nclose all;\nclear all;";
+    oss << "load('" << FileKey_mat << "');\n";
+    oss << "s = struct(";
+
+    for (size_t ft = 1; ft <= np; ++ft)
+    {
+        string string_P32_total = "P32_total_" + to_string(ft);
+        string string_P32_connected = "P32_connected_" + to_string(ft);
+        string string_P30 = "P30_" + to_string(ft);
+        string string_Percolation_parameter_A_1 = "Percolation_parameter_1A_" + to_string(ft);
+        string string_Percolation_parameter_A_2 = "Percolation_parameter_2A_" + to_string(ft);
+        string string_Percolation_parameter_A_3 = "Percolation_parameter_3A_" + to_string(ft);
+        string string_Percolation_parameter_A_4 = "Percolation_parameter_4A_" + to_string(ft);
+        string string_Percolation_parameter_A_5 = "Percolation_parameter_5A_" + to_string(ft);
+        string string_Ratio_of_P32 = "Ratio_of_P32_" + to_string(ft);
+        string string_Percolation_probability = "Percolation_probability_" + to_string(ft);
+        string string_n_I = "n_I_" + to_string(ft);
+        string string_Correlation_length = "Correlation_length_" + to_string(ft);
+        string string_Max_gyration_radius = "Max_gyration_radius_" + to_string(ft);
+        string string_P30_largest_cluster = "P30_largest_cluster_" + to_string(ft);
+        string string_P32_largest_cluster = "P32_largest_cluster_" + to_string(ft);
+        string string_P30_connected = "P30_connected_" + to_string(ft);
+        string string_Ratio_of_P30 = "Ratio_of_P30_" + to_string(ft);
+
+        oss << "'" << string_P32_total << "', " << string_P32_total << ",";
+        oss << "'" << string_P32_connected << "', " << string_P32_connected << ",";
+        oss << "'" << string_P30 << "', " << string_P30 << ",";
+        oss << "'" << string_Percolation_parameter_A_1 << "', " << string_Percolation_parameter_A_1 << ",";
+        oss << "'" << string_Percolation_parameter_A_2 << "', " << string_Percolation_parameter_A_2 << ",";
+        oss << "'" << string_Percolation_parameter_A_3 << "', " << string_Percolation_parameter_A_3 << ",";
+        oss << "'" << string_Percolation_parameter_A_4 << "', " << string_Percolation_parameter_A_4 << ",";
+        oss << "'" << string_Percolation_parameter_A_5 << "', " << string_Percolation_parameter_A_5 << ",";
+        oss << "'" << string_Ratio_of_P32 << "', " << string_Ratio_of_P32 << ",";
+        oss << "'" << string_Percolation_probability << "', " << string_Percolation_probability << ",";
+        oss << "'" << string_n_I << "', " << string_n_I << ",";
+        oss << "'" << string_Correlation_length << "', " << string_Correlation_length << ",";
+        oss << "'" << string_Max_gyration_radius << "', " << string_Max_gyration_radius << ",";
+        oss << "'" << string_P30_largest_cluster << "', " << string_P30_largest_cluster << ",";
+        oss << "'" << string_P32_largest_cluster << "', " << string_P32_largest_cluster << ",";
+        oss << "'" << string_P30_connected << "', " << string_P30_connected << ",";
+        oss << "'" << string_Ratio_of_P30 << "', " << string_Ratio_of_P30 << ", ...\n";
+    }
+
+    for (size_t ft = 1; ft <= ny; ++ft)
+    {
+        string string_Permeability = "Permeability_" + to_string(ft);
+        if (ft != ny)
+            oss << "'" << string_Permeability << "', " << string_Permeability << ", ...\n";
+        else
+            oss << "'" << string_Permeability << "', " << string_Permeability;
+    }
+    oss << ");\n";
+
+    oss.close();
 };
 
 inline void Loop_DFN::Sign_of_finding_pc(string FileKey)
