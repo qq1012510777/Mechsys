@@ -2,6 +2,7 @@
 #include "../DFN_H/Domain_WL.h"
 #include "../DFN_H/Remove_unnecess_frac.h"
 #include "../Geometry_H/Handle_Polygon_2D_with_extream_traces.h"
+#include "../Geometry_H/Rotate_to_horizontal.h"
 #include "../Geometry_H/Line_seg_2D.h"
 #include "../Geometry_H/Polygon_convex_2D.h"
 #include "../Geometry_H/Polygon_convex_2D_with_traces.h"

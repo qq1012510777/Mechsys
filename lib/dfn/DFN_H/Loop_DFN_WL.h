@@ -1,6 +1,7 @@
 #pragma once
 #include "../FEM_H/FEM_DFN_A.h"
-#include "../Mesh_H/Mesh_DFN.h"
+//#include "../Mesh_H/Mesh_DFN.h"
+#include "../Mesh_H/Mesh_DFN_overall.h"
 #include "Domain_WL.h"
 //#include "FEM_DFN_WL.h"
 //#include "Mesh_DFN_WL.h"
@@ -47,8 +48,8 @@ public:
                           string str_ori,
                           string str_frac_size,
                           string percolation_direction,
-                          double subtrace,
-                          double subpolygon);
+                          const double min_ele_edge, 
+                          const double max_ele_edge);
 
     void Data_output_stepBYstep(size_t times,
                                 string FileKey,
@@ -83,8 +84,8 @@ inline void Loop_DFN::Loop_create_DFNs(gsl_rng *random_seed,
                                        string str_ori,
                                        string str_frac_size,
                                        string percolation_direction,
-                                       double subtrace,
-                                       double subpolygon)
+                                       const double min_ele_edge, 
+                                       const double max_ele_edge)
 {
     size_t nv = nv_MC_TIMES;
     //each density, the MC times
@@ -327,12 +328,16 @@ inline void Loop_DFN::Loop_create_DFNs(gsl_rng *random_seed,
                 if (z == 1)
                 {
 
-                    DFN::Mesh_DFN mesh{dom, subtrace, subpolygon};
+                    //DFN::Mesh_DFN mesh{dom, subtrace, subpolygon};
 
                     //mesh.Matlab_plot("mesh_DFN.mat", "mesh_DFN.m", dom);
 
-                    DFN::FEM_DFN_A CC(mesh, dom);
+                    //DFN::FEM_DFN_A CC(mesh, dom);
                     //cout << CC.Permeability << endl;
+                    DFN::Mesh_DFN_overall mesh(dom, min_ele_edge, max_ele_edge);
+                    mesh.Matlab_plot("mesh_DFN.mat", "mesh_DFN.m", dom);
+                    DFN::FEM_DFN_A CC(mesh, dom);
+                
                 }
                 //cout << 2 << endl;
             }
@@ -346,6 +351,7 @@ inline void Loop_DFN::Loop_create_DFNs(gsl_rng *random_seed,
             {
                 cout << "\033[33mRegenerate a DFN! Because:\n"
                      << e.msg << "\033[0m" << endl;
+                exit(0);
                 goto Regenerate_dfn;
             }
         }

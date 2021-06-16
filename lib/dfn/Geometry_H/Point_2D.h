@@ -37,6 +37,7 @@ public:
 
 public:
     Point_2D(const Vector2d A);
+    Point_2D(const double x, const double y);
     Point_2D();
     void Re_constructor(const Vector2d A);
     bool If_lies_within_a_polygon_2D(const vector<Vector3d> Verts_1);
@@ -52,6 +53,11 @@ public:
 inline Point_2D::Point_2D(const Vector2d A)
 {
     Coordinate = A;
+};
+
+inline Point_2D::Point_2D(const double x, const double y)
+{
+    Coordinate << x, y;
 };
 
 inline Point_2D::Point_2D()

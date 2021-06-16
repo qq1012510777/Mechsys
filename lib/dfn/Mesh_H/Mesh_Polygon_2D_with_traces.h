@@ -10,7 +10,7 @@
 #include <vector>
 
 //
-#include "gmsh.h"
+#include <gmsh.h>
 
 using namespace std;
 
@@ -85,7 +85,12 @@ inline Mesh_Polygon_2D_with_traces::Mesh_Polygon_2D_with_traces(const std::vecto
 
     for (size_t i = 0; i < Pnt_sets.size(); ++i)
     {
-        gmsh::model::geo::addPoint(Pnt_sets[i](0), Pnt_sets[i](1), 0, subpolygon, i + 1);
+        std::vector<Vector2d>::iterator ity = find(splitted_polygon.Trace_pnts.begin(), splitted_polygon.Trace_pnts.end(), Vector2d{Pnt_sets[i](0), Pnt_sets[i](1)});
+
+        if(ity != splitted_polygon.Trace_pnts.end())
+            gmsh::model::geo::addPoint(Pnt_sets[i](0), Pnt_sets[i](1), 0, subpolygon, i + 1);
+        else
+            gmsh::model::geo::addPoint(Pnt_sets[i](0), Pnt_sets[i](1), 0, 0, i + 1);
     }
 
     size_t line_Tag = 1;
