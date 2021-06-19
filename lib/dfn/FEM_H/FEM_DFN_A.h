@@ -185,9 +185,12 @@ inline FEM_DFN_A::FEM_DFN_A(DFN::Mesh_DFN_overall DFN_mesh, DFN::Domain dom)
         cout << F_overall[i] << endl;
     }
     */
-    std::cout << "\033[32mstart solving matrix;\n\033[0m";
-    DFN::Using_UMFPACK U{K_overall, Matrix_D, F_overall};
-    std::cout << "\033[32mfinish solving matrix;\n\033[0m";
+#pragma omp critical
+    {
+        std::cout << "\033[32mstart solving matrix;\n\033[0m";
+        DFN::Using_UMFPACK U{K_overall, Matrix_D, F_overall};
+        std::cout << "\033[32mfinish solving matrix;\n\033[0m";
+    }
     this->FEM_results(DFN_mesh, F_overall, dom);
 
     this->In_and_out_flux(DFN_mesh, dom);
@@ -212,6 +215,7 @@ inline void FEM_DFN_A::Assemble_overall_matrix(DFN::Mesh_DFN_overall DFN_mesh, d
         size_t Frac_Tag = DFN_mesh.Frac_Tag[i];
 
         double Kper = dom.Fractures[Frac_Tag].Conductivity;
+        cout << "kPer: " << Kper << endl;
 
         for (size_t j = 0; j < DFN_mesh.JM_Each_Frac[i].size(); ++j)
         {

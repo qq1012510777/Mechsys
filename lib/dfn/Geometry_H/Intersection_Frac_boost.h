@@ -5,6 +5,7 @@
 #include "NorVec_plane.h"
 #include "Parallel_Inf_Plane.h"
 #include "Point_2D.h"
+#include "Point_3D.h"
 #include "Polygon_convex_3D.h"
 #include "Rotation_verts.h"
 #include "Vector_2.h"
@@ -298,16 +299,16 @@ inline Intersection_Frac_boost::Intersection_Frac_boost(const Polygon_convex_3D 
 
                 if (Intersection_Two_Polygon.size() > 2)
                 {
-                    for (size_t i = 0; i < Intersection_Two_Polygon.size() - 1;)
-                    {
-                        if ((Intersection_Two_Polygon[i] - Intersection_Two_Polygon[(i + 1)]).norm() < 0.05)
-                        {
-                            Intersection_Two_Polygon.erase(Intersection_Two_Polygon.begin() + i + 1);
-                        }
-                        else
-                            ++i;
-                    }
-                    if (Intersection_Two_Polygon.size() > 2)
+                    std::vector<DFN::Point_3D> FTK(Intersection_Two_Polygon.size());
+                    for (size_t i = 0; i < Intersection_Two_Polygon.size(); ++i)
+                        FTK[i].Re_constructor(Intersection_Two_Polygon[i]);
+                    
+                    DFN::Point_3D TY;
+
+                    TY.Remove_the_same_pnt(FTK);
+                   
+                    //--------------------------
+                    if (FTK.size() > 2)
                     {
                         cout << "Error! the size of Intersection_Two_Polygon cannot more than two!\n";
                         for (size_t i = 0; i < Intersection_Two_Polygon.size(); ++i)
@@ -315,6 +316,11 @@ inline Intersection_Frac_boost::Intersection_Frac_boost(const Polygon_convex_3D 
 
                         throw Error_throw_ignore("Error! the size of Intersection_Two_Polygon cannot more than two!\n");
                     }
+                    //----------------------------
+
+                    Intersection_Two_Polygon.resize(FTK.size());
+                    for (size_t i = 0; i < FTK.size(); ++i)
+                        Intersection_Two_Polygon[i] = FTK[i].Coordinate;  
                 }
             }
             else // two ends are outside the polygon2

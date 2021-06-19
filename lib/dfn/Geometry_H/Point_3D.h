@@ -18,15 +18,23 @@ public:
 public:
     Point_3D();
     Point_3D(Vector3d A);
+    void Re_constructor(Vector3d A);
 
     bool If_lies_on_a_line_seg(const std::vector<Vector3d> Line_seg);
     bool If_lies_on_the_bounds_of_polygon(const vector<Vector3d> Verts_1);
     bool If_lies_within_a_polygon_3D(const vector<Vector3d> Verts_1);
+    void Remove_the_same_pnt(std::vector<DFN::Point_3D> &PntSet);
+    bool If_the_same_pnt(DFN::Point_3D S);
 };
 
 inline Point_3D::Point_3D(){};
 
 inline Point_3D::Point_3D(Vector3d A)
+{
+    Coordinate = A;
+};
+
+inline void Point_3D::Re_constructor(Vector3d A)
 {
     Coordinate = A;
 };
@@ -103,6 +111,49 @@ inline bool Point_3D::If_lies_within_a_polygon_3D(const vector<Vector3d> Verts_1
         }
         else
             return false;
+    }
+};
+
+inline bool Point_3D::If_the_same_pnt(DFN::Point_3D S)
+{
+    if ((this->Coordinate - S.Coordinate).norm() < 0.05)
+        return true;
+    else
+        return false;
+};
+
+inline void Point_3D::Remove_the_same_pnt(std::vector<DFN::Point_3D> &PntSet)
+{
+    std::vector<size_t> Index(PntSet.size());
+    for (size_t i = 0; i < PntSet.size(); ++i)
+        Index[i] = 0;
+
+    for (size_t i = 0; i < PntSet.size() - 1; ++i)
+    {
+        if (Index[i] == 0)
+        {
+            for (size_t j = i + 1; j < PntSet.size(); ++j)
+            {
+                if (Index[j] == 0)
+                {
+                    if (PntSet[i].If_the_same_pnt(PntSet[j]) == true)
+                    {
+                        Index[j] = 1;
+                    }
+                }
+            }
+        }
+    }
+
+    for (size_t i = 0; i < Index.size();)
+    {
+        if (Index[i] == 1)
+        {
+            Index.erase(Index.begin() + i);
+            PntSet.erase(PntSet.begin() + i);
+        }
+        else
+            ++i;
     }
 };
 

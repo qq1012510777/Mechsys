@@ -65,7 +65,8 @@ public:
                             const string str_frac_size,
                             const std::vector<Vector2d> array11,
                             std::vector<Vector4d> array12,
-                            const std::vector<Vector7d> array13);
+                            const std::vector<Vector7d> array13,
+                            const string conductivity_distri);
 
     void Model_set(const Vector6d model_size);
     ///< define model domain
@@ -155,7 +156,8 @@ inline void Domain::Create_whole_model(const size_t n,
                                        const string str_frac_size,
                                        const std::vector<Vector2d> array11,
                                        std::vector<Vector4d> array12,
-                                       const std::vector<Vector7d> array13)
+                                       const std::vector<Vector7d> array13,
+                                       const string conductivity_distri)
 {
     No_Verts_trim = 0;
     Random_function r1 = Random_function(random_seed);
@@ -171,7 +173,7 @@ inline void Domain::Create_whole_model(const size_t n,
             if (str_frac_size == "powerlaw")
             {
                 //cout << "debug 1\n";
-                Fracture f(str_ori, str_frac_size, i, r1, array11, array12[0] /*, array13*/, Last_frac_size);
+                Fracture f(str_ori, str_frac_size, i, r1, array11, array12[0] /*, array13*/, Last_frac_size, conductivity_distri);
                 //cout << "debug 2\n";
                 AddSquareFracture(i, f);
                 No_Verts_trim += f.Nvertices_trim;
@@ -179,21 +181,21 @@ inline void Domain::Create_whole_model(const size_t n,
             else if (str_frac_size == "lognormal")
             {
 
-                Fracture f(str_ori, str_frac_size, i, r1, array11, array12[0] /*, array13*/, Last_frac_size);
+                Fracture f(str_ori, str_frac_size, i, r1, array11, array12[0] /*, array13*/, Last_frac_size, conductivity_distri);
                 AddSquareFracture(i, f);
                 No_Verts_trim += f.Nvertices_trim;
             }
             else if (str_frac_size == "uniform")
             {
 
-                Fracture f(str_ori, str_frac_size, i, r1, array11, array12[0] /*, array13*/, Last_frac_size);
+                Fracture f(str_ori, str_frac_size, i, r1, array11, array12[0] /*, array13*/, Last_frac_size, conductivity_distri);
                 AddSquareFracture(i, f);
                 No_Verts_trim += f.Nvertices_trim;
             }
             else if (str_frac_size == "single")
             {
 
-                Fracture f(str_ori, str_frac_size, i, r1, array11, array12[0] /*, array13*/, Last_frac_size);
+                Fracture f(str_ori, str_frac_size, i, r1, array11, array12[0] /*, array13*/, Last_frac_size, conductivity_distri);
                 AddSquareFracture(i, f);
                 No_Verts_trim += f.Nvertices_trim;
             }
@@ -225,25 +227,25 @@ inline void Domain::Create_whole_model(const size_t n,
 
                 if (str_frac_size == "powerlaw")
                 {
-                    Fracture f(str_ori, str_frac_size, j, r1, array11, array12[i], array13[i], Last_frac_size);
+                    Fracture f(str_ori, str_frac_size, j, r1, array11, array12[i], array13[i], Last_frac_size, conductivity_distri);
                     AddSquareFracture(j, f);
                     No_Verts_trim += f.Nvertices_trim;
                 }
                 else if (str_frac_size == "lognormal")
                 {
-                    Fracture f(str_ori, str_frac_size, j, r1, array11, array12[i], array13[i], Last_frac_size);
+                    Fracture f(str_ori, str_frac_size, j, r1, array11, array12[i], array13[i], Last_frac_size, conductivity_distri);
                     AddSquareFracture(j, f);
                     No_Verts_trim += f.Nvertices_trim;
                 }
                 else if (str_frac_size == "uniform")
                 {
-                    Fracture f(str_ori, str_frac_size, j, r1, array11, array12[i], array13[i], Last_frac_size);
+                    Fracture f(str_ori, str_frac_size, j, r1, array11, array12[i], array13[i], Last_frac_size, conductivity_distri);
                     AddSquareFracture(j, f);
                     No_Verts_trim += f.Nvertices_trim;
                 }
                 else if (str_frac_size == "single")
                 {
-                    Fracture f(str_ori, str_frac_size, j, r1, array11, array12[i], array13[i], Last_frac_size);
+                    Fracture f(str_ori, str_frac_size, j, r1, array11, array12[i], array13[i], Last_frac_size, conductivity_distri);
                     AddSquareFracture(j, f);
                     No_Verts_trim += f.Nvertices_trim;
                 }

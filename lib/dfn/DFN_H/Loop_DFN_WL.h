@@ -22,9 +22,16 @@ public:
     double nx;                      ///< the increment of fracture number regard to each DFN modeling time
     double Percolation_parameter_c; ///< when percolation probability equals to 0.5, the percolation parameter is
     size_t NumofFsets;              ///< number of fracture sets
+    size_t Nb_flow_sim_MC_times;
 
-    std::vector<double> DenWeight;   ///< the weight of number of each sets
-    std::vector<Vector7d> array13;   ///< the size of this array is the number of fracture sets; and each element includes the seven inputs of each Fisher fracture set, inputs are mean dip direction, mean dip angle, Fisher constant, min dip direction, max dip direction, min dip angle, max dip angle
+    std::vector<double> DenWeight; ///< the weight of number of each sets
+    std::vector<Vector7d> array13; ///< the size of this array is the number of fracture sets;
+    //and each element includes the seven inputs of each Fisher fracture set,
+    //inputs are mean dip direction, mean dip angle, Fisher constant, min dip direction, max dip direction, min dip angle, max dip angle
+
+    string Data_CommandFile = "Data_Command.m";
+    string Data_MatFile = "Data_Mat.mat";
+    /*
     std::vector<double> P32_total_1; ///< the next several 1D arrays store outputs
     std::vector<double> P32_connected_1;
     std::vector<double> P30_1;
@@ -41,7 +48,7 @@ public:
     std::vector<double> P30_largest_cluster_1;
     std::vector<double> P32_largest_cluster_1;
     std::vector<double> P30_connected_1;
-    std::vector<double> Ratio_of_P30_1;
+    std::vector<double> Ratio_of_P30_1;*/
 
 public:
     void Loop_create_DFNs(gsl_rng *random_seed,
@@ -49,7 +56,8 @@ public:
                           string str_frac_size,
                           string percolation_direction,
                           const double min_ele_edge,
-                          const double max_ele_edge);
+                          const double max_ele_edge,
+                          const string conductivity_distri);
 
     void Data_output_stepBYstep(size_t times,
                                 string FileKey,
@@ -97,9 +105,15 @@ public:
                                        std::vector<double> P32_largest_cluster_A,
                                        std::vector<double> P30_connected_A,
                                        std::vector<double> Ratio_of_P30_A,
-                                       std::vector<double> Permeability_A);
+                                       std::vector<double> Permeability_A,
+                                       const string str_ori,
+                                       const string str_frac_size,
+                                       const string conductivity_distri,
+                                       const double domain_size);
 
     void Matlab_command(string FileKey_m, string FileKey_mat, size_t np, size_t ny);
+
+    bool If_conduct_flow_sim(size_t nf);
 };
 
 //****************************
@@ -108,7 +122,8 @@ inline void Loop_DFN::Loop_create_DFNs(gsl_rng *random_seed,
                                        string str_frac_size,
                                        string percolation_direction,
                                        const double min_ele_edge,
-                                       const double max_ele_edge)
+                                       const double max_ele_edge,
+                                       const string conductivity_distri)
 {
     size_t nv = nv_MC_TIMES;
     //each density, the MC times
@@ -177,7 +192,7 @@ inline void Loop_DFN::Loop_create_DFNs(gsl_rng *random_seed,
         np++;
         size_t n = np * nx;
 
-        double nf = 0;
+        //double nf = 0;
 
         std::vector<double> P32_total_A;
         std::vector<double> P32_connected_A;
@@ -215,11 +230,13 @@ inline void Loop_DFN::Loop_create_DFNs(gsl_rng *random_seed,
         P32_largest_cluster_A.resize(nv);
         P30_connected_A.resize(nv);
         Ratio_of_P30_A.resize(nv);
-        Permeability_A.resize(nv);
+        Permeability_A.resize(Nb_flow_sim_MC_times);
 
+        size_t nf = 0;
 #pragma omp parallel for schedule(static) num_threads(Nproc)
         for (size_t i = 0; i < nv; i++)
         {
+
         Regenerate_dfn:;
             try
             {
@@ -234,7 +251,8 @@ inline void Loop_DFN::Loop_create_DFNs(gsl_rng *random_seed,
                                        str_frac_size,
                                        array11,
                                        array12,
-                                       array13);
+                                       array13,
+                                       conductivity_distri);
                 ///uniform means oritation data
                 //are generated uniformly, so,
                 //actually, array13 is input but not used
@@ -271,6 +289,12 @@ inline void Loop_DFN::Loop_create_DFNs(gsl_rng *random_seed,
                     Percolation_probability_A[i] = 1;
                 else
                     Percolation_probability_A[i] = 0;
+
+#pragma omp critical
+                {
+                    if (Percolation_probability_A[i] == 1)
+                        nf++;
+                }
 
                 if (np == nt && i == nv - 1)
                 {
@@ -350,32 +374,29 @@ inline void Loop_DFN::Loop_create_DFNs(gsl_rng *random_seed,
 
                 //-----------------------------------------------------------------------
 
-                if (z == 1)
+                if (z == 1 && i < Nb_flow_sim_MC_times)
                 {
                     dom.Re_identify_intersection_considering_trimmed_frac();
                     size_t z2 = dom.Identify_percolation_clusters(percolation_direction);
                     //dom.PlotMatlab_DFN_and_Intersection("tdfn01_DFN_and_Intersections_II.m");
                     if (z2 != z)
                     {
-                        throw Error_throw_pause("Error! After fractures are trimmed, percolation cluster does not exist!\nEven fractures are trimmed, Percolation cluster is supposed to be existing!\n");
+                        throw Error_throw_ignore("Trimmed fractures did not form at least a percolation cluster!\n");
                     }
-#pragma omp critical
+
+                    DFN::Mesh_DFN_overall mesh(dom, min_ele_edge, max_ele_edge);
+                    DFN::FEM_DFN_A CC(mesh, dom);
+                    if (np == nt && i == nv - 1)
                     {
-                        DFN::Mesh_DFN_overall mesh(dom, min_ele_edge, max_ele_edge);
-                        DFN::FEM_DFN_A CC(mesh, dom);
-                        if (np == nt && i == nv - 1)
-                        {
-                            mesh.Matlab_plot("mesh_DFN.mat", "mesh_DFN.m", dom);
-                            CC.matlab_plot("FEM_DFN.mat", "FEM_DFN.m", dom, mesh, CC.F_overall);
-                        }
-                        Permeability_A[i] = CC.Permeability;
+                        mesh.Matlab_plot("mesh_DFN.mat", "mesh_DFN.m", dom);
+                        CC.matlab_plot("FEM_DFN.mat", "FEM_DFN.m", dom, mesh, CC.F_overall);
                     }
+                    Permeability_A[i] = CC.Permeability;
                 }
-                else
+                else if (z == 0 && i < Nb_flow_sim_MC_times)
                 {
                     Permeability_A[i] = 0;
                 }
-                //cout << 2 << endl;
             }
             catch (Error_throw_pause e)
             {
@@ -389,10 +410,18 @@ inline void Loop_DFN::Loop_create_DFNs(gsl_rng *random_seed,
                      << e.msg << "\033[0m" << endl;
                 goto Regenerate_dfn;
             }
+            catch (bad_alloc &e)
+            {
+                cout << "\033[33mRegenerate a DFN! Because:\n"
+                     << e.what() << "\033[0m" << endl;
+                goto Regenerate_dfn;
+            }
         }
 
+        //cout << "ready to output data\n";
+
         this->Matlab_Data_output_stepBYstep(np,
-                                            "percolation_data.mat",
+                                            Data_MatFile,
                                             P32_total_A,
                                             P32_connected_A,
                                             P30_A,
@@ -410,8 +439,15 @@ inline void Loop_DFN::Loop_create_DFNs(gsl_rng *random_seed,
                                             P32_largest_cluster_A,
                                             P30_connected_A,
                                             Ratio_of_P30_A,
-                                            Permeability_A);
+                                            Permeability_A,
+                                            str_ori,
+                                            str_frac_size,
+                                            conductivity_distri,
+                                            this->L);
 
+        //cout << "finishing output data\n";
+
+        /*
         double P32_total_B = 0;
         for (size_t i = 0; i < P32_total_A.size(); ++i)
         {
@@ -432,12 +468,13 @@ inline void Loop_DFN::Loop_create_DFNs(gsl_rng *random_seed,
             P30_B = P30_B + P30_A[i];
         }
         P30_1.push_back(P30_B / P30_A.size());
-
+        
         double Percolation_parameter_B_1 = 0;
         for (size_t i = 0; i < Percolation_parameter_A_1.size(); ++i)
         {
             Percolation_parameter_B_1 = Percolation_parameter_B_1 + Percolation_parameter_A_1[i];
         }
+        
         Percolation_parameter_1.push_back(Percolation_parameter_B_1 / Percolation_parameter_A_1.size());
 
         double Percolation_parameter_B_2 = 0;
@@ -533,7 +570,7 @@ inline void Loop_DFN::Loop_create_DFNs(gsl_rng *random_seed,
         {
             n_I_B = n_I_B + n_I_A[i];
         }
-        n_I_1.push_back(n_I_B / n_I_A.size());
+        n_I_1.push_back(n_I_B / n_I_A.size());*/
 
         /*
         if (str_frac_size == "powerlaw")
@@ -553,7 +590,14 @@ inline void Loop_DFN::Loop_create_DFNs(gsl_rng *random_seed,
             Data_output_stepBYstep(np, "tdfn01_datafile_step_by_step.txt", array12[0][0], array12[0][0], L, nx, P32_total_B / nv, P32_connected_B / nv, P30_B / nv, Ratio_of_P32_B / nv, Percolation_parameter_B_1 / nv, Percolation_parameter_B_2 / nv, Percolation_parameter_B_3 / nv, Percolation_parameter_B_4 / nv, Percolation_parameter_B_5 / nv, n_I_B / n_I_A.size(), Percolation_probability_B, Correlation_length_B / nv, Max_gyration_radius_B / nv, P30_largest_cluster_B / nv, P32_largest_cluster_B / nv, P30_connected_B / nv, Ratio_of_P30_B / nv);
         }
         */
-        if (njk == 0 && Percolation_probability_B > 0.49999)
+
+        double Percolation_parameter_B_1 = 0;
+        for (size_t i = 0; i < Percolation_parameter_A_1.size(); ++i)
+        {
+            Percolation_parameter_B_1 += Percolation_parameter_A_1[i];
+        }
+
+        if (njk == 0 && (double)nf / nv > 0.49999)
         {
             njk++;
             Percolation_parameter_c = Percolation_parameter_B_1 / Percolation_parameter_A_1.size();
@@ -568,7 +612,7 @@ inline void Loop_DFN::Loop_create_DFNs(gsl_rng *random_seed,
         }
     };
 
-    this->Matlab_command("data.m", "percolation_data.mat", np, np);
+    this->Matlab_command(Data_CommandFile, Data_MatFile, np, np);
     std::cout << "Loop finished!\n";
 };
 
@@ -675,7 +719,11 @@ inline void Loop_DFN::Matlab_Data_output_stepBYstep(const size_t np,
                                                     std::vector<double> P32_largest_cluster_A,
                                                     std::vector<double> P30_connected_A,
                                                     std::vector<double> Ratio_of_P30_A,
-                                                    std::vector<double> Permeability_A)
+                                                    std::vector<double> Permeability_A,
+                                                    const string str_ori,
+                                                    const string str_frac_size,
+                                                    const string conductivity_distri,
+                                                    const double domain_size)
 
 {
 
@@ -687,8 +735,87 @@ inline void Loop_DFN::Matlab_Data_output_stepBYstep(const size_t np,
 
         if (!pMatFile)
         {
-            throw Error_throw_ignore("cannot create mat file in class Mesh_DFN\n");
+            cout << "Loop times: " << np << endl;
+            throw Error_throw_pause("cannot create mat file in class Loop_DFN_WL\n");
         }
+
+        //---------------
+        double *pData19, *pData20, *pData21, *pData22;
+        mxArray *pMxArray19, *pMxArray20, *pMxArray21, *pMxArray22;
+
+        pData19 = (double *)mxCalloc(this->array13.size() * 7, sizeof(double));
+        pMxArray19 = mxCreateDoubleMatrix(this->array13.size(), 7, mxREAL);
+        if (str_ori == "uniform")
+        {
+            for (size_t j = 0; j < this->array13.size() * 7; ++j)
+                pData19[j] = 11;
+        }
+        else if (str_ori == "fisher")
+        {
+
+            for (size_t j = 0; j < this->array13.size() * 7; ++j)
+            {
+                size_t k, l;
+                k = ceil(j / this->array13.size()); // column
+                l = j % this->array13.size();       // row
+
+                pData19[j] = this->array13[l](k);
+            }
+        }
+
+        pData20 = (double *)mxCalloc(this->array12.size() * 4, sizeof(double));
+        pMxArray20 = mxCreateDoubleMatrix(this->array12.size(), 4, mxREAL);
+        for (size_t j = 0; j < this->array12.size() * 4; ++j)
+        {
+            size_t k, l;
+            k = ceil(j / this->array12.size()); // column
+            l = j % this->array12.size();       // row
+
+            pData20[j] = this->array12[l](k);
+        }
+
+        pData21 = (double *)mxCalloc(1, sizeof(double));
+        pMxArray21 = mxCreateDoubleMatrix(1, 1, mxREAL);
+        pData21[0] = 15;
+
+        pData22 = (double *)mxCalloc(1, sizeof(double));
+        pMxArray22 = mxCreateDoubleMatrix(1, 1, mxREAL);
+        pData22[0] = domain_size;
+
+        if (!pMxArray19 || !pMxArray20 || !pMxArray21 || !pMxArray22)
+        {
+            cout << "Loop times: " << np << endl;
+            throw Error_throw_pause("cannot create pMxArray in class Loop_DFN_WL\n");
+        }
+        if (!pData19 || !pData20 || !pData21 || !pData22)
+        {
+            cout << "Loop times: " << np << endl;
+            throw Error_throw_pause("cannot create pData in class Loop_DFN_WL\n");
+        }
+
+        const char *char_ori = str_ori.c_str();
+        const char *char_frac_size = str_frac_size.c_str();
+
+        string conductivity_str = conductivity_distri + "_conductivity_dis";
+        const char *char_conductivity_distri = conductivity_str.c_str();
+
+        const char *char_domain_size = "Domain_size";
+
+        mxSetData(pMxArray19, pData19);
+        mxSetData(pMxArray20, pData20);
+        mxSetData(pMxArray21, pData21);
+        mxSetData(pMxArray22, pData22);
+
+        matPutVariable(pMatFile, char_ori, pMxArray19);
+        matPutVariable(pMatFile, char_frac_size, pMxArray20);
+        matPutVariable(pMatFile, char_conductivity_distri, pMxArray21);
+        matPutVariable(pMatFile, char_domain_size, pMxArray22);
+
+        mxFree(pData19);
+        mxFree(pData20);
+        mxFree(pData21);
+        mxFree(pData22);
+        //---------------
 
         double *pData1,
             *pData2,
@@ -785,7 +912,8 @@ inline void Loop_DFN::Matlab_Data_output_stepBYstep(const size_t np,
             !pMxArray17 ||
             !pMxArray18)
         {
-            throw Error_throw_pause("cannot create pMxArray in class FEM_DFN_A\n");
+            cout << "Loop times: " << np << endl;
+            throw Error_throw_pause("cannot create pMxArray in class Loop_DFN_WL\n");
         }
 
         if (!pData1 ||
@@ -807,7 +935,8 @@ inline void Loop_DFN::Matlab_Data_output_stepBYstep(const size_t np,
             !pData17 ||
             !pData18)
         {
-            throw Error_throw_pause("cannot create pData in class FEM_DFN_A\n");
+            cout << "Loop times: " << np << endl;
+            throw Error_throw_pause("cannot create pData in class Loop_DFN_WL\n");
         }
 
         for (size_t i = 0; i < P32_total_A.size(); ++i)
@@ -939,7 +1068,8 @@ inline void Loop_DFN::Matlab_Data_output_stepBYstep(const size_t np,
 
         if (!pMatFile)
         {
-            throw Error_throw_ignore("cannot create mat file in class Mesh_DFN\n");
+            cout << "Loop times: " << np << endl;
+            throw Error_throw_pause("cannot create mat file in class Loop_DFN_WL\n");
         }
 
         double *pData1,
@@ -1037,7 +1167,8 @@ inline void Loop_DFN::Matlab_Data_output_stepBYstep(const size_t np,
             !pMxArray17 ||
             !pMxArray18)
         {
-            throw Error_throw_pause("cannot create pMxArray in class FEM_DFN_A\n");
+            cout << "Loop times: " << np << endl;
+            throw Error_throw_pause("cannot create pMxArray in class Loop_DFN_WL\n");
         }
 
         if (!pData1 ||
@@ -1059,7 +1190,8 @@ inline void Loop_DFN::Matlab_Data_output_stepBYstep(const size_t np,
             !pData17 ||
             !pData18)
         {
-            throw Error_throw_pause("cannot create pData in class FEM_DFN_A\n");
+            cout << "Loop times: " << np << endl;
+            throw Error_throw_pause("cannot create pData in class Loop_DFN_WL\n");
         }
 
         for (size_t i = 0; i < P32_total_A.size(); ++i)
@@ -1188,10 +1320,9 @@ inline void Loop_DFN::Matlab_Data_output_stepBYstep(const size_t np,
 inline void Loop_DFN::Matlab_command(string FileKey_m, string FileKey_mat, size_t np, size_t ny)
 {
     std::ofstream oss(FileKey_m, ios::out);
-    //oss << "clc;\nclose all;\nclear all;";
-    oss << "load('" << FileKey_mat << "');\n";
-    oss << "s = struct(";
-
+    oss << "clc;\nclose all;\nclear all;";
+    oss << "s = load('" << FileKey_mat << "');\n";
+    /*
     for (size_t ft = 1; ft <= np; ++ft)
     {
         string string_P32_total = "P32_total_" + to_string(ft);
@@ -1239,7 +1370,7 @@ inline void Loop_DFN::Matlab_command(string FileKey_m, string FileKey_mat, size_
         else
             oss << "'" << string_Permeability << "', " << string_Permeability;
     }
-    oss << ");\n";
+    oss << ");\n";*/
 
     oss.close();
 };
@@ -1252,5 +1383,6 @@ inline void Loop_DFN::Sign_of_finding_pc(string FileKey)
     oss << Percolation_parameter_c;
 
     oss.close();
-}
+};
+
 }; // namespace DFN

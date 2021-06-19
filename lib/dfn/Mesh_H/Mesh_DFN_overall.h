@@ -53,121 +53,125 @@ public:
 
 inline Mesh_DFN_overall::Mesh_DFN_overall(DFN::Domain dom, const double min_ele_edge, const double max_ele_edge)
 {
-    size_t VertsPntID = 1;
-    size_t LineID = 1;
-    size_t CurveLoopID = 1;
-    size_t SurfaceID = 1;
-    gmsh::initialize();
-    gmsh::option::setNumber("General.Verbosity", 2); // default level is 5
-    gmsh::model::add("t2");
-
-    for (size_t i = 0; i < dom.Percolation_cluster[2].size(); ++i)
+    //---------------------------------------
+#pragma omp critical
     {
-        size_t ClusterID = dom.Percolation_cluster[2][i];
+        size_t VertsPntID = 1;
+        size_t LineID = 1;
+        size_t CurveLoopID = 1;
+        size_t SurfaceID = 1;
+        gmsh::initialize();
+        gmsh::option::setNumber("General.Verbosity", 2); // default level is 5
+        gmsh::model::add("t2");
 
-        for (size_t j = 0; j < dom.Listofclusters[ClusterID].size(); ++j)
+        for (size_t i = 0; i < dom.Percolation_cluster[2].size(); ++i)
         {
-            size_t FracID = dom.Listofclusters[ClusterID][j];
-            Frac_Tag.push_back(FracID);
-            std::vector<int> Pointloop(dom.Fractures[FracID].Verts_trim.size());
-            for (size_t k = 0; k < dom.Fractures[FracID].Verts_trim.size(); ++k)
-                Pointloop[k] = VertsPntID + k;
+            size_t ClusterID = dom.Percolation_cluster[2][i];
 
-            for (size_t k = 0; k < dom.Fractures[FracID].Verts_trim.size(); ++k)
+            for (size_t j = 0; j < dom.Listofclusters[ClusterID].size(); ++j)
             {
+                size_t FracID = dom.Listofclusters[ClusterID][j];
+                Frac_Tag.push_back(FracID);
+                std::vector<int> Pointloop(dom.Fractures[FracID].Verts_trim.size());
+                for (size_t k = 0; k < dom.Fractures[FracID].Verts_trim.size(); ++k)
+                    Pointloop[k] = VertsPntID + k;
 
-                gmsh::model::occ::addPoint(dom.Fractures[FracID].Verts_trim[k](0),
-                                           dom.Fractures[FracID].Verts_trim[k](1),
-                                           dom.Fractures[FracID].Verts_trim[k](2),
-                                           0,
-                                           VertsPntID);
-                VertsPntID++;
+                for (size_t k = 0; k < dom.Fractures[FracID].Verts_trim.size(); ++k)
+                {
+
+                    gmsh::model::occ::addPoint(dom.Fractures[FracID].Verts_trim[k](0),
+                                               dom.Fractures[FracID].Verts_trim[k](1),
+                                               dom.Fractures[FracID].Verts_trim[k](2),
+                                               0,
+                                               VertsPntID);
+                    VertsPntID++;
+                }
+
+                std::vector<int> curveloop(dom.Fractures[FracID].Verts_trim.size());
+                for (size_t k = 0; k < dom.Fractures[FracID].Verts_trim.size(); ++k)
+                    curveloop[k] = LineID + k;
+
+                for (size_t k = 0; k < dom.Fractures[FracID].Verts_trim.size(); ++k)
+                {
+                    gmsh::model::occ::addLine(Pointloop[k],
+                                              Pointloop[(k + 1) % dom.Fractures[FracID].Verts_trim.size()],
+                                              LineID);
+                    LineID++;
+                }
+                gmsh::model::occ::addCurveLoop(curveloop, CurveLoopID);
+
+                std::vector<int> surfaceloop = {(int)CurveLoopID};
+                gmsh::model::occ::addPlaneSurface(surfaceloop, SurfaceID);
+                gmsh::model::occ::synchronize();
+
+                CurveLoopID++;
+                SurfaceID++;
             }
-
-            std::vector<int> curveloop(dom.Fractures[FracID].Verts_trim.size());
-            for (size_t k = 0; k < dom.Fractures[FracID].Verts_trim.size(); ++k)
-                curveloop[k] = LineID + k;
-
-            for (size_t k = 0; k < dom.Fractures[FracID].Verts_trim.size(); ++k)
-            {
-                gmsh::model::occ::addLine(Pointloop[k],
-                                          Pointloop[(k + 1) % dom.Fractures[FracID].Verts_trim.size()],
-                                          LineID);
-                LineID++;
-            }
-            gmsh::model::occ::addCurveLoop(curveloop, CurveLoopID);
-
-            std::vector<int> surfaceloop = {(int)CurveLoopID};
-            gmsh::model::occ::addPlaneSurface(surfaceloop, SurfaceID);
-            gmsh::model::occ::synchronize();
-
-            CurveLoopID++;
-            SurfaceID++;
         }
-    }
 
-    std::vector<std::pair<int, int>> input_entity(SurfaceID - 1);
+        std::vector<std::pair<int, int>> input_entity(SurfaceID - 1);
 
-    for (size_t i = 0; i < input_entity.size(); ++i)
-        input_entity[i] = std::make_pair(2, i + 1);
+        for (size_t i = 0; i < input_entity.size(); ++i)
+            input_entity[i] = std::make_pair(2, i + 1);
 
-    std::vector<std::pair<int, int>> out;
-    std::vector<std::vector<std::pair<int, int>>> outmap;
+        std::vector<std::pair<int, int>> out;
+        std::vector<std::vector<std::pair<int, int>>> outmap;
 
-    gmsh::model::occ::fragment(input_entity, input_entity, out, outmap);
-    gmsh::model::occ::synchronize();
+        gmsh::model::occ::fragment(input_entity, input_entity, out, outmap);
+        gmsh::model::occ::synchronize();
 
-    gmsh::option::setNumber("Mesh.MeshSizeMin", min_ele_edge);
-    gmsh::option::setNumber("Mesh.MeshSizeMax", max_ele_edge);
+        gmsh::option::setNumber("Mesh.MeshSizeMin", min_ele_edge);
+        gmsh::option::setNumber("Mesh.MeshSizeMax", max_ele_edge);
 
-    gmsh::option::setNumber("Mesh.Algorithm", 5);
+        gmsh::option::setNumber("Mesh.Algorithm", 5);
 
-    //std::cout << "\033[31mstart meshing;\n\033[0m";
-    gmsh::model::mesh::generate(2);
-    //std::cout << "\033[31mfinish meshing;\n\033[0m";
-    //--------
-    double mw = 0;
-    gmsh::option::getNumber("Mesh.NbNodes", mw);
-    NUM_of_linear_NODES = mw;
-    //-----------
+        //std::cout << "\033[31mstart meshing;\n\033[0m";
+        gmsh::model::mesh::generate(2);
+        //std::cout << "\033[31mfinish meshing;\n\033[0m";
+        //--------
+        double mw = 0;
+        gmsh::option::getNumber("Mesh.NbNodes", mw);
+        NUM_of_linear_NODES = mw;
+        //-----------
 
-    gmsh::option::setNumber("Mesh.ElementOrder", 2);
-    gmsh::model::mesh::setOrder(2);
+        gmsh::option::setNumber("Mesh.ElementOrder", 2);
+        gmsh::model::mesh::setOrder(2);
 
-    std::vector<std::size_t> nodes;
-    std::vector<double> coord, coordParam;
-    gmsh::model::mesh::getNodes(nodes, coord, coordParam);
-    NUM_of_NODES = coord.size() / 3;
+        std::vector<std::size_t> nodes;
+        std::vector<double> coord, coordParam;
+        gmsh::model::mesh::getNodes(nodes, coord, coordParam);
+        NUM_of_NODES = coord.size() / 3;
 
-    for (size_t i = 0; i < coord.size(); i += 3)
-    {
-        Vector3d A;
-        A << coord[i], coord[i + 1], coord[i + 2];
-        //cout << A.transpose() << endl;
-        JXY_3D.push_back(A);
-    }
+        for (size_t i = 0; i < coord.size(); i += 3)
+        {
+            Vector3d A;
+            A << coord[i], coord[i + 1], coord[i + 2];
+            //cout << A.transpose() << endl;
+            JXY_3D.push_back(A);
+        }
 
-    std::vector<int> elemTypes;
-    std::vector<std::vector<std::size_t>> elemTags, elemNodeTags;
-    gmsh::model::mesh::getElements(elemTypes, elemTags, elemNodeTags, 2, -1);
+        std::vector<int> elemTypes;
+        std::vector<std::vector<std::size_t>> elemTags, elemNodeTags;
+        gmsh::model::mesh::getElements(elemTypes, elemTags, elemNodeTags, 2, -1);
 
-    for (size_t i = 0; i < elemNodeTags[0].size(); i += 6)
-    {
-        RowVector6i A;
-        A << elemNodeTags[0][i] - 1,
-            elemNodeTags[0][i + 3] - 1,
-            elemNodeTags[0][i + 1] - 1,
-            elemNodeTags[0][i + 4] - 1,
-            elemNodeTags[0][i + 2] - 1,
-            elemNodeTags[0][i + 5] - 1;
-        //cout << A << endl;
-        JM.push_back(A);
-    }
-    //gmsh::fltk::run();
-    gmsh::clear();
-    gmsh::finalize();
+        for (size_t i = 0; i < elemNodeTags[0].size(); i += 6)
+        {
+            RowVector6i A;
+            A << elemNodeTags[0][i] - 1,
+                elemNodeTags[0][i + 3] - 1,
+                elemNodeTags[0][i + 1] - 1,
+                elemNodeTags[0][i + 4] - 1,
+                elemNodeTags[0][i + 2] - 1,
+                elemNodeTags[0][i + 5] - 1;
+            //cout << A << endl;
+            JM.push_back(A);
+        }
+        //gmsh::fltk::run();
+        gmsh::clear();
+        gmsh::finalize();
 
-    this->Identify_point_attribute_and_2D_meshes(dom);
+        this->Identify_point_attribute_and_2D_meshes(dom);
+    };
 };
 
 inline void Mesh_DFN_overall::Identify_point_attribute_and_2D_meshes(DFN::Domain dom)

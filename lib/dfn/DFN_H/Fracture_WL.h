@@ -1,8 +1,8 @@
 #pragma once
 #include "../Geometry_H/NorVec_plane.h"
+#include "../Geometry_H/Vector_2.h"
 #include "../Math_WL_H/Math_WL.h"
 #include "../Quaternion_H/Quaternion.h"
-#include "../Geometry_H/Vector_2.h"
 #include "Dense"
 #include "Random_function_WL.h"
 #include <cmath>
@@ -51,7 +51,8 @@ public:
              const std::vector<Vector2d> array1,
              ///< model range
              const Vector4d array2,
-             double Last_frac_size);
+             double Last_frac_size,
+             string conductivity_distri);
     ///< Fracture constructor as
     /// an array of vertices; uniform
 
@@ -61,8 +62,9 @@ public:
              DFN::Random_function &c,
              const std::vector<Vector2d> array1,
              const Vector4d array2,
-             const Vector7d array3,  //< fisher input
-             double Last_frac_size); ///< Fisher
+             const Vector7d array3, //< fisher input
+             double Last_frac_size,
+             string conductivity_distri); ///< Fisher
 
     Fracture(size_t _Tag,
              int _Clus,
@@ -77,7 +79,8 @@ inline Fracture::Fracture(string string_ori,
                           DFN::Random_function &c,
                           const std::vector<Vector2d> array1,
                           const Vector4d array2,
-                          double Last_frac_size)
+                          double Last_frac_size,
+                          string conductivity_distri)
 {
     If_intersect_surfaces << 0, 0, 0, 0, 0, 0;
     Tag = T;
@@ -93,29 +96,57 @@ inline Fracture::Fracture(string string_ori,
 
     //--------------------radius of the circle
     //Radius = c.lognor(array2[0], array2[1], array2[2], array2[3]);
+    double min_radius = 0;
     if (Last_frac_size == -1)
     {
         if (string_frac_size == "powerlaw")
         {
             Radius = c.powerlaw(array2[1], array2[2], array2[0]); // min, max, alpha
             //cout << Radius << endl;
+            min_radius = array2[1];
         }
         else if (string_frac_size == "lognormal")
         {
             Radius = c.lognor(array2[0], array2[1], array2[2], array2[3]); // mean, std_var, min, max
+            min_radius = array2[2];
         }
         else if (string_frac_size == "uniform")
         {
             Radius = c.unifrm(array2[0], array2[1]); // mean, std_var, min, max
+            min_radius = array2[0];
         }
         else if (string_frac_size == "single")
         {
             Radius = array2[0]; // mean, std_var, min, max
+            min_radius = array2[0];
         }
     }
     else
     {
         Radius = Last_frac_size;
+        throw Error_throw_pause("'Last_frac_size' should not be used! In class 'Fracture'!\n");
+    }
+
+    //---------------------------------conductivity
+    if (conductivity_distri == "constant")
+    {
+        this->Conductivity = 1;
+    }
+    else if (conductivity_distri == "linear")
+    {
+        this->Conductivity = Radius / min_radius;
+    }
+    else if (conductivity_distri == "normal")
+    {
+        this->Conductivity = c.gauss(10, 3, 0, 1e6);
+    }
+    else if (conductivity_distri == "uniform")
+    {
+        this->Conductivity = c.unifrm(0, 10);
+    }
+    else
+    {
+        throw Error_throw_pause("The distribution of fracture conductivity is not defined! In class 'Fracture'!\n\n");
     }
 
     //--------------------dip direction and dip angle
@@ -151,7 +182,7 @@ inline Fracture::Fracture(string string_ori,
 
         if (alpha_tmp <= 90)
             Dip_direction = 90 - alpha_tmp;
-            
+
         else if (alpha_tmp > 90)
             Dip_direction = 450 - alpha_tmp;
 
@@ -297,7 +328,8 @@ inline Fracture::Fracture(string string_ori,
                           const std::vector<Vector2d> array1,
                           const Vector4d array2,
                           const Vector7d array3,
-                          double Last_frac_size)
+                          double Last_frac_size,
+                          string conductivity_distri)
 {
     If_intersect_surfaces << 0, 0, 0, 0, 0, 0;
     Tag = T;
@@ -315,29 +347,56 @@ inline Fracture::Fracture(string string_ori,
 
     //--------------------radius of the circle
     //Radius = c.lognor(array2[0], array2[1], array2[2], array2[3]);
-
+    double min_radius = 0;
     if (Last_frac_size == -1)
     {
         if (string_frac_size == "powerlaw")
         {
             Radius = c.powerlaw(array2[1], array2[2], array2[0]);
+            min_radius = array2[1];
         }
         else if (string_frac_size == "lognormal")
         {
             Radius = c.lognor(array2[0], array2[1], array2[2], array2[3]);
+            min_radius = array2[2];
         }
         else if (string_frac_size == "uniform")
         {
             Radius = c.unifrm(array2[0], array2[1]); // mean, std_var, min, max
+            min_radius = array2[0];
         }
         else if (string_frac_size == "single")
         {
             Radius = array2[0];
+            min_radius = array2[0];
         }
     }
     else
     {
         Radius = Last_frac_size;
+        throw Error_throw_pause("'Last_frac_size' should not be used! In class 'Fracture'!\n");
+    }
+
+    //---------------------------------conductivity
+    if (conductivity_distri == "constant")
+    {
+        this->Conductivity = 1;
+    }
+    else if (conductivity_distri == "linear")
+    {
+        this->Conductivity = Radius / min_radius;
+    }
+    else if (conductivity_distri == "normal")
+    {
+        this->Conductivity = c.gauss(10, 3, 0, 1e6);
+    }
+    else if (conductivity_distri == "uniform")
+    {
+        this->Conductivity = c.unifrm(0, 10);
+    }
+    else
+    {
+        throw Error_throw_pause("The distribution of fracture conductivity is not defined! In class 'Fracture'!\n\n");
     }
 
     //--------------------dip direction and dip angle
