@@ -146,6 +146,8 @@ public:
 
     void DataFile_Radius_AreaAndPerimeter(string FileKey);
     ///< outputs the data
+
+    void Create_whole_model_II(const Vector6d model_size, std::vector<std::vector<Vector3d>> Frac_verts);
 };
 
 inline void Domain::Create_whole_model(const size_t n,
@@ -442,7 +444,7 @@ inline void Domain::Model_set(const Vector6d model_size)
 inline void Domain::AddSquareFracture(size_t Tag,
                                       Fracture &c)
 {
-
+ 
     if (Model_domain(4) <= c.Center(0) &&
         Model_domain(5) >= c.Center(0) &&
         Model_domain(2) <= c.Center(1) &&
@@ -450,14 +452,13 @@ inline void Domain::AddSquareFracture(size_t Tag,
         Model_domain(1) <= c.Center(2) &&
         Model_domain(0) >= c.Center(2))
     {
-
+ 
         bool y1 = Intersect_A(Surfaces[0], c);
         bool y2 = Intersect_A(Surfaces[1], c);
         bool y3 = Intersect_A(Surfaces[2], c);
         bool y4 = Intersect_A(Surfaces[3], c);
         bool y5 = Intersect_A(Surfaces[4], c);
         bool y6 = Intersect_A(Surfaces[5], c);
-
         if (y1 == 1 || y2 == 1 || y3 == 1 || y4 == 1 || y5 == 1 || y6 == 1)
         {
             if (y1 == 1)
@@ -465,6 +466,7 @@ inline void Domain::AddSquareFracture(size_t Tag,
                 c.If_intersect_surfaces(0) = 1;
                 Modify_fracture_attributes_Zmax(c);
             }
+          
             if (y2 == 1)
             {
                 c.If_intersect_surfaces(1) = 1;
@@ -499,8 +501,7 @@ inline void Domain::AddSquareFracture(size_t Tag,
         return;
     }
     else
-    {
-
+    {  
         bool y1 = Intersect_A(Surfaces[0], c);
         bool y2 = Intersect_A(Surfaces[1], c);
         bool y3 = Intersect_A(Surfaces[2], c);
@@ -2774,4 +2775,51 @@ inline void Domain::Re_identify_intersection_considering_trimmed_frac()
         Clusters();
     }
 };
+
+inline void Domain::Create_whole_model_II(const Vector6d model_size, std::vector<std::vector<Vector3d>> Frac_verts)
+{
+    this->Model_set(model_size);
+
+    for (size_t i = 0; i < Frac_verts.size(); ++i)
+    {
+        Fracture f(i, -10, Frac_verts[i]);
+        
+        AddSquareFracture(i, f);
+        
+    }
+
+    size_t nz = Fractures.size();
+    if (nz == 0)
+    {
+        P32_total = 0;
+        P32_connected = 0;
+        P30 = 0;
+        P30_connected = 0;
+        Percolation_parameter_a = 0;
+        Percolation_parameter_b = 0;
+        Percolation_parameter_c = 0;
+        Percolation_parameter_d = 0;
+        Ratio_of_P32 = 0;
+        Ratio_of_P30 = 0;
+        Excluded_volume_1 = 0;
+        Excluded_volume_2 = 0;
+        Excluded_volume_3 = 0;
+        Excluded_volume_4 = 0;
+        Excluded_volume_5 = 0;
+        return;
+    };
+
+    for (size_t i = 0; i < nz - 1; ++i)
+    {
+        for (size_t j = i + 1; j < nz; ++j)
+        {
+            Intersect(Fractures[i], Fractures[j], false);
+        }
+    }
+
+#pragma omp critical
+    {
+        Clusters();
+    }
+}
 }; // namespace DFN

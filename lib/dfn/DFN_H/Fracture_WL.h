@@ -587,7 +587,7 @@ inline Fracture::Fracture(size_t _Tag,
     Area = pow(Radius, 2) * 0.5 * 4;
 
     Center = (_Verts[0] + _Verts[2]) / 2;
-
+    //cout << "C: " << Center.transpose() << endl;
     ///--------------Perimeter
     Perimeter = 0;
     for (size_t i = 0; i < Verts.size(); ++i)

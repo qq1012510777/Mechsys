@@ -1,6 +1,5 @@
 #pragma once
 #include "../Quaternion_H/Quaternion.h"
-#include "Dense"
 #include <cmath>
 #include <iostream>
 #include <set>

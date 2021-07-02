@@ -90,6 +90,7 @@ public:
 
 inline FEM_DFN_A::FEM_DFN_A(DFN::Mesh_DFN_overall DFN_mesh, DFN::Domain dom)
 {
+
     size_t NUM_NODES_velocity = DFN_mesh.NUM_of_NODES;
     size_t NUM_NODES_p = DFN_mesh.NUM_of_linear_NODES;
     size_t Matrix_D = (NUM_NODES_velocity * 2 + NUM_NODES_p);
@@ -133,7 +134,7 @@ inline FEM_DFN_A::FEM_DFN_A(DFN::Mesh_DFN_overall DFN_mesh, DFN::Domain dom)
     //int m = 1;        // dimensions of F matrix
     //double a = 1, b = -1.00;
 
-    /*
+    /*    
     cout << "\nK_overall;\n";
     for (size_t i = 0; i < Matrix_D; ++i)
     {
@@ -150,8 +151,8 @@ inline FEM_DFN_A::FEM_DFN_A(DFN::Mesh_DFN_overall DFN_mesh, DFN::Domain dom)
     for (size_t i = 0; i < Matrix_D; ++i)
     {
         cout << F_overall[i] << endl;
-    }*/
-
+    }
+    */
     //dgemv_("N", &n, &n, &a, K_overall, &n, F_overall, &m, &b, X_overall, &m);
     /*
     int *ipiv = new int[n];
@@ -210,15 +211,54 @@ inline void FEM_DFN_A::Assemble_overall_matrix(DFN::Mesh_DFN_overall DFN_mesh, d
 
     size_t Matrix_D = (NUM_NODES_velocity * 2 + NUM_NODES_p);
 
+    Eigen::MatrixXf KK_big = Eigen::MatrixXf::Zero(Matrix_D, Matrix_D);
+    Eigen::VectorXf FF_big = Eigen::VectorXf::Zero(Matrix_D);
+
+    //cout << "NUM_NODES_velocity: " << NUM_NODES_velocity << endl;
+    //cout << "NUM_NODES_p: " << NUM_NODES_p << endl;
+    //cout << "Matrix_D: " << Matrix_D << endl;
     for (size_t i = 0; i < DFN_mesh.JM_Each_Frac.size(); ++i)
     {
         size_t Frac_Tag = DFN_mesh.Frac_Tag[i];
 
         double Kper = dom.Fractures[Frac_Tag].Conductivity;
-        cout << "kPer: " << Kper << endl;
-
+        //cout << "kPer: " << Kper << endl;
+        /*
+        cout << "Frac " << Frac_Tag << ":\n";
+        for(size_t j = 0; j < verts1.size(); ++j)
+            cout << verts1[j].transpose() << endl;
+        */
         for (size_t j = 0; j < DFN_mesh.JM_Each_Frac[i].size(); ++j)
         {
+
+            //------------
+            //cout << DFN_mesh.JM_Each_Frac[i][j].array() + 1 << endl;
+            size_t VDF1 = false, VDF2 = false, VDF3 = false, VDF4 = false;
+            for (size_t pk = 0; pk < (size_t)DFN_mesh.JM_Each_Frac[i][j].size(); ++pk)
+            {
+                if (DFN_mesh.JM_Each_Frac[i][j](pk) + 1 == 1)
+                {
+                    VDF1 = true;
+                }
+                if (DFN_mesh.JM_Each_Frac[i][j](pk) + 1 == 16)
+                {
+                    VDF2 = true;
+                }
+                if (DFN_mesh.JM_Each_Frac[i][j](pk) + 1 == 3)
+                {
+                    VDF3 = true;
+                }
+            }
+
+            if (VDF1 == true && VDF2 == true && VDF3 == true)
+            {
+                //cout << DFN_mesh.JM_Each_Frac[i][j].array() + 1 << endl;
+                VDF4 = true;
+            }
+
+            VDF4 = false;
+            //-----------
+
             Eigen::RowVectorXd w, xi, eta;
             w = Eigen::RowVectorXd::Zero(6);
             w << 0.1713244923791700, 0.3607615730481380, 0.4679139345726910, 0.1713244923791700, 0.3607615730481380, 0.4679139345726910;
@@ -229,32 +269,32 @@ inline void FEM_DFN_A::Assemble_overall_matrix(DFN::Mesh_DFN_overall DFN_mesh, d
             MatrixXd D1e;
             D1e = MatrixXd::Zero(6, 6);
 
-            Eigen::MatrixXd JXYe_x, JXYe_y;
+            Eigen::MatrixXd JXYe_x, JXYe_y, JXYe_x_c, JXYe_y_c;
             JXYe_x = Eigen::MatrixXd::Zero(6, 1);
             JXYe_y = Eigen::MatrixXd::Zero(6, 1);
 
             for (size_t kk = 0; kk < (size_t)JXYe_x.rows(); ++kk)
             {
-                JXYe_x(kk, 0) = DFN_mesh.JXY_3D[DFN_mesh.JM_Each_Frac[i][j](kk)](0);
-                JXYe_y(kk, 0) = DFN_mesh.JXY_3D[DFN_mesh.JM_Each_Frac[i][j](kk)](1);
-                double z_1 = DFN_mesh.JXY_3D[DFN_mesh.JM_Each_Frac[i][j](kk)](2);
+                size_t PNT_ID = DFN_mesh.JM_Each_Frac[i][j][kk];
+                Vector3d AYUI = DFN_mesh.JXY_2D[i][PNT_ID];
 
-                DFN::Polygon_convex_3D poly{dom.Fractures[Frac_Tag].Verts_trim};
-                std::vector<Vector3d> verts1, verts2;
-                DFN::Rotate_to_horizontal R1{poly.Corners, verts1};
-                bool UY;
-                std::vector<Vector3d> jxy_3d(1);
-                jxy_3d[0] << JXYe_x(kk, 0), JXYe_y(kk, 0), z_1;
-                R1.Rotate_other_pnts(jxy_3d, verts2, UY);
-                if (UY == false)
-                {
-                    cout << "Rotate pnts to 2D failed! In class 'FEM_DFN_A', function 'Assemble_overall_matrix'!\n";
-                    throw Error_throw_ignore("Rotate pnts to 2D failed! In class 'FEM_DFN_A', function 'Assemble_overall_matrix'!\n");
-                }
-
-                JXYe_x(kk, 0) = verts2[0](0);
-                JXYe_y(kk, 0) = verts2[0](1);
+                JXYe_x(kk, 0) = round(AYUI[0], 4);
+                JXYe_y(kk, 0) = round(AYUI[1], 4);
             }
+
+            JXYe_x_c = JXYe_x;
+            JXYe_y_c = JXYe_y;
+            /*
+            cout << JXYe_x.transpose() << endl;
+            cout << JXYe_y.transpose() << endl;
+            */
+            /*
+            cout << "----------------\n\n";
+            if (VDF4 == true)
+            {
+                for (size_t oy = 0; oy < 6; oy++)
+                    cout << JXYe_x(oy, 0) << ", " << JXYe_y(oy, 0) << endl;
+            }*/
 
             for (size_t ik = 0; ik < (size_t)D1e.rows(); ++ik)
             {
@@ -300,6 +340,7 @@ inline void FEM_DFN_A::Assemble_overall_matrix(DFN::Mesh_DFN_overall DFN_mesh, d
 
             JXYe_x = Eigen::MatrixXd::Zero(3, 1);
             JXYe_y = Eigen::MatrixXd::Zero(3, 1);
+
             //cout << "0.0214\n";
             for (size_t kk = 0; kk < 3; kk++)
             {
@@ -311,26 +352,11 @@ inline void FEM_DFN_A::Assemble_overall_matrix(DFN::Mesh_DFN_overall DFN_mesh, d
                 else if (kk == 2)
                     ff = 4;
 
-                JXYe_x(kk, 0) = DFN_mesh.JXY_3D[DFN_mesh.JM_Each_Frac[i][j](ff)](0);
-                JXYe_y(kk, 0) = DFN_mesh.JXY_3D[DFN_mesh.JM_Each_Frac[i][j](ff)](1);
-                double z_1 = DFN_mesh.JXY_3D[DFN_mesh.JM_Each_Frac[i][j](ff)](2);
-
-                DFN::Polygon_convex_3D poly{dom.Fractures[Frac_Tag].Verts_trim};
-                std::vector<Vector3d> verts1, verts2;
-                DFN::Rotate_to_horizontal R1{poly.Corners, verts1};
-                bool UY;
-                std::vector<Vector3d> jxy_3d(1);
-                jxy_3d[0] << JXYe_x(kk, 0), JXYe_y(kk, 0), z_1;
-                R1.Rotate_other_pnts(jxy_3d, verts2, UY);
-                if (UY == false)
-                {
-                    cout << "Rotate pnts to 2D failed! In class 'FEM_DFN_A', function 'Assemble_overall_matrix'!\n";
-                    throw Error_throw_ignore("Rotate pnts to 2D failed! In class 'FEM_DFN_A', function 'Assemble_overall_matrix'!\n");
-                }
-
-                JXYe_x(kk, 0) = verts2[0](0);
-                JXYe_y(kk, 0) = verts2[0](1);
+                JXYe_x(kk, 0) = JXYe_x_c(ff, 0);
+                JXYe_y(kk, 0) = JXYe_y_c(ff, 0);
             }
+            //cout << JXYe_x.transpose() << endl;
+            //cout << JXYe_y.transpose() << endl;
 
             for (size_t ik = 0; ik < 6; ++ik)
             {
@@ -375,40 +401,8 @@ inline void FEM_DFN_A::Assemble_overall_matrix(DFN::Mesh_DFN_overall DFN_mesh, d
             MatrixXd B1e, B2e;
             B1e = MatrixXd::Zero(3, 6);
             B2e = MatrixXd::Zero(3, 6);
-
-            JXYe_x = Eigen::MatrixXd::Zero(3, 1);
-            JXYe_y = Eigen::MatrixXd::Zero(3, 1);
-
-            for (size_t kk = 0; kk < 3; kk++)
-            {
-                int ff = -1;
-                if (kk == 0)
-                    ff = 0;
-                else if (kk == 1)
-                    ff = 2;
-                else if (kk == 2)
-                    ff = 4;
-
-                JXYe_x(kk, 0) = DFN_mesh.JXY_3D[DFN_mesh.JM_Each_Frac[i][j](ff)](0);
-                JXYe_y(kk, 0) = DFN_mesh.JXY_3D[DFN_mesh.JM_Each_Frac[i][j](ff)](1);
-                double z_1 = DFN_mesh.JXY_3D[DFN_mesh.JM_Each_Frac[i][j](ff)](2);
-
-                DFN::Polygon_convex_3D poly{dom.Fractures[Frac_Tag].Verts_trim};
-                std::vector<Vector3d> verts1, verts2;
-                DFN::Rotate_to_horizontal R1{poly.Corners, verts1};
-                bool UY;
-                std::vector<Vector3d> jxy_3d(1);
-                jxy_3d[0] << JXYe_x(kk, 0), JXYe_y(kk, 0), z_1;
-                R1.Rotate_other_pnts(jxy_3d, verts2, UY);
-                if (UY == false)
-                {
-                    cout << "Rotate pnts to 2D failed! In class 'FEM_DFN_A', function 'Assemble_overall_matrix'!\n";
-                    throw Error_throw_ignore("Rotate pnts to 2D failed! In class 'FEM_DFN_A', function 'Assemble_overall_matrix'!\n");
-                }
-
-                JXYe_x(kk, 0) = verts2[0](0);
-                JXYe_y(kk, 0) = verts2[0](1);
-            }
+            //cout << JXYe_x.transpose() << endl;
+            //cout << JXYe_y.transpose() << endl;
 
             for (size_t ik = 0; ik < 6; ++ik)
             {
@@ -448,55 +442,46 @@ inline void FEM_DFN_A::Assemble_overall_matrix(DFN::Mesh_DFN_overall DFN_mesh, d
             }
 
             //------------------ assemble
+            /*
+             if (VDF4 == true)
+                cout << "D1e\n";
+            */
             for (size_t jq = 0; jq < 6; ++jq)
             {
                 for (size_t kq = 0; kq < 6; ++kq)
                 {
                     size_t Node_m = DFN_mesh.JM_Each_Frac[i][j](jq);
                     size_t Node_n = DFN_mesh.JM_Each_Frac[i][j](kq);
-
-                    size_t Global_Idx = Node_m * Matrix_D + Node_n;
-
-                    K_overall[Global_Idx] = K_overall[Global_Idx] + round(D1e(jq, kq), 4);
+                    /*
+                    if (VDF4 == true && Node_m + 1 == 1 && Node_n + 1 == 1)
+                        cout << "Node_m: " << Node_m + 1 << ", Node_n: " << Node_n + 1 << endl;
+                        */
+                    KK_big(Node_m, Node_n) += D1e(jq, kq);
                 }
             }
 
             //
+            /*
+            if (VDF4 == true)
+                cout << "D2e\n";
+                */
             for (size_t jq = 0; jq < 6; ++jq)
             {
                 for (size_t kq = 0; kq < 6; ++kq)
                 {
                     size_t Node_m = DFN_mesh.JM_Each_Frac[i][j](jq);
                     size_t Node_n = DFN_mesh.JM_Each_Frac[i][j](kq);
-
-                    size_t Global_Idx = (Node_m + NUM_NODES_velocity) * Matrix_D + (Node_n + NUM_NODES_velocity);
-
-                    K_overall[Global_Idx] = K_overall[Global_Idx] + round(D1e(jq, kq), 4);
+                    /*
+                    if (VDF4 == true && Node_m + 1 == 1 && Node_n + 1 == 1)
+                        cout << "Node_m: " << Node_m + 1 << ", Node_n: " << Node_n + 1 << endl;
+                        */
+                    KK_big(Node_m + NUM_NODES_velocity, Node_n + NUM_NODES_velocity) += D1e(jq, kq);
                 }
             }
 
-            for (size_t jq = 0; jq < 6; ++jq)
-            {
-                for (size_t kq = 0; kq < 3; ++kq)
-                {
-                    int yt = -1;
-                    if (kq == 0)
-                        yt = 0;
-                    else if (kq == 1)
-                        yt = 2;
-                    else if (kq == 2)
-                        yt = 4;
-
-                    size_t Node_m = DFN_mesh.JM_Each_Frac[i][j](jq);
-                    size_t Node_n = DFN_mesh.JM_Each_Frac[i][j](yt);
-                    Node_n = DFN_mesh.PntTagLinear[Node_n];
-
-                    size_t Global_Idx = (Node_m)*Matrix_D + (Node_n + 2 * NUM_NODES_velocity);
-
-                    K_overall[Global_Idx] = K_overall[Global_Idx] + round(C1e(jq, kq), 4);
-                }
-            }
-
+            /*
+            if (VDF4 == true)
+                cout << "C1e\n";*/
             for (size_t jq = 0; jq < 6; ++jq)
             {
                 for (size_t kq = 0; kq < 3; ++kq)
@@ -510,15 +495,53 @@ inline void FEM_DFN_A::Assemble_overall_matrix(DFN::Mesh_DFN_overall DFN_mesh, d
                         yt = 4;
 
                     size_t Node_m = DFN_mesh.JM_Each_Frac[i][j](jq);
-                    size_t Node_n = DFN_mesh.JM_Each_Frac[i][j](yt);
-                    Node_n = DFN_mesh.PntTagLinear[Node_n];
+                    int Node_n = DFN_mesh.JM_Each_Frac[i][j](yt);
 
-                    size_t Global_Idx = (Node_m + NUM_NODES_velocity) * Matrix_D + (Node_n + 2 * NUM_NODES_velocity);
+                    if (Node_n == -1)
+                    {
+                        throw Error_throw_pause("pressure node must be corner point!");
+                    }
+                    /*
+                    if (VDF4 == true && Node_m + 1 == 1 && Node_n + 1 == 1)
+                        cout << "Node_m: " << Node_m + 1 << ", Node_n: " << Node_n + 1 << endl;*/
 
-                    K_overall[Global_Idx] = K_overall[Global_Idx] + round(C2e(jq, kq), 4);
+                    KK_big(Node_m, Node_n + 2 * NUM_NODES_velocity) += C1e(jq, kq);
                 }
             }
 
+            /*
+            if (VDF4 == true)
+                cout << "C2e\n";*/
+            for (size_t jq = 0; jq < 6; ++jq)
+            {
+                for (size_t kq = 0; kq < 3; ++kq)
+                {
+                    int yt = -1;
+                    if (kq == 0)
+                        yt = 0;
+                    else if (kq == 1)
+                        yt = 2;
+                    else if (kq == 2)
+                        yt = 4;
+
+                    size_t Node_m = DFN_mesh.JM_Each_Frac[i][j](jq);
+                    int Node_n = DFN_mesh.JM_Each_Frac[i][j](yt);
+
+                    if (Node_n == -1)
+                    {
+                        throw Error_throw_pause("pressure node must be corner point!");
+                    }
+                    /*
+                    if (VDF4 == true && Node_m + 1 == 1 && Node_n + 1 == 1)
+                        cout << "Node_m: " << Node_m + 1 << ", Node_n: " << Node_n + 1 << endl;*/
+
+                    KK_big(Node_m + NUM_NODES_velocity, Node_n + 2 * NUM_NODES_velocity) += C2e(jq, kq);
+                }
+            }
+
+            /*
+            if (VDF4 == true)
+                cout << "B1e\n";*/
             for (size_t jq = 0; jq < 3; ++jq)
             {
                 for (size_t kq = 0; kq < 6; ++kq)
@@ -531,16 +554,25 @@ inline void FEM_DFN_A::Assemble_overall_matrix(DFN::Mesh_DFN_overall DFN_mesh, d
                     else if (jq == 2)
                         yt = 4;
 
-                    size_t Node_m = DFN_mesh.JM_Each_Frac[i][j](yt);
-                    Node_m = DFN_mesh.PntTagLinear[Node_m];
+                    int Node_m = DFN_mesh.JM_Each_Frac[i][j](yt);
                     size_t Node_n = DFN_mesh.JM_Each_Frac[i][j](kq);
 
-                    size_t Global_Idx = (Node_m + 2 * NUM_NODES_velocity) * Matrix_D + (Node_n);
+                    if (Node_m == -1)
+                    {
+                        throw Error_throw_pause("pressure node must be corner point!");
+                    }
 
-                    K_overall[Global_Idx] = K_overall[Global_Idx] + round(B1e(jq, kq), 4);
+                    /*
+                    if (VDF4 == true && Node_m + 1 == 1 && Node_n + 1 == 1)
+                        cout << "Node_m: " << Node_m + 1 << ", Node_n: " << Node_n + 1 << endl;*/
+
+                    KK_big(Node_m + 2 * NUM_NODES_velocity, Node_n) += B1e(jq, kq);
                 }
             }
 
+            /*
+            if (VDF4 == true)
+                cout << "B2e\n";*/
             for (size_t jq = 0; jq < 3; ++jq)
             {
                 for (size_t kq = 0; kq < 6; ++kq)
@@ -553,13 +585,20 @@ inline void FEM_DFN_A::Assemble_overall_matrix(DFN::Mesh_DFN_overall DFN_mesh, d
                     else if (jq == 2)
                         yt = 4;
 
-                    size_t Node_m = DFN_mesh.JM_Each_Frac[i][j](yt);
-                    Node_m = DFN_mesh.PntTagLinear[Node_m];
+                    int Node_m = DFN_mesh.JM_Each_Frac[i][j](yt);
                     size_t Node_n = DFN_mesh.JM_Each_Frac[i][j](kq);
 
-                    size_t Global_Idx = (Node_m + 2 * NUM_NODES_velocity) * Matrix_D + (Node_n + NUM_NODES_velocity);
+                    if (Node_m == -1)
+                    {
+                        throw Error_throw_pause("pressure node must be corner point!");
+                    }
 
-                    K_overall[Global_Idx] = K_overall[Global_Idx] + round(B2e(jq, kq), 4);
+                    /*
+                    if (VDF4 == true && Node_m + 1 == 1 && Node_n + 1 == 1)
+                        cout << "Node_m: " << Node_m + 1 << ", Node_n: " << Node_n + 1 << endl;
+                        */
+
+                    KK_big(Node_m + 2 * NUM_NODES_velocity, Node_n + NUM_NODES_velocity) += B2e(jq, kq);
                 }
             }
         }
@@ -592,6 +631,7 @@ inline void FEM_DFN_A::Assemble_overall_matrix(DFN::Mesh_DFN_overall DFN_mesh, d
                     DFN_mesh.Pnt_attri[pnt_ID_2].If_model_top == true)
                 {
                     BC_top[i].push_back(Vector3d{(double)pnt_ID_0, (double)pnt_ID_1, (double)pnt_ID_2}); //
+                    //cout << "1st top: " << pnt_ID_0 + 1 << ", " << pnt_ID_1 + 1 << ", " << pnt_ID_2 + 1 << endl;
                 }
                 else if (DFN_mesh.Pnt_attri[pnt_ID_0].If_model_bottom == true &&
                          DFN_mesh.Pnt_attri[pnt_ID_1].If_model_bottom == true &&
@@ -610,6 +650,7 @@ inline void FEM_DFN_A::Assemble_overall_matrix(DFN::Mesh_DFN_overall DFN_mesh, d
                      (DFN_mesh.Pnt_attri[pnt_ID_0].If_frac_bound == true && DFN_mesh.Pnt_attri[pnt_ID_1].If_frac_bound == true && DFN_mesh.Pnt_attri[pnt_ID_2].If_frac_bound == true)))
                 {
 
+                    //cout << pnt_ID_0 + 1 << ", " << pnt_ID_2 + 1 << endl;
                     double q0 = 0, q1 = 0, q2 = 0; // velocity boundary condition
 
                     double L = (DFN_mesh.JXY_3D[pnt_ID_0] - DFN_mesh.JXY_3D[pnt_ID_2]).norm();
@@ -619,9 +660,10 @@ inline void FEM_DFN_A::Assemble_overall_matrix(DFN::Mesh_DFN_overall DFN_mesh, d
 
                     size_t Node_s1 = pnt_ID_0, Node_s2 = pnt_ID_2;
 
-                    F_overall[Node_s1 + NUM_NODES_velocity * 2] = F_overall[Node_s1 + NUM_NODES_velocity * 2] + Ge(0);
-
-                    F_overall[Node_s2 + NUM_NODES_velocity * 2] = F_overall[Node_s2 + NUM_NODES_velocity * 2] + Ge(1);
+                    FF_big[Node_s1 + NUM_NODES_velocity * 2] += Ge(0);
+                    FF_big[Node_s2 + NUM_NODES_velocity * 2] += Ge(1);
+                    //-------------
+                    cout << "JB2.push_back(Vector4S{" << pnt_ID_0 << "," << pnt_ID_1 << "," << pnt_ID_2 << ", 0});\n";
                 }
             }
         }
@@ -629,9 +671,9 @@ inline void FEM_DFN_A::Assemble_overall_matrix(DFN::Mesh_DFN_overall DFN_mesh, d
 
     // 1st BC
     // i th fracture
-    for (size_t i = 0; i < (size_t)DFN_mesh.PntTagLinear.size(); ++i)
+    for (size_t i = 0; i < DFN_mesh.NUM_of_linear_NODES; ++i)
     {
-        if (DFN_mesh.PntTagLinear[i] != -1 && (DFN_mesh.Pnt_attri[i].If_model_top == true || DFN_mesh.Pnt_attri[i].If_model_bottom == true))
+        if ((DFN_mesh.Pnt_attri[i].If_model_top == true || DFN_mesh.Pnt_attri[i].If_model_bottom == true))
         {
             double BC_1 = 0;
             if (DFN_mesh.Pnt_attri[i].If_model_top == true)
@@ -644,28 +686,99 @@ inline void FEM_DFN_A::Assemble_overall_matrix(DFN::Mesh_DFN_overall DFN_mesh, d
                 BC_1 = 20;
             }
 
-            int node_s = DFN_mesh.PntTagLinear[i];
+            int node_s = i;
+            //cout << "node_s: " << node_s + 1 << ", BC: " << BC_1 << endl;
+            cout << "JB1.push_back(Vector2d(" << node_s << ", " << BC_1 << "));\n";
+            node_s += 2 * NUM_NODES_velocity;
+            for (size_t go = 0; go < Matrix_D; ++go)
+            {
+                FF_big[go] -= KK_big(go, node_s) * BC_1;
+            }
 
             for (size_t go = 0; go < Matrix_D; ++go)
             {
-                size_t golbalID = go * Matrix_D + node_s + 2 * NUM_NODES_velocity; // column
-
-                F_overall[go] = F_overall[go] - K_overall[golbalID] * BC_1;
-
-                //cout << "K_overall[golbalID]: " << K_overall[golbalID] << endl;
-
-                K_overall[golbalID] = 0;
-
-                size_t golbalID_row = (node_s + 2 * NUM_NODES_velocity) * Matrix_D + go; // row
-                K_overall[golbalID_row] = 0;
+                KK_big(go, node_s) = 0;
             }
-            //exit(0);
-            K_overall[(node_s + 2 * NUM_NODES_velocity) * Matrix_D + (node_s + 2 * NUM_NODES_velocity)] = 1;
 
-            F_overall[(node_s + 2 * NUM_NODES_velocity)] = BC_1;
+            for (size_t go = 0; go < Matrix_D; ++go)
+            {
+                KK_big(node_s, go) = 0;
+            }
+
+            KK_big(node_s, node_s) = 1;
+            FF_big[node_s] = BC_1;
         }
     }
+
+    //FF_big = KK_big.colPivHouseholderQr().solve(FF_big);
+    //cout << FF_big << endl;
+    //exit(0);
     //-----------1st
+    for (size_t i = 0; i < Matrix_D; ++i)
+    {
+        F_overall[i] = FF_big[i];
+        for (size_t j = 0; j < Matrix_D; ++j)
+        {
+            size_t ID_dx = i * Matrix_D + j;
+            K_overall[ID_dx] = KK_big(i, j);
+        }
+    }
+
+    //---------------------------------------------cout
+    
+    
+    cout << "JXY_3D.resize(" << NUM_NODES_velocity << ");\n";
+    for (size_t i = 0; i < NUM_NODES_velocity; ++i)
+        cout << "JXY_3D[" << i << "] << " << DFN_mesh.JXY_3D[i][0] << ", " << DFN_mesh.JXY_3D[i][1] << ", " << DFN_mesh.JXY_3D[i][2] << ";\n";
+
+    cout << "\nJXY_2D.resize(" << DFN_mesh.JXY_2D.size() << ");\n";
+    for (size_t i = 0; i < DFN_mesh.JXY_2D.size(); ++i)
+    {
+        cout << "JXY_2D[" << i << "].resize(" << DFN_mesh.JXY_2D[i].size() << ");\n";
+        for (size_t j = 0; j < NUM_NODES_velocity; ++j)
+        {
+            cout << "JXY_2D[" << i << "][" << j << "] << " << DFN_mesh.JXY_2D[i][j][0] << ", " << DFN_mesh.JXY_2D[i][j][1] << ";\n";
+        }
+    }
+    cout << "\nLinear_ID.resize(" << NUM_NODES_velocity << ");\n";
+    for (size_t i = 0; i < NUM_NODES_velocity; ++i)
+    {
+        if (i < NUM_NODES_p)
+            cout << "Linear_ID[" << i << "] = " << i << ";\n";
+        else
+            cout << "Linear_ID[" << i << "] = " << -1 << ";\n";
+    }
+
+    cout << "\nJM.resize(" << DFN_mesh.JM.size() << ");\n";
+    for (size_t i = 0; i < DFN_mesh.JM.size(); ++i)
+    {
+        cout << "JM[" << i << "] << ";
+        cout << DFN_mesh.JM[i][0] << ", ";
+        cout << DFN_mesh.JM[i][1] << ", ";
+        cout << DFN_mesh.JM[i][2] << ", ";
+        cout << DFN_mesh.JM[i][3] << ", ";
+        cout << DFN_mesh.JM[i][4] << ", ";
+        cout << DFN_mesh.JM[i][5] << ";\n";
+    }
+
+    cout << "\nJM_2D.resize(" << DFN_mesh.JM_Each_Frac.size() << ");\n";
+    for (size_t i = 0; i < DFN_mesh.JM_Each_Frac.size(); ++i)
+    {
+        cout << "JM_2D[" << i << "].resize(" << DFN_mesh.JM_Each_Frac[i].size() << ");\n";
+        for (size_t j = 0; j < DFN_mesh.JM_Each_Frac[i].size(); ++j)
+        {
+            cout << "JM_2D[" << i << "][" << j << "] << ";
+            cout << DFN_mesh.JM_Each_Frac[i][j][0] << ", ";
+            cout << DFN_mesh.JM_Each_Frac[i][j][1] << ", ";
+            cout << DFN_mesh.JM_Each_Frac[i][j][2] << ", ";
+            cout << DFN_mesh.JM_Each_Frac[i][j][3] << ", ";
+            cout << DFN_mesh.JM_Each_Frac[i][j][4] << ", ";
+            cout << DFN_mesh.JM_Each_Frac[i][j][5] << ";\n";
+        }
+    }
+
+    cout << "\nnum_NODES = " << DFN_mesh.NUM_of_NODES << ";\n";
+    cout << "\nnum_P_nodes = " << DFN_mesh.NUM_of_linear_NODES << ";\n";
 }
 
 inline void FEM_DFN_A::p_PHI_over_p_x_and_y(double xi,
@@ -901,18 +1014,15 @@ inline void FEM_DFN_A::PSI_shape_function(double xi,
 inline void FEM_DFN_A::FEM_results(DFN::Mesh_DFN_overall DFN_mesh, double *F_overall, DFN::Domain dom)
 {
     size_t NUM_NODES_velocity = DFN_mesh.NUM_of_NODES;
-    //size_t NUM_NODES_p = DFN_mesh.NUM_of_linear_NODES;
+    size_t NUM_NODES_p = DFN_mesh.NUM_of_linear_NODES;
     //
-    h_head = Eigen::VectorXd::Zero(NUM_NODES_velocity);
+    h_head = Eigen::VectorXd::Zero(NUM_NODES_p);
 
     Velocity_3D.resize(DFN_mesh.Frac_Tag.size());
 
-    for (size_t i = 0; i < NUM_NODES_velocity; ++i)
+    for (size_t i = 0; i < NUM_NODES_p; ++i)
     {
-        if (DFN_mesh.PntTagLinear[i] != -1)
-        {
-            h_head[i] = F_overall[(size_t)DFN_mesh.PntTagLinear[i] + 2 * NUM_NODES_velocity];
-        }
+        h_head[i] = F_overall[i + 2 * NUM_NODES_velocity];
     }
 
     for (size_t i = 0; i < DFN_mesh.Frac_Tag.size(); ++i)
@@ -982,6 +1092,9 @@ inline void FEM_DFN_A::In_and_out_flux(DFN::Mesh_DFN_overall DFN_mesh, DFN::Doma
         }
     }
 
+    cout << "Q_out: " << Q_out << endl;
+    cout << "Q_in: " << Q_in << endl;
+
     if (abs(Q_in - Q_out) / (Q_in > Q_out ? Q_in : Q_out) < 0.3)
     {
         double bc_top = 100, bc_bot = 20;
@@ -991,6 +1104,7 @@ inline void FEM_DFN_A::In_and_out_flux(DFN::Mesh_DFN_overall DFN_mesh, DFN::Doma
         //cout << "gradient_head: " << gradient_head << endl;
         //cout << "Q: " << (Q_out + Q_in) * 0.5 << endl;
         this->Permeability = (Q_out + Q_in) * 0.5 / (pow(L, 2.0) * gradient_head);
+        cout << "Permeability " << Permeability << endl;
     }
     else
     {
@@ -1021,9 +1135,9 @@ inline void FEM_DFN_A::matlab_plot(string FileKey_mat, string FileKey_m, DFN::Do
     double *pData2;
     double *pData3;
 
-    pData1 = (double *)mxCalloc(DFN_mesh.NUM_of_NODES * 3, sizeof(double)); // xyz
-    pData2 = (double *)mxCalloc(DFN_mesh.JM.size() * 6, sizeof(double));    // topo
-    pData3 = (double *)mxCalloc(DFN_mesh.NUM_of_NODES, sizeof(double));     // head
+    pData1 = (double *)mxCalloc(DFN_mesh.NUM_of_NODES * 3, sizeof(double));    // xyz
+    pData2 = (double *)mxCalloc(DFN_mesh.JM.size() * 6, sizeof(double));       // topo
+    pData3 = (double *)mxCalloc(DFN_mesh.NUM_of_linear_NODES, sizeof(double)); // head
 
     mxArray *pMxArray1;
     mxArray *pMxArray2;
@@ -1031,7 +1145,7 @@ inline void FEM_DFN_A::matlab_plot(string FileKey_mat, string FileKey_m, DFN::Do
 
     pMxArray1 = mxCreateDoubleMatrix(DFN_mesh.NUM_of_NODES, 3, mxREAL);
     pMxArray2 = mxCreateDoubleMatrix(DFN_mesh.JM.size(), 6, mxREAL);
-    pMxArray3 = mxCreateDoubleMatrix(DFN_mesh.NUM_of_NODES, 1, mxREAL);
+    pMxArray3 = mxCreateDoubleMatrix(DFN_mesh.NUM_of_linear_NODES, 1, mxREAL);
 
     if (!pMxArray1 || !pMxArray2 || !pMxArray3)
     {
@@ -1061,7 +1175,7 @@ inline void FEM_DFN_A::matlab_plot(string FileKey_mat, string FileKey_m, DFN::Do
         pData2[j] = DFN_mesh.JM[l](k) + 1;
     }
 
-    for (size_t j = 0; j < DFN_mesh.NUM_of_NODES; ++j)
+    for (size_t j = 0; j < DFN_mesh.NUM_of_linear_NODES; ++j)
     {
         pData3[j] = this->h_head[j];
     }
@@ -1187,7 +1301,7 @@ inline void FEM_DFN_A::matlab_plot(string FileKey_mat, string FileKey_m, DFN::Do
     oss << "axis([" << xmin_1 << " " << xmax_1 << " " << ymin_1 << " " << ymax_1 << " " << zmin_1 << " " << zmax_1 << "])\nhold on;\nxlabel('x (m)');\nylabel('y (m)');\nzlabel('z (m)');\ntitle('DFN');\n";
 
     oss << "title('DFN head and velocity vector');\n";
-    oss << "P = patch('Vertices', " << Frac_JXY_3D << ", 'Faces', " << Topo_3D << "(:, [1,3,5]), 'FaceVertexCData', " << Head << ", 'FaceColor', 'interp', 'EdgeAlpha', 0.9, 'facealpha', 1);\n";
+    oss << "P = patch('Vertices', " << Frac_JXY_3D << "(1:" << DFN_mesh.NUM_of_linear_NODES << ",:), 'Faces', " << Topo_3D << "(:, [1,3,5]), 'FaceVertexCData', " << Head << ", 'FaceColor', 'interp', 'EdgeAlpha', 0.9, 'facealpha', 1);\n";
     oss << "hold on;\n";
     oss << "colorbar;\n";
 

@@ -30,7 +30,8 @@ class Mesh_DFN_overall
 {
 public:
     std::vector<Vector3d> JXY_3D;
-    VectorXd PntTagLinear;
+    //VectorXd PntTagLinear;
+    vector<vector<Vector3d>> JXY_2D;
 
     std::vector<P_attri> Pnt_attri;
 
@@ -46,16 +47,22 @@ public:
     size_t NUM_of_linear_NODES;
 
 public:
+    Mesh_DFN_overall();
     Mesh_DFN_overall(DFN::Domain dom, const double min_ele_edge, const double max_ele_edge);
     void Matlab_plot(string FileKey_mat, string FileKey_m, DFN::Domain dom);
     void Identify_point_attribute_and_2D_meshes(DFN::Domain dom);
+    void Resort_pnts_orders();
+    void Rotate_JXY_3D_to_2D(DFN::Domain dom);
 };
+
+inline Mesh_DFN_overall::Mesh_DFN_overall(){};
 
 inline Mesh_DFN_overall::Mesh_DFN_overall(DFN::Domain dom, const double min_ele_edge, const double max_ele_edge)
 {
     //---------------------------------------
 #pragma omp critical
     {
+
         size_t VertsPntID = 1;
         size_t LineID = 1;
         size_t CurveLoopID = 1;
@@ -71,6 +78,7 @@ inline Mesh_DFN_overall::Mesh_DFN_overall(DFN::Domain dom, const double min_ele_
             for (size_t j = 0; j < dom.Listofclusters[ClusterID].size(); ++j)
             {
                 size_t FracID = dom.Listofclusters[ClusterID][j];
+
                 Frac_Tag.push_back(FracID);
                 std::vector<int> Pointloop(dom.Fractures[FracID].Verts_trim.size());
                 for (size_t k = 0; k < dom.Fractures[FracID].Verts_trim.size(); ++k)
@@ -170,8 +178,68 @@ inline Mesh_DFN_overall::Mesh_DFN_overall(DFN::Domain dom, const double min_ele_
         gmsh::clear();
         gmsh::finalize();
 
+        this->Resort_pnts_orders();
+
         this->Identify_point_attribute_and_2D_meshes(dom);
+        this->Rotate_JXY_3D_to_2D(dom);
+
     };
+};
+
+inline void Mesh_DFN_overall::Resort_pnts_orders()
+{
+    size_t PNT_NUM = this->JXY_3D.size();
+    std::set<size_t> CornerID, MiddleID;
+    for (size_t i = 0; i < this->JM.size(); ++i)
+    {
+        CornerID.insert(size_t(this->JM[i][0]));
+        CornerID.insert(size_t(this->JM[i][2]));
+        CornerID.insert(size_t(this->JM[i][4]));
+
+        MiddleID.insert(size_t(this->JM[i][1]));
+        MiddleID.insert(size_t(this->JM[i][3]));
+        MiddleID.insert(size_t(this->JM[i][5]));
+    }
+
+    std::vector<size_t> old_vs_newID(PNT_NUM); // old is the index, new is the size_t element
+
+    size_t _temp_ID_ = 0;
+    for (std::set<size_t>::iterator its = CornerID.begin();
+         its != CornerID.end(); ++its)
+    {
+        //its->second = _temp_ID_;
+        old_vs_newID[*its] = _temp_ID_; // it* is the old ID
+        _temp_ID_++;
+    }
+
+    for (std::set<size_t>::iterator its = MiddleID.begin();
+         its != MiddleID.end(); ++its)
+    {
+        //its->second = _temp_ID_;
+        old_vs_newID[*its] = _temp_ID_;
+        _temp_ID_++;
+    }
+
+    std::vector<Vector3d> newJXY_3D(PNT_NUM);
+    for (size_t i = 0; i < PNT_NUM; ++i)
+    {
+        size_t newID = old_vs_newID[i];
+        newJXY_3D[newID] = this->JXY_3D[i];
+    }
+
+    std::vector<RowVector6i> newJM(this->JM.size());
+    for (size_t i = 0; i < this->JM.size(); ++i)
+    {
+        for (size_t j = 0; j < 6; ++j)
+        {
+            size_t oldID = this->JM[i][j];
+            size_t newID = old_vs_newID[oldID];
+            newJM[i][j] = newID;
+        }
+    }
+
+    this->JXY_3D = newJXY_3D;
+    this->JM = newJM;
 };
 
 inline void Mesh_DFN_overall::Identify_point_attribute_and_2D_meshes(DFN::Domain dom)
@@ -181,10 +249,10 @@ inline void Mesh_DFN_overall::Identify_point_attribute_and_2D_meshes(DFN::Domain
     VectorXd Idx_u;
     Idx_u = Eigen::VectorXd::Zero(this->JXY_3D.size());
 
-    size_t PntTag_p = 0;
+    //size_t PntTag_p = 0;
 
-    PntTagLinear = Eigen::VectorXd::Zero(this->JXY_3D.size());
-    PntTagLinear = PntTagLinear.array() - 1;
+    //PntTagLinear = Eigen::VectorXd::Zero(this->JXY_3D.size());
+    //PntTagLinear = PntTagLinear.array() - 1;
 
     this->Pnt_attri.resize(this->JXY_3D.size());
 
@@ -256,8 +324,8 @@ inline void Mesh_DFN_overall::Identify_point_attribute_and_2D_meshes(DFN::Domain
                 if (j % 2 == 0)
                 {
                     Pnt_attri[PntID].If_corner = true;
-                    PntTagLinear[PntID] = PntTag_p;
-                    PntTag_p++;
+                    //PntTagLinear[PntID] = PntTag_p;
+                    //PntTag_p++;
                 }
             }
         }
@@ -283,11 +351,6 @@ inline void Mesh_DFN_overall::Identify_point_attribute_and_2D_meshes(DFN::Domain
                 throw Error_throw_ignore("Cannot find which frac does this element lie on. In class Mesh_DFN_overall");
             }
         }
-    }
-
-    if (PntTag_p != NUM_of_linear_NODES)
-    {
-        throw Error_throw_ignore("Error! The number of linear nodes cannot match the tag of the final linear node!\n");
     }
 };
 
@@ -528,23 +591,23 @@ void Mesh_DFN_overall::Matlab_plot(string FileKey_mat, string FileKey_m, DFN::Do
     oss << "\t\t\tBOTTOM = [BOTTOM i];\n";
     oss << "\t\tend;\n";
 
-    oss << "\t\tif (" << PntAttri_s << "(i, 3) == 1)\n";
+    oss << "\t\tif (" << PntAttri_s << "(i, 3) == 1 & " << PntAttri_s << "(i, 1) ~= 1 & " << PntAttri_s << "(i, 2) ~= 1)\n";
     oss << "\t\t\tFRONT= [FRONT i];\n";
     oss << "\t\tend;\n";
 
-    oss << "\t\tif (" << PntAttri_s << "(i, 4) == 1)\n";
+    oss << "\t\tif (" << PntAttri_s << "(i, 4) == 1 & " << PntAttri_s << "(i, 1) ~= 1 & " << PntAttri_s << "(i, 2) ~= 1)\n";
     oss << "\t\t\tBACK= [BACK i];\n";
     oss << "\t\tend;\n";
 
-    oss << "\t\tif (" << PntAttri_s << "(i, 5) == 1)\n";
+    oss << "\t\tif (" << PntAttri_s << "(i, 5) == 1 & " << PntAttri_s << "(i, 1) ~= 1 & " << PntAttri_s << "(i, 2) ~= 1)\n";
     oss << "\t\t\tLEFT= [LEFT i];\n";
     oss << "\t\tend;\n";
 
-    oss << "\t\tif (" << PntAttri_s << "(i, 6) == 1)\n";
+    oss << "\t\tif (" << PntAttri_s << "(i, 6) == 1 & " << PntAttri_s << "(i, 1) ~= 1 & " << PntAttri_s << "(i, 2) ~= 1)\n";
     oss << "\t\t\tRIGHT= [RIGHT i];\n";
     oss << "\t\tend;\n";
 
-    oss << "\t\tif (" << PntAttri_s << "(i, 7) == 1)\n";
+    oss << "\t\tif (" << PntAttri_s << "(i, 7) == 1 & " << PntAttri_s << "(i, 1) ~= 1 & " << PntAttri_s << "(i, 2) ~= 1)\n";
     oss << "\t\t\tBOUND= [BOUND i];\n";
     oss << "\t\tend;\n";
 
@@ -561,10 +624,16 @@ void Mesh_DFN_overall::Matlab_plot(string FileKey_mat, string FileKey_m, DFN::Do
 
     oss << "if (index_frac_bound == 1)\n";
     ;
-    oss << "\tindex_frac_bound2 = input('do you want to see model bound points? Input 1 for yes, and other any character for no.');\n";
+    oss << "\tindex_frac_bound2 = input('do you want to see top and bottom points? Input 1 for yes, and other any character for no.');\n";
 
     oss << "\tif (index_frac_bound2 == 1)\n";
-    oss << "\t\tscatter3(Frac_JXY3D([TOP BOTTOM FRONT BACK LEFT RIGHT], 1), Frac_JXY3D([TOP BOTTOM FRONT BACK LEFT RIGHT], 2), Frac_JXY3D([TOP BOTTOM FRONT BACK LEFT RIGHT], 3), 'o', 'blue', 'filled');\n";
+    oss << "\t\tscatter3(Frac_JXY3D([TOP BOTTOM], 1), Frac_JXY3D([TOP BOTTOM], 2), Frac_JXY3D([TOP BOTTOM], 3), 'o', 'green', 'filled');\n";
+    oss << "\tend;\n";
+
+    oss << "\tindex_frac_bound2 = input('do you want to see lateral surface points? Input 1 for yes, and other any character for no.');\n";
+
+    oss << "\tif (index_frac_bound2 == 1)\n";
+    oss << "\t\tscatter3(Frac_JXY3D([FRONT BACK LEFT RIGHT], 1), Frac_JXY3D([FRONT BACK LEFT RIGHT], 2), Frac_JXY3D([FRONT BACK LEFT RIGHT], 3), 'o', 'blue', 'filled');\n";
     oss << "\tend;\n";
 
     oss << "\tindex_frac_bound2 = input('do you want to see frac bound points? Input 1 for yes, and other any character for no.');\n";
@@ -600,7 +669,72 @@ void Mesh_DFN_overall::Matlab_plot(string FileKey_mat, string FileKey_m, DFN::Do
     }
     oss << "end;\n";
 
+    oss << "\n\n\nfigure(1)\n"
+        << endl;
+    oss << "[m, ~] = size(Frac_JXY3D);\n";
+    oss << "for i = 1:m\n";
+    oss << "\ttext(Frac_JXY3D(i, 1), Frac_JXY3D(i, 2), Frac_JXY3D(i, 3), num2str(i), 'FontSize', 11);\n";
+    oss << "end\n";
+
+    //oss << "\n\n\nfigure(3)\n"
+    //  << endl;
+    /*
+    for (size_t i = 0; i < Frac_Tag.size(); ++i)
+    {
+        oss << "fill3([Frac_" << i << "_x; Frac_" << i << "_x(1,1)], [Frac_" << i << "_y; Frac_" << i << "_y(1,1)], [Frac_" << i << "_z; Frac_" << i << "_z(1,1)], [rand rand rand]);\nhold on;\n";
+    }
+    for (int i = 0; i < PntTagLinear.size(); ++i)
+    {
+        if (PntTagLinear[i] != -1)
+        {
+            oss << "text(" << JXY_3D[i](0) << ", " << JXY_3D[i](1) << ", " << JXY_3D[i](2) << ", num2str(" << PntTagLinear[i] + 1 << "), 'FontSize', 11);\nhold on;\n";
+        }
+    }
+    */
+
     oss.close();
+};
+
+inline void Mesh_DFN_overall::Rotate_JXY_3D_to_2D(DFN::Domain dom)
+{
+    JXY_2D.resize(JM_Each_Frac.size());
+
+    for (size_t i = 0; i < JM_Each_Frac.size(); ++i)
+    {
+        JXY_2D[i].resize(this->JXY_3D.size());
+
+        VectorXd PNT_INDICATOR = Eigen::VectorXd::Zero(this->JXY_3D.size());
+
+        size_t Frac_Tag = this->Frac_Tag[i];
+
+        DFN::Polygon_convex_3D poly{dom.Fractures[Frac_Tag].Verts_trim};
+        std::vector<Vector3d> verts1;
+        DFN::Rotate_to_horizontal R1{poly.Corners, verts1};
+
+        for (size_t j = 0; j < JM_Each_Frac[i].size(); ++j)
+        {
+            for (size_t k = 0; k < 6; ++k)
+            {
+                size_t PNT_ID = JM_Each_Frac[i][j][k];
+                if (PNT_INDICATOR[PNT_ID] == 0)
+                {
+                    PNT_INDICATOR[PNT_ID] = 1;
+
+                    bool UY;
+                    std::vector<Vector3d> jxy_3d(1), verts2;
+                    jxy_3d[0] = this->JXY_3D[PNT_ID];
+                    R1.Rotate_other_pnts(jxy_3d, verts2, UY);
+                    if (UY == false)
+                    {
+                        cout << "Rotate pnts to 2D failed! In class 'MESH_DFN_overall'\n";
+                        throw Error_throw_ignore("Rotate pnts to 2D failed! In class 'MESH_DFN_overall'!\n");
+                    }
+
+                    JXY_2D[i][PNT_ID] = verts2[0];
+                }
+            }
+        }
+    }
 };
 
 }; // namespace DFN
