@@ -217,9 +217,14 @@ inline Fracture::Fracture(string string_ori,
     NormalizeRotation(sub_angle1, axis_z, Q_axis_z1);
     Rotation(lower1, Q_axis_z1, upper1);
     Vector3d temp1;
-    //cout << "debug 1.5\n";
-    temp1(0) = random_double(ceil(lower1(0)), floor(upper1(0)));
-    //cout << "debug 1.6\n";
+
+    if (ceil(lower1(0)) == floor(upper1(0)))
+    {
+        temp1(0) = random_double(ceil(lower1(0)), floor(upper1(0)) + 1.0);
+    }
+    else
+        temp1(0) = random_double(ceil(lower1(0)), floor(upper1(0)));
+
     temp1(1) = pow((Radius * Radius - temp1(0) * temp1(0)), 0.5);
 
     temp1(2) = 0;
@@ -315,6 +320,7 @@ inline Fracture::Fracture(string string_ori,
     Verts_trim.resize(Verts.size());
     for (size_t i = 0; i < Verts.size(); ++i)
         Verts_trim[i] = Verts[i];
+
     Nvertices_trim = Nvertices;
     Area_trim = Area;
     Perimeter_trim = Perimeter;
@@ -439,8 +445,14 @@ inline Fracture::Fracture(string string_ori,
     NormalizeRotation(sub_angle1, axis_z, Q_axis_z1);
     Rotation(lower1, Q_axis_z1, upper1);
     Vector3d temp1;
-    temp1(0) = random_double(ceil(lower1(0)),
-                             floor(upper1(0)));
+
+    if (ceil(lower1(0)) == floor(upper1(0)))
+    {
+        temp1(0) = random_double(ceil(lower1(0)), floor(upper1(0)) + 1.0);
+    }
+    else
+        temp1(0) = random_double(ceil(lower1(0)), floor(upper1(0)));
+
     temp1(1) = pow((Radius * Radius - temp1(0) *
                                           temp1(0)),
                    0.5);

@@ -41,6 +41,8 @@ inline Rotate_to_horizontal::Rotate_to_horizontal(DFN::Polygon_convex_3D Poly)
 inline Rotate_to_horizontal::Rotate_to_horizontal(DFN::Polygon_convex_3D Poly, std::vector<Vector3d> &verts_rotate)
 {
     std::vector<Vector3d> verts = Poly.Corners;
+    std::vector<Vector3d> normal_1(1), normal_2(1);
+    normal_1[0] = Poly.Normal_vector;
 
     DFN::Vector_2 v(Poly.Normal_vector, Ref_axis);
 
@@ -53,12 +55,14 @@ inline Rotate_to_horizontal::Rotate_to_horizontal(DFN::Polygon_convex_3D Poly, s
         //cout << "1;\n";
         verts_rotate.resize(verts.size());
         DFN::Rotation_verts R1(verts, theta_PI, Q_axis_1, Ref_axis, verts_rotate);
+        DFN::Rotation_verts R2(normal_1, theta_PI, Q_axis_1, Ref_axis, normal_2);
     }
     else
     {
         verts_rotate = verts;
+        normal_2 = normal_1;
     }
-
+    
     //-------a piece of debug code----
     for (size_t i = 0; i < verts_rotate.size(); i++)
     {

@@ -1,8 +1,10 @@
 #pragma once
 //#include "../Geometry_H/Intersection_Frac.h"
 #include "../Geometry_H/Intersection_Frac_boost.h"
+#include "../Geometry_H/Intersection_between_polygon_and_3D_box.h"
 #include "../Graph_WL_H/Graph_WL.h"
 #include "Fracture_WL.h"
+#include "mat.h"
 #include <fstream>
 #include <map>
 #include <sstream>
@@ -88,6 +90,8 @@ public:
     void Modify_fracture_attributes_Xmin(Fracture &F2);
     void Modify_fracture_attributes_Xmax(Fracture &F2);
 
+    void Modify_trimmed_fractures_attribute(Fracture &F2);
+
     void If_fracture_intersect_boundary(Fracture &F2);
     // if a fracture intersects boundary, then
     // label it
@@ -148,6 +152,8 @@ public:
     ///< outputs the data
 
     void Create_whole_model_II(const Vector6d model_size, std::vector<std::vector<Vector3d>> Frac_verts);
+
+    void Matlab_Out_Frac_matfile(string FileKey_mat);
 };
 
 inline void Domain::Create_whole_model(const size_t n,
@@ -161,13 +167,14 @@ inline void Domain::Create_whole_model(const size_t n,
                                        const std::vector<Vector7d> array13,
                                        const string conductivity_distri)
 {
+
     No_Verts_trim = 0;
     Random_function r1 = Random_function(random_seed);
 
     Model_set(model_size);
 
     Last_frac_size = -1;
-
+ 
     if (str_ori == "uniform")
     {
         for (size_t i = 0; i < n; ++i)
@@ -179,6 +186,7 @@ inline void Domain::Create_whole_model(const size_t n,
                 //cout << "debug 2\n";
                 AddSquareFracture(i, f);
                 No_Verts_trim += f.Nvertices_trim;
+                //cout << "debug 3\n";
             }
             else if (str_frac_size == "lognormal")
             {
@@ -189,7 +197,6 @@ inline void Domain::Create_whole_model(const size_t n,
             }
             else if (str_frac_size == "uniform")
             {
-
                 Fracture f(str_ori, str_frac_size, i, r1, array11, array12[0] /*, array13*/, Last_frac_size, conductivity_distri);
                 AddSquareFracture(i, f);
                 No_Verts_trim += f.Nvertices_trim;
@@ -254,7 +261,7 @@ inline void Domain::Create_whole_model(const size_t n,
             }
         }
     }
-
+   
     size_t nz = Fractures.size();
     if (nz == 0)
     {
@@ -284,10 +291,10 @@ inline void Domain::Create_whole_model(const size_t n,
         }
     }
 
-#pragma omp critical
-    {
+//#pragma omp critical
+    //{
         Clusters();
-    }
+    //}
 
     Correlation_length_and_gyration_radius();
     Average_number_of_intersections_per_fracture();
@@ -340,7 +347,7 @@ inline void Domain::Create_whole_model(const size_t n,
     else
     {
         throw Error_throw_pause("Error! Did not define fracture orientation distribution!\n");
-    }
+    };
 };
 
 inline void Domain::Model_set(const Vector6d model_size)
@@ -444,7 +451,7 @@ inline void Domain::Model_set(const Vector6d model_size)
 inline void Domain::AddSquareFracture(size_t Tag,
                                       Fracture &c)
 {
- 
+
     if (Model_domain(4) <= c.Center(0) &&
         Model_domain(5) >= c.Center(0) &&
         Model_domain(2) <= c.Center(1) &&
@@ -452,7 +459,6 @@ inline void Domain::AddSquareFracture(size_t Tag,
         Model_domain(1) <= c.Center(2) &&
         Model_domain(0) >= c.Center(2))
     {
- 
         bool y1 = Intersect_A(Surfaces[0], c);
         bool y2 = Intersect_A(Surfaces[1], c);
         bool y3 = Intersect_A(Surfaces[2], c);
@@ -461,37 +467,43 @@ inline void Domain::AddSquareFracture(size_t Tag,
         bool y6 = Intersect_A(Surfaces[5], c);
         if (y1 == 1 || y2 == 1 || y3 == 1 || y4 == 1 || y5 == 1 || y6 == 1)
         {
+            
             if (y1 == 1)
             {
                 c.If_intersect_surfaces(0) = 1;
-                Modify_fracture_attributes_Zmax(c);
+                //Modify_fracture_attributes_Zmax(c);
             }
-          
+
             if (y2 == 1)
             {
                 c.If_intersect_surfaces(1) = 1;
-                Modify_fracture_attributes_Zmin(c);
+                //Modify_fracture_attributes_Zmin(c);
             }
             if (y3 == 1)
             {
                 c.If_intersect_surfaces(2) = 1;
-                Modify_fracture_attributes_Ymin(c);
+                //Modify_fracture_attributes_Ymin(c);
             }
             if (y4 == 1)
             {
                 c.If_intersect_surfaces(3) = 1;
-                Modify_fracture_attributes_Ymax(c);
+                //Modify_fracture_attributes_Ymax(c);
             }
             if (y5 == 1)
             {
                 c.If_intersect_surfaces(4) = 1;
-                Modify_fracture_attributes_Xmin(c);
+                //Modify_fracture_attributes_Xmin(c);
             }
             if (y6 == 1)
             {
                 c.If_intersect_surfaces(5) = 1;
-                Modify_fracture_attributes_Xmax(c);
+                //Modify_fracture_attributes_Xmax(c);
             }
+            
+            std::vector<Vector3d> YT = c.Verts_trim;
+            DFN::Intersection_between_polygon_and_3D_box Inse{YT, this->Model_domain};
+            c.Verts_trim = YT;
+            Modify_trimmed_fractures_attribute(c);
         }
         If_fracture_intersect_boundary(c);
         Fractures.push_back(c);
@@ -501,56 +513,80 @@ inline void Domain::AddSquareFracture(size_t Tag,
         return;
     }
     else
-    {  
+    {
+
         bool y1 = Intersect_A(Surfaces[0], c);
         bool y2 = Intersect_A(Surfaces[1], c);
         bool y3 = Intersect_A(Surfaces[2], c);
         bool y4 = Intersect_A(Surfaces[3], c);
         bool y5 = Intersect_A(Surfaces[4], c);
         bool y6 = Intersect_A(Surfaces[5], c);
-
         if (y1 == 1 || y2 == 1 || y3 == 1 || y4 == 1 || y5 == 1 || y6 == 1)
         {
+
+            
             if (y1 == 1)
             {
+                
                 c.If_intersect_surfaces(0) = 1;
-                Modify_fracture_attributes_Zmax(c);
+                //Modify_fracture_attributes_Zmax(c);
+                
             }
             if (y2 == 1)
             {
+                
                 c.If_intersect_surfaces(1) = 1;
-                Modify_fracture_attributes_Zmin(c);
+                //Modify_fracture_attributes_Zmin(c);
+                
             }
             if (y3 == 1)
             {
+                
                 c.If_intersect_surfaces(2) = 1;
-                Modify_fracture_attributes_Ymin(c);
+                //Modify_fracture_attributes_Ymin(c);
+                
             }
             if (y4 == 1)
             {
+                
                 c.If_intersect_surfaces(3) = 1;
-                Modify_fracture_attributes_Ymax(c);
+                //Modify_fracture_attributes_Ymax(c);
+                
             }
             if (y5 == 1)
             {
+                
                 c.If_intersect_surfaces(4) = 1;
-                Modify_fracture_attributes_Xmin(c);
+                //Modify_fracture_attributes_Xmin(c);
+                
             }
             if (y6 == 1)
             {
+               
                 c.If_intersect_surfaces(5) = 1;
-                Modify_fracture_attributes_Xmax(c);
+                //Modify_fracture_attributes_Xmax(c);
+                
             }
-            Fractures.push_back(c);
-            If_fracture_intersect_boundary(c);
-            Fractures[Fractures.size() - 1].Tag = Fractures.size() - 1;
-            Last_frac_size = -1;
-            c.Nvertices_trim = c.Verts_trim.size();
+            
+            std::vector<Vector3d> YT = c.Verts_trim;
+            DFN::Intersection_between_polygon_and_3D_box Inse{YT, this->Model_domain};
+
+            if (YT.size() > 0)
+            {
+                c.Verts_trim = YT;
+                If_fracture_intersect_boundary(c);
+                Modify_trimmed_fractures_attribute(c);
+                Fractures.push_back(c);
+                Fractures[Fractures.size() - 1].Tag = Fractures.size() - 1;
+                Last_frac_size = -1;
+                c.Nvertices_trim = c.Verts_trim.size();
+            }
+
             return;
         }
     }
+
     Last_frac_size = -1; //c.Radius;
-    c.Nvertices_trim = c.Verts_trim.size();
     return;
 };
 
@@ -1376,7 +1412,14 @@ inline void Domain::Modify_fracture_attributes_Xmax(Fracture &F2) ///modify vert
     std::vector<Vector3d> Verts_temp1;
     size_t nt = 0;
     double Surf = Surfaces[5].Verts_trim[0](0);
+
     /// Fractures[5], Right, Xmax
+    cout << "111 Frac_trim: \n";
+    for (size_t i = 0; i < F2.Verts_trim.size(); ++i)
+        cout << F2.Verts_trim[i].transpose() << endl;
+    cout << "111 Frac: \n";
+    for (size_t i = 0; i < F2.Verts.size(); ++i)
+        cout << F2.Verts[i].transpose() << endl;
 
     if (F2.Verts_trim[0](0) <= Surf)
     {
@@ -1494,20 +1537,61 @@ inline void Domain::Modify_fracture_attributes_Xmax(Fracture &F2) ///modify vert
             }
         }
     }
-
+    cout << "222\n";
     ///-----------------
     F2.Nvertices_trim = Verts_temp1.size();
+
     F2.Verts_trim.resize(0);
     for (size_t i = 0; i < F2.Nvertices_trim; ++i)
         F2.Verts_trim.push_back(Verts_temp1[i]);
     ///-------------------Area
     ///Heron's formula
+    cout << "333\n";
+    F2.Area_trim = 0;
+    for (size_t i = 0; i < F2.Nvertices_trim - 2; ++i)
+    {
+        cout << "3.1\n";
+        size_t j = i + 1;
 
+        size_t k = i + 2 - (size_t)((i + 2) / F2.Nvertices_trim) * (i + 2);
+        cout << "3.2\n";
+        double a, b, c, p;
+        a = pow((F2.Verts_trim[0] - F2.Verts_trim[j]).dot((F2.Verts_trim[0] - F2.Verts_trim[j])), 0.5);
+        b = pow((F2.Verts_trim[j] - F2.Verts_trim[k]).dot((F2.Verts_trim[j] - F2.Verts_trim[k])), 0.5);
+        c = pow((F2.Verts_trim[k] - F2.Verts_trim[0]).dot((F2.Verts_trim[k] - F2.Verts_trim[0])), 0.5);
+        p = (a + b + c) / 2;
+        cout << "3.3\n";
+        double Area_1;
+        if (a == 0 || b == 0 || c == 0)
+            Area_1 = 0;
+        else
+            Area_1 = pow((p * (p - a) * (p - b) * (p - c)), 0.5);
+        cout << "3.4\n";
+        F2.Area_trim = F2.Area_trim + Area_1;
+        cout << "3.5\n";
+    }
+    cout << "444\n";
+    F2.Perimeter_trim = 0;
+    for (size_t i = 0; i < F2.Verts_trim.size(); ++i)
+    {
+        size_t j = i + 1 - (size_t)((i + 1) / (F2.Verts_trim.size())) * (i + 1);
+        double p = pow((F2.Verts_trim[i] - F2.Verts_trim[j]).dot((F2.Verts_trim[i] - F2.Verts_trim[j])), 0.5);
+        F2.Perimeter_trim = F2.Perimeter_trim + p;
+    }
+    cout << "555\n";
+}
+
+inline void Domain::Modify_trimmed_fractures_attribute(Fracture &F2)
+{
+    F2.Nvertices_trim = F2.Verts_trim.size();
+    ///Heron's formula
     F2.Area_trim = 0;
     for (size_t i = 0; i < F2.Nvertices_trim - 2; ++i)
     {
         size_t j = i + 1;
+
         size_t k = i + 2 - (size_t)((i + 2) / F2.Nvertices_trim) * (i + 2);
+
         double a, b, c, p;
         a = pow((F2.Verts_trim[0] - F2.Verts_trim[j]).dot((F2.Verts_trim[0] - F2.Verts_trim[j])), 0.5);
         b = pow((F2.Verts_trim[j] - F2.Verts_trim[k]).dot((F2.Verts_trim[j] - F2.Verts_trim[k])), 0.5);
@@ -1519,8 +1603,10 @@ inline void Domain::Modify_fracture_attributes_Xmax(Fracture &F2) ///modify vert
             Area_1 = 0;
         else
             Area_1 = pow((p * (p - a) * (p - b) * (p - c)), 0.5);
+
         F2.Area_trim = F2.Area_trim + Area_1;
     }
+
     F2.Perimeter_trim = 0;
     for (size_t i = 0; i < F2.Verts_trim.size(); ++i)
     {
@@ -1528,7 +1614,7 @@ inline void Domain::Modify_fracture_attributes_Xmax(Fracture &F2) ///modify vert
         double p = pow((F2.Verts_trim[i] - F2.Verts_trim[j]).dot((F2.Verts_trim[i] - F2.Verts_trim[j])), 0.5);
         F2.Perimeter_trim = F2.Perimeter_trim + p;
     }
-}
+};
 
 inline void Domain::If_fracture_intersect_boundary(Fracture &F2)
 {
@@ -1543,12 +1629,12 @@ inline void Domain::If_fracture_intersect_boundary(Fracture &F2)
     for (size_t i = 0; i < F2.Verts_trim.size(); ++i)
     {
         size_t ni = i + 1 - (size_t)((i + 1) / F2.Verts_trim.size()) * (i + 1);
-        double top_surf = Surfaces[0].Verts_trim[0](2);
-        double bottom_surf = Surfaces[1].Verts_trim[0](2);
-        double front_surf = Surfaces[2].Verts_trim[0](1);
-        double back_surf = Surfaces[3].Verts_trim[0](1);
-        double left_surf = Surfaces[4].Verts_trim[0](0);
-        double right_surf = Surfaces[5].Verts_trim[0](0);
+        double top_surf = Surfaces[0].Verts[0](2);
+        double bottom_surf = Surfaces[1].Verts[0](2);
+        double front_surf = Surfaces[2].Verts[0](1);
+        double back_surf = Surfaces[3].Verts[0](1);
+        double left_surf = Surfaces[4].Verts[0](0);
+        double right_surf = Surfaces[5].Verts[0](0);
         if (abs(F2.Verts_trim[i](2) - top_surf) < 0.001 && abs(F2.Verts_trim[ni](2) - top_surf))
         {
             Vector2d temoy;
@@ -2770,10 +2856,10 @@ inline void Domain::Re_identify_intersection_considering_trimmed_frac()
         }
     }
 
-#pragma omp critical
-    {
+//#pragma omp critical
+    //{
         Clusters();
-    }
+    //}
 };
 
 inline void Domain::Create_whole_model_II(const Vector6d model_size, std::vector<std::vector<Vector3d>> Frac_verts)
@@ -2783,9 +2869,8 @@ inline void Domain::Create_whole_model_II(const Vector6d model_size, std::vector
     for (size_t i = 0; i < Frac_verts.size(); ++i)
     {
         Fracture f(i, -10, Frac_verts[i]);
-        
+
         AddSquareFracture(i, f);
-        
     }
 
     size_t nz = Fractures.size();
@@ -2817,9 +2902,109 @@ inline void Domain::Create_whole_model_II(const Vector6d model_size, std::vector
         }
     }
 
-#pragma omp critical
-    {
+//#pragma omp critical
+  //  {
         Clusters();
-    }
+    //}
 }
+
+inline void Domain::Matlab_Out_Frac_matfile(string FileKey_mat)
+{
+    const char *filename = FileKey_mat.c_str();
+    MATFile *pMatFile;
+    pMatFile = matOpen(filename, "w");
+
+    if (!pMatFile)
+    {
+        throw Error_throw_ignore("cannot create mat file in class Domain\n");
+    }
+
+    for (size_t i = 0; i < this->Fractures.size(); ++i)
+    {
+        //cout << "i: " << i << endl;
+        size_t len = Fractures[i].Verts.size(); // number of verts
+
+        double *pData1;
+        double *pData2;
+        double *pData3;
+
+        pData1 = (double *)mxCalloc(len, sizeof(double));
+        pData2 = (double *)mxCalloc(len, sizeof(double));
+        pData3 = (double *)mxCalloc(len, sizeof(double));
+
+        mxArray *pMxArray1;
+        mxArray *pMxArray2;
+        mxArray *pMxArray3;
+
+        pMxArray1 = mxCreateDoubleMatrix(len, 1, mxREAL);
+        pMxArray2 = mxCreateDoubleMatrix(len, 1, mxREAL);
+        pMxArray3 = mxCreateDoubleMatrix(len, 1, mxREAL);
+
+        if (!pMxArray1 || !pMxArray2 || !pMxArray3)
+        {
+            throw Error_throw_ignore("cannot create pMxArray in class Domain\n");
+        }
+
+        if (!pData1 || !pData2 || !pData3)
+        {
+            throw Error_throw_ignore("cannot create pData in class Domain\n");
+        }
+
+        for (size_t j = 0; j < len; j++)
+        {
+            pData1[j] = Fractures[i].Verts[j](0);
+            pData2[j] = Fractures[i].Verts[j](1);
+            pData3[j] = Fractures[i].Verts[j](2);
+        }
+
+        mxSetData(pMxArray1, pData1);
+        mxSetData(pMxArray2, pData2);
+        mxSetData(pMxArray3, pData3);
+
+        string ft = to_string(i + 1);
+
+        string Fracx = "Frac_" + ft + "_x";
+        string Fracy = "Frac_" + ft + "_y";
+        string Fracz = "Frac_" + ft + "_z";
+
+        const char *Fracx_s = Fracx.c_str();
+        const char *Fracy_s = Fracy.c_str();
+        const char *Fracz_s = Fracz.c_str();
+
+        matPutVariable(pMatFile, Fracx_s, pMxArray1);
+        matPutVariable(pMatFile, Fracy_s, pMxArray2);
+        matPutVariable(pMatFile, Fracz_s, pMxArray3);
+
+        mxFree(pData1);
+        mxFree(pData2);
+        mxFree(pData3);
+    }
+
+    double *pData4;
+
+    pData4 = (double *)mxCalloc(1, sizeof(double));
+    mxArray *pMxArray4;
+    pMxArray4 = mxCreateDoubleMatrix(1, 1, mxREAL);
+
+    if (!pMxArray4)
+    {
+        throw Error_throw_ignore("cannot create pMxArray in class Domain\n");
+    }
+
+    if (!pData4)
+    {
+        throw Error_throw_ignore("cannot create pData in class Domain\n");
+    }
+
+    pData4[0] = this->Fractures.size();
+
+    mxSetData(pMxArray4, pData4);
+
+    const char *NUM_FRACS = "Num_fracs";
+    matPutVariable(pMatFile, NUM_FRACS, pMxArray4);
+
+    mxFree(pData4);
+
+    matClose(pMatFile);
+};
 }; // namespace DFN

@@ -207,7 +207,6 @@ inline Intersection_Frac_boost::Intersection_Frac_boost(const Polygon_convex_3D 
                     cout << Verts_2[k].transpose() << endl;
                 */
                 goto KF150;
-               
             };
 
             std::vector<std::vector<double>> UO(2);
@@ -302,25 +301,31 @@ inline Intersection_Frac_boost::Intersection_Frac_boost(const Polygon_convex_3D 
                     std::vector<DFN::Point_3D> FTK(Intersection_Two_Polygon.size());
                     for (size_t i = 0; i < Intersection_Two_Polygon.size(); ++i)
                         FTK[i].Re_constructor(Intersection_Two_Polygon[i]);
-                    
+
                     DFN::Point_3D TY;
 
                     TY.Remove_the_same_pnt(FTK);
-                   
+
                     //--------------------------
                     if (FTK.size() > 2)
                     {
-                        cout << "Error! the size of Intersection_Two_Polygon cannot more than two!\n";
-                        for (size_t i = 0; i < Intersection_Two_Polygon.size(); ++i)
-                            cout << Intersection_Two_Polygon[i].transpose() << endl;
+                        string ss = "Error! the size of Intersection_Two_Polygon cannot more than two!\n";
 
-                        throw Error_throw_ignore("Error! the size of Intersection_Two_Polygon cannot more than two!\n");
+                        for (size_t i = 0; i < Intersection_Two_Polygon.size(); ++i)
+                        {
+                            string kk1 = to_string(round(Intersection_Two_Polygon[i][0], 4));
+                            string kk2 = to_string(round(Intersection_Two_Polygon[i][1], 4));
+                            string kk3 = to_string(round(Intersection_Two_Polygon[i][2], 4));
+                            ss += (kk1 + ", " + kk2 + ", " + kk3 + "\n");
+                        }
+
+                        throw Error_throw_ignore(ss);
                     }
                     //----------------------------
 
                     Intersection_Two_Polygon.resize(FTK.size());
                     for (size_t i = 0; i < FTK.size(); ++i)
-                        Intersection_Two_Polygon[i] = FTK[i].Coordinate;  
+                        Intersection_Two_Polygon[i] = FTK[i].Coordinate;
                 }
             }
             else // two ends are outside the polygon2

@@ -1,12 +1,19 @@
 #pragma once
 #include "../DFN_H/Domain_WL.h"
 #include "../Geometry_H/Point_3D.h"
+#include "../Geometry_H/Triangle_orientation.h"
 #include "mat.h"
 
 //
 #include <gmsh.h>
 
 typedef Eigen::Matrix<int, 1, 6> RowVector6i;
+
+typedef Eigen::Matrix<size_t, 3, 1> Vector3s;
+
+typedef Eigen::Matrix<size_t, 5, 1> Vector5s;
+
+typedef Eigen::Matrix<size_t, 4, 1> Vector4s;
 
 typedef struct Point_attribute
 {
@@ -22,6 +29,7 @@ typedef struct Point_attribute
     bool If_trace = false;
     //
     bool If_corner = false;
+
 } P_attri;
 
 namespace DFN
@@ -31,20 +39,38 @@ class Mesh_DFN_overall
 public:
     std::vector<Vector3d> JXY_3D;
     //VectorXd PntTagLinear;
-    vector<vector<Vector3d>> JXY_2D;
+    //vector<vector<Vector3d>> JXY_2D;
+    vector<std::map<size_t, Vector3d>> JXY_2D;
 
     std::vector<P_attri> Pnt_attri;
 
     std::vector<RowVector6i> JM;
     ///< each Vector3d is the ID values of
     ///< the three nodes
+    std::vector<size_t> JM_Frac_NO; // Frac_NO, not Tag
 
     std::vector<size_t> Frac_Tag;
 
     std::vector<std::vector<RowVector6i>> JM_Each_Frac;
 
+    std::vector<Vector3s> Matrix_PNT_ID;                             // pseudo ID, FractureID, trueID;
+    std::map<std::pair<size_t, size_t>, size_t> True_ID_to_pseudoID; // pair<FractureID, trueID>, pseudo ID
+
     size_t NUM_of_NODES;
     size_t NUM_of_linear_NODES;
+
+    size_t NUM_trace_ele_sets;
+
+    std::vector<std::vector<std::pair<size_t, Vector4s>>> neigh_shared;
+    // 1st index: element no; 2nd.first: adjacent ele;
+    // 2nd.second[0]: the edge of the ele;
+    // 2nd.second[1]: the edge of the adjacent ele
+    // 2nd.second[2]: the Frac_NO of the ele
+    // 2nd.second[3]: the Frac_NO of the adjacent ele
+
+    std::vector<std::vector<Vector3s>> Trace_elements;
+
+    std::map<std::pair<size_t, size_t>, std::vector<Vector3s>> shared_edge;
 
 public:
     Mesh_DFN_overall();
@@ -53,6 +79,11 @@ public:
     void Identify_point_attribute_and_2D_meshes(DFN::Domain dom);
     void Resort_pnts_orders();
     void Rotate_JXY_3D_to_2D(DFN::Domain dom);
+    void Modify_the_triangle_orientation();
+
+    void Find_neighber_ele();
+    void Find_trace_ele();
+    void Find_shared_edge();
 };
 
 inline Mesh_DFN_overall::Mesh_DFN_overall(){};
@@ -148,7 +179,7 @@ inline Mesh_DFN_overall::Mesh_DFN_overall(DFN::Domain dom, const double min_ele_
         std::vector<std::size_t> nodes;
         std::vector<double> coord, coordParam;
         gmsh::model::mesh::getNodes(nodes, coord, coordParam);
-        NUM_of_NODES = coord.size() / 3;
+        //NUM_of_NODES = coord.size() / 3;
 
         for (size_t i = 0; i < coord.size(); i += 3)
         {
@@ -183,6 +214,50 @@ inline Mesh_DFN_overall::Mesh_DFN_overall(DFN::Domain dom, const double min_ele_
         this->Identify_point_attribute_and_2D_meshes(dom);
         this->Rotate_JXY_3D_to_2D(dom);
 
+        NUM_of_NODES = this->JXY_3D.size();
+        this->Modify_the_triangle_orientation();
+        //this->Find_neighber_ele();
+        //this->Find_trace_ele();
+        //this->Find_shared_edge();
+
+        /*
+        for (size_t i = 0; i < this->neigh_shared.size(); ++i)
+        {
+            cout << "ele: " << i + 1 << endl;
+            for (size_t j = 0; j < this->neigh_shared[i].size(); ++j)
+            {
+                cout << "\tneighber ele: " << this->neigh_shared[i][j].first + 1;
+                cout << ", edge: " << this->neigh_shared[i][j].second[0] + 1;
+                cout << ", edge neigh: " << this->neigh_shared[i][j].second[1] + 1;
+                cout << ", FracNO: " << this->neigh_shared[i][j].second[2] + 1;
+                cout << ", FracNO neigh: " << this->neigh_shared[i][j].second[3] + 1 << endl;
+            }
+        }
+    
+        exit(0);
+        */
+
+        /*
+        for (size_t i = 0; i < JXY_2D.size(); ++i)
+        {
+            cout << "\nFrac " << i + 1 << endl;
+            for (size_t j = 0; j < JXY_2D[i].size(); ++j)
+                cout << "node " << j + 1 << ", " <<  JXY_2D[i][j][0] << ", " << JXY_2D[i][j][1] << endl;
+            
+        }
+        */
+
+        /*
+        for (size_t i = 0; i < Trace_elements.size(); ++i)
+        {
+            cout << "trace element sets NO. " << i << endl;
+            for (size_t j = 0; j < Trace_elements[i].size(); ++j)
+            {
+                cout << Trace_elements[i][j].transpose() << endl;
+            }
+            cout << endl;
+        }
+        */
     };
 };
 
@@ -255,7 +330,7 @@ inline void Mesh_DFN_overall::Identify_point_attribute_and_2D_meshes(DFN::Domain
     //PntTagLinear = PntTagLinear.array() - 1;
 
     this->Pnt_attri.resize(this->JXY_3D.size());
-
+    this->JM_Frac_NO.resize(this->JM.size());
     for (size_t i = 0; i < this->JM.size(); ++i)
     {
         for (size_t j = 0; j < 6; ++j)
@@ -343,6 +418,7 @@ inline void Mesh_DFN_overall::Identify_point_attribute_and_2D_meshes(DFN::Domain
                 (ElePnt_3.If_lies_on_the_bounds_of_polygon(dom.Fractures[FracID_].Verts_trim) == true || ElePnt_3.If_lies_within_a_polygon_3D(dom.Fractures[FracID_].Verts_trim) == true))
             {
                 JM_Each_Frac[k].push_back(this->JM[i]); //
+                this->JM_Frac_NO[i] = k;
                 break;
             }
 
@@ -701,14 +777,13 @@ inline void Mesh_DFN_overall::Rotate_JXY_3D_to_2D(DFN::Domain dom)
 
     for (size_t i = 0; i < JM_Each_Frac.size(); ++i)
     {
-        JXY_2D[i].resize(this->JXY_3D.size());
-
         VectorXd PNT_INDICATOR = Eigen::VectorXd::Zero(this->JXY_3D.size());
 
         size_t Frac_Tag = this->Frac_Tag[i];
 
         DFN::Polygon_convex_3D poly{dom.Fractures[Frac_Tag].Verts_trim};
         std::vector<Vector3d> verts1;
+
         DFN::Rotate_to_horizontal R1{poly.Corners, verts1};
 
         for (size_t j = 0; j < JM_Each_Frac[i].size(); ++j)
@@ -716,6 +791,7 @@ inline void Mesh_DFN_overall::Rotate_JXY_3D_to_2D(DFN::Domain dom)
             for (size_t k = 0; k < 6; ++k)
             {
                 size_t PNT_ID = JM_Each_Frac[i][j][k];
+
                 if (PNT_INDICATOR[PNT_ID] == 0)
                 {
                     PNT_INDICATOR[PNT_ID] = 1;
@@ -737,4 +813,157 @@ inline void Mesh_DFN_overall::Rotate_JXY_3D_to_2D(DFN::Domain dom)
     }
 };
 
+inline void Mesh_DFN_overall::Find_neighber_ele()
+{
+    neigh_shared.resize(this->JM.size());
+
+    for (size_t i = 0; i < this->JM.size(); ++i)
+    {
+        for (size_t j = 0; j < 3; ++j)
+        {
+            size_t Point0_ = this->JM[i][j * 2];
+            size_t Point1_ = this->JM[i][(j * 2 + 2) % 6];
+
+            for (size_t k = 0; k < this->JM.size(); ++k)
+            {
+                if (k != i)
+                    for (size_t l = 0; l < 3; ++l)
+                    {
+                        size_t Point0_s = this->JM[k][l * 2];
+                        size_t Point1_s = this->JM[k][(l * 2 + 2) % 6];
+
+                        if ((Point0_ == Point0_s && Point1_ == Point1_s) ||
+                            (Point0_ == Point1_s && Point1_ == Point0_s))
+                        {
+                            neigh_shared[i].push_back(std::make_pair(k, Vector4s{j, l, this->JM_Frac_NO[i], this->JM_Frac_NO[k]}));
+                            break;
+                        }
+                    }
+            }
+        }
+    }
+};
+
+inline void Mesh_DFN_overall::Find_trace_ele()
+{
+    Eigen::VectorXd Index_JM = Eigen::VectorXd::Zero(this->JM.size());
+
+    for (size_t i = 0; i < this->JM.size(); ++i)
+    {
+        if (Index_JM[i] == 0)
+            for (size_t j = 0; j < 3; ++j)
+            {
+                size_t Point0_ = this->JM[i][j * 2];
+                size_t Point1_ = this->JM[i][(j * 2 + 2) % 6];
+
+                if (this->Pnt_attri[Point0_].If_trace == true && this->Pnt_attri[Point1_].If_trace == true)
+                {
+                    std::vector<Vector3s> YTW;
+                    YTW.push_back(Vector3s{i, j, this->JM_Frac_NO[i]});
+
+                    for (size_t k = 0; k < this->JM.size(); ++k)
+                    {
+                        if (k != i)
+                            for (size_t l = 0; l < 3; ++l)
+                            {
+                                size_t Point0_s = this->JM[k][l * 2];
+                                size_t Point1_s = this->JM[k][(l * 2 + 2) % 6];
+
+                                if ((Point0_ == Point0_s && Point1_ == Point1_s) ||
+                                    (Point0_ == Point1_s && Point1_ == Point0_s))
+                                {
+                                    YTW.push_back(Vector3s{k, l, this->JM_Frac_NO[k]});
+                                    break;
+                                }
+                            }
+                    }
+
+                    for (size_t k = 0; k < YTW.size(); ++k)
+                        Index_JM[YTW[k][0]] = 1;
+
+                    Trace_elements.push_back(YTW);
+                }
+            }
+    }
+
+    NUM_trace_ele_sets = Trace_elements.size();
+};
+
+inline void Mesh_DFN_overall::Find_shared_edge()
+{
+    VectorXd asscess_JM = Eigen::VectorXd::Zero(this->JM.size());
+
+    for (size_t i = 0; i < this->JM.size(); ++i)
+    {
+        if (asscess_JM[i] == 0)
+        {
+            for (size_t j = 0; j < 3; ++j)
+            {
+                asscess_JM[i] = 1;
+
+                std::vector<Vector3s> YUT;
+
+                size_t Point0_ = this->JM[i][j * 2];
+                size_t Point1_ = this->JM[i][(j * 2 + 2) % 6];
+
+                YUT.push_back(Vector3s{this->JM_Frac_NO[i], i, j});
+
+                for (size_t k = 0; k < this->JM.size(); ++k)
+                {
+                    if (k != i)
+                        for (size_t l = 0; l < 3; ++l)
+                        {
+                            size_t Point0_s = this->JM[k][l * 2];
+                            size_t Point1_s = this->JM[k][(l * 2 + 2) % 6];
+
+                            if ((Point0_ == Point0_s && Point1_ == Point1_s) ||
+                                (Point0_ == Point1_s && Point1_ == Point0_s))
+                            {
+                                asscess_JM[k] = 1;
+                                YUT.push_back(Vector3s{this->JM_Frac_NO[k], k, l});
+                                break;
+                            }
+                        }
+                }
+
+                if (YUT.size() > 1)
+                {
+                    std::pair<size_t, size_t> IND = std::make_pair(Point0_ < Point1_ ? Point0_ : Point1_, Point0_ > Point1_ ? Point0_ : Point1_);
+                    shared_edge[IND] = YUT;
+                }
+            }
+        }
+    }
+};
+
+inline void Mesh_DFN_overall::Modify_the_triangle_orientation()
+{
+    std::vector<bool> If_clockwise(this->JM_Each_Frac.size());
+
+    for (size_t i = 0; i < If_clockwise.size(); ++i)
+    {
+        std::vector<Vector2d> Triangle_(3);
+        size_t pntID = this->JM_Each_Frac[i][0][0];
+        Triangle_[0] << this->JXY_2D[i][pntID][0], this->JXY_2D[i][pntID][1];
+
+        pntID = this->JM_Each_Frac[i][0][2];
+        Triangle_[1] << this->JXY_2D[i][pntID][0], this->JXY_2D[i][pntID][1];
+
+        pntID = this->JM_Each_Frac[i][0][4];
+        Triangle_[2] << this->JXY_2D[i][pntID][0], this->JXY_2D[i][pntID][1];
+
+        DFN::Triangle_orientation ori{Triangle_};
+
+        if (ori.If_clockwise == true)
+        {
+            for (size_t j = 0; j < this->JM_Each_Frac[i].size(); ++j)
+            {
+                RowVector6i UI;
+                UI << JM_Each_Frac[i][j][0], JM_Each_Frac[i][j][5], JM_Each_Frac[i][j][4], JM_Each_Frac[i][j][3], JM_Each_Frac[i][j][2], JM_Each_Frac[i][j][1];
+
+                this->JM_Each_Frac[i][j] = UI;
+            }
+        }
+    }
+};
 }; // namespace DFN
