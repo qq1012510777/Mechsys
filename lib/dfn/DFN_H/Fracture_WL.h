@@ -225,6 +225,11 @@ inline Fracture::Fracture(string string_ori,
     else
         temp1(0) = random_double(ceil(lower1(0)), floor(upper1(0)));
 
+    if (temp1(0) > Radius)
+    {
+        temp1(0) = (upper1(0) - lower1(0))  * random_double(0, 1);
+    }
+
     temp1(1) = pow((Radius * Radius - temp1(0) * temp1(0)), 0.5);
 
     temp1(2) = 0;
@@ -453,16 +458,18 @@ inline Fracture::Fracture(string string_ori,
     else
         temp1(0) = random_double(ceil(lower1(0)), floor(upper1(0)));
 
-    temp1(1) = pow((Radius * Radius - temp1(0) *
-                                          temp1(0)),
-                   0.5);
+    if (temp1(0) > Radius)
+    {
+        temp1(0) = (upper1(0) - lower1(0)) * random_double(0, 1);
+    }
+
+    temp1(1) = pow((Radius * Radius - temp1(0) * temp1(0)), 0.5);
     temp1(2) = 0;
     Verts[0] = temp1;
     for (size_t i = 1; i < Nvertices; i++)
     {
         Vector3d temp2;
-        double sub_angle2 = (i) *
-                            (-360.0 / Nvertices) * M_PI / 180.0;
+        double sub_angle2 = (i) * (-360.0 / Nvertices) * M_PI / 180.0;
         Quaternion_t Q_axis_z2;
 
         NormalizeRotation(sub_angle2, axis_z,

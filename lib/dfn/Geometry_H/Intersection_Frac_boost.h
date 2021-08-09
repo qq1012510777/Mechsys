@@ -134,7 +134,7 @@ inline Intersection_Frac_boost::Intersection_Frac_boost(const Polygon_convex_3D 
         double z_plane = Verts_1[1](2);
         for (size_t i = 0; i < Verts_1.size(); i++)
             Verts_1[i](2) = 0;
-
+        
         DFN::Convex_3D_polygon_cross_xy_plane Cp(Verts_2);
         //cout << "\t" << Cp.Relation << endl;
         if (Cp.Relation != "Not_crossing")

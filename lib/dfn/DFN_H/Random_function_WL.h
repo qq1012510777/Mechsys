@@ -192,6 +192,8 @@ inline void Random_function::fisher(double mean_y, double mean_x, double fisher_
 //--------------------------------------
 inline void Random_function::lubksb(int n, int np, int *indx, double *b)
 {
+    np++;
+
     int i, ii, j, ll;
     double sum;
     ii = 0;
@@ -228,7 +230,8 @@ inline void Random_function::ludcmp(int n, int np, int *indx)
 {
 #define NMAX 500
 #define TINY 1.0e-20
-
+    np++;
+    
     int i, imax = 0, j, k, d;
     double aamax, dum, sum, vv[NMAX];
 

@@ -78,7 +78,11 @@ inline Convex_3D_polygon_cross_xy_plane::Convex_3D_polygon_cross_xy_plane(const 
 
     if (Idx_equal > 2)
     {
-        throw Error_throw_ignore("more than one edge lies on the xy_plane!\nIn class 'Convex_3D_polygon_cross_xy_plane', function 'Convex_3D_polygon_cross_xy_plane'\n");
+        string AS = "more than one edge lies on the xy_plane!\nIn class 'Convex_3D_polygon_cross_xy_plane', function 'Convex_3D_polygon_cross_xy_plane'\n";
+        AS = AS + "\tThe 2nd 3D polygon is:\n";
+        for (size_t i = 0; i < Verts_2.size(); ++i)
+            AS = AS + "\t" + to_string(round(Verts_2[i][0], 4)) + ", " + to_string(round(Verts_2[i][1], 4)) + ", " + to_string(round(Verts_2[i][2], 4)) + "\n";
+        throw Error_throw_ignore(AS);
     }
 
     if (Idx_large >= 1 && Idx_small >= 1)
@@ -106,7 +110,7 @@ inline Convex_3D_polygon_cross_xy_plane::Convex_3D_polygon_cross_xy_plane(const 
             cout << "\nIntersection:\n";
             for (size_t i = 0; i < Intersection.size(); ++i)
                 cout << Intersection[i].transpose() << endl;
-            
+
             throw Error_throw_ignore("Error! in Convex_3D_polygon_cross_xy_plane::Convex_3D_polygon_cross_xy_plane!\n");
         }
         return;

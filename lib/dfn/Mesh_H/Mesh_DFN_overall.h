@@ -53,9 +53,6 @@ public:
 
     std::vector<std::vector<RowVector6i>> JM_Each_Frac;
 
-    std::vector<Vector3s> Matrix_PNT_ID;                             // pseudo ID, FractureID, trueID;
-    std::map<std::pair<size_t, size_t>, size_t> True_ID_to_pseudoID; // pair<FractureID, trueID>, pseudo ID
-
     size_t NUM_of_NODES;
     size_t NUM_of_linear_NODES;
 

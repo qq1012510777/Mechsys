@@ -1,5 +1,6 @@
 #pragma once
 #include "../FEM_H/FEM_DFN_A.h"
+#include "../FEM_H/FEM_DFN_coupling.h"
 #include "../Mesh_H/Mesh_DFN_overall.h"
 #include "Domain_WL.h"
 #include <omp.h>
@@ -22,6 +23,8 @@ public:
     double Percolation_parameter_c; ///< when percolation probability equals to 0.5, the percolation parameter is
     size_t NumofFsets;              ///< number of fracture sets
     size_t Nb_flow_sim_MC_times;
+
+    size_t n_initial_frac_density = 0;
 
     std::vector<double> DenWeight; ///< the weight of number of each sets
     std::vector<Vector7d> array13; ///< the size of this array is the number of fracture sets;
@@ -250,7 +253,7 @@ inline void Loop_DFN::Loop_create_DFNs(gsl_rng *random_seed,
                 DFN::Domain dom;
                 //dom.Fractures.clear();
 
-                dom.Create_whole_model(n,
+                dom.Create_whole_model((n + n_initial_frac_density),
                                        DenWeight,
                                        random_seed,
                                        model_size,
@@ -402,15 +405,18 @@ inline void Loop_DFN::Loop_create_DFNs(gsl_rng *random_seed,
                     }
 
                     DFN::Mesh_DFN_overall mesh(dom, min_ele_edge, max_ele_edge);
+
                     DFN::FEM_DFN_A CC(mesh, dom);
                     if (np == nt && i == nv - 1)
                     {
                         mesh.Matlab_plot("mesh_DFN.mat", "mesh_DFN.m", dom);
                         CC.matlab_plot("FEM_DFN.mat", "FEM_DFN.m", dom, mesh, CC.F_overall);
                     }
+
                     Permeability_A[i] = CC.Permeability;
                     */
                     Permeability_A[i] = 0;
+                    
                 }
                 else if (z == 0 && i < Nb_flow_sim_MC_times)
                 {
@@ -428,6 +434,7 @@ inline void Loop_DFN::Loop_create_DFNs(gsl_rng *random_seed,
                 //cout << "\033[33mRegenerate a DFN! Because:\n";
                 //cout << e.msg << "\033[0m" << endl;
                 goto Regenerate_dfn;
+                //exit(0);
             }
             catch (bad_alloc &e)
             {

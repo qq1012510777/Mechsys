@@ -174,7 +174,7 @@ inline void Domain::Create_whole_model(const size_t n,
     Model_set(model_size);
 
     Last_frac_size = -1;
- 
+
     if (str_ori == "uniform")
     {
         for (size_t i = 0; i < n; ++i)
@@ -261,7 +261,7 @@ inline void Domain::Create_whole_model(const size_t n,
             }
         }
     }
-   
+
     size_t nz = Fractures.size();
     if (nz == 0)
     {
@@ -291,9 +291,9 @@ inline void Domain::Create_whole_model(const size_t n,
         }
     }
 
-//#pragma omp critical
+    //#pragma omp critical
     //{
-        Clusters();
+    Clusters();
     //}
 
     Correlation_length_and_gyration_radius();
@@ -467,7 +467,7 @@ inline void Domain::AddSquareFracture(size_t Tag,
         bool y6 = Intersect_A(Surfaces[5], c);
         if (y1 == 1 || y2 == 1 || y3 == 1 || y4 == 1 || y5 == 1 || y6 == 1)
         {
-            
+
             if (y1 == 1)
             {
                 c.If_intersect_surfaces(0) = 1;
@@ -499,7 +499,7 @@ inline void Domain::AddSquareFracture(size_t Tag,
                 c.If_intersect_surfaces(5) = 1;
                 //Modify_fracture_attributes_Xmax(c);
             }
-            
+
             std::vector<Vector3d> YT = c.Verts_trim;
             DFN::Intersection_between_polygon_and_3D_box Inse{YT, this->Model_domain};
             c.Verts_trim = YT;
@@ -524,50 +524,43 @@ inline void Domain::AddSquareFracture(size_t Tag,
         if (y1 == 1 || y2 == 1 || y3 == 1 || y4 == 1 || y5 == 1 || y6 == 1)
         {
 
-            
             if (y1 == 1)
             {
-                
+
                 c.If_intersect_surfaces(0) = 1;
                 //Modify_fracture_attributes_Zmax(c);
-                
             }
             if (y2 == 1)
             {
-                
+
                 c.If_intersect_surfaces(1) = 1;
                 //Modify_fracture_attributes_Zmin(c);
-                
             }
             if (y3 == 1)
             {
-                
+
                 c.If_intersect_surfaces(2) = 1;
                 //Modify_fracture_attributes_Ymin(c);
-                
             }
             if (y4 == 1)
             {
-                
+
                 c.If_intersect_surfaces(3) = 1;
                 //Modify_fracture_attributes_Ymax(c);
-                
             }
             if (y5 == 1)
             {
-                
+
                 c.If_intersect_surfaces(4) = 1;
                 //Modify_fracture_attributes_Xmin(c);
-                
             }
             if (y6 == 1)
             {
-               
+
                 c.If_intersect_surfaces(5) = 1;
                 //Modify_fracture_attributes_Xmax(c);
-                
             }
-            
+
             std::vector<Vector3d> YT = c.Verts_trim;
             DFN::Intersection_between_polygon_and_3D_box Inse{YT, this->Model_domain};
 
@@ -596,6 +589,19 @@ inline bool Domain::Intersect_A(const Fracture F1, const Fracture F2)
     DFN::Polygon_convex_3D f2{F2.Verts};
     f1.Optimize();
     f2.Optimize();
+    /*
+    for (size_t i = 0; i < F1.Verts.size(); ++i)
+        cout << F1.Verts[i].transpose() << endl;
+    for (size_t i = 0; i < F2.Verts.size(); ++i)
+        cout << F2.Verts[i].transpose() << endl;
+    cout << endl;
+
+    for (size_t i = 0; i < f1.Corners.size(); ++i)
+        cout << f1.Corners[i].transpose() << endl;
+    for (size_t i = 0; i < f2.Corners.size(); ++i)
+        cout << f2.Corners[i].transpose() << endl;
+    cout << endl;
+    */
     //DFN::Intersection_Frac Interse{f1, f2};
     DFN::Intersection_Frac_boost Interse{f1, f2};
     return Interse.If_intersect;
@@ -2569,7 +2575,7 @@ inline void Domain::PlotMatlab_ORI_SCATTER(string FileKey)
         else if (DD <= 90)
             alpha = 90 - DD;
         alpha = alpha * pi / 180.0;
-        oss << alpha << " ";
+        oss << alpha << ", ...\n";
     }
     oss << "];\nr = [";
 
@@ -2578,7 +2584,7 @@ inline void Domain::PlotMatlab_ORI_SCATTER(string FileKey)
         double DA = Fractures[i].Dip_angle;
         double beta = DA;
         beta = beta * pi / 180.0;
-        oss << beta << " ";
+        oss << beta << ", ...\n";
     }
     oss << "];\npolarscatter(th,r,'filled');\nhold on;\nrlim([0 " << pi / 2 << "]);\n";
     oss << "hold on;\nrticks([" << pi / 12 << " " << 2 * pi / 12 << " " << 3 * pi / 12 << " " << 4 * pi / 12 << " " << 5 * pi / 12 << " " << 6 * pi / 12 << "]);\n";
@@ -2856,9 +2862,9 @@ inline void Domain::Re_identify_intersection_considering_trimmed_frac()
         }
     }
 
-//#pragma omp critical
+    //#pragma omp critical
     //{
-        Clusters();
+    Clusters();
     //}
 };
 
@@ -2902,9 +2908,9 @@ inline void Domain::Create_whole_model_II(const Vector6d model_size, std::vector
         }
     }
 
-//#pragma omp critical
-  //  {
-        Clusters();
+    //#pragma omp critical
+    //  {
+    Clusters();
     //}
 }
 

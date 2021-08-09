@@ -12,7 +12,7 @@ namespace DFN
 class Triangle_orientation
 {
 public:
-    bool If_clockwise;
+    bool If_clockwise = false;
 
 public:
     Triangle_orientation(std::vector<Vector2d> polygon);
@@ -33,8 +33,12 @@ inline Triangle_orientation::Triangle_orientation(std::vector<Vector2d> polygon)
 
     if (val > 0)
         If_clockwise = true;
-    else
+    else if (val < 0)
         If_clockwise = false;
+    else if (val == 0)
+    {
+        throw Error_throw_pause("in class 'Triangle_orientation', triangular element is a line segment!\n");  
+    }
 };
 
 }; // namespace DFN
