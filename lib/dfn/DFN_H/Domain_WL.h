@@ -27,34 +27,36 @@ public:
     Vector6d Model_domain;                                                            ///< Top-zmax, bottom-zmin, front-ymin, back-ymax, left-xmin, right-xmax
     double n_I;                                                                       ///< Average number of intersections per fracture
     double P30;
-    double P30_connected;
     double P32_total;
-    double P32_connected; // percolation cluster
-    double Percolation_parameter_a;
-    double Percolation_parameter_b;
-    double Percolation_parameter_c;
-    double Percolation_parameter_d;
-    double Percolation_parameter_e;
-    double Ratio_of_P32; ///< probability of a fracture belonging to a percolation cluster
-    double Ratio_of_P30;
-    double Excluded_volume_1;
-    double Excluded_volume_2;
-    double Excluded_volume_3;
-    double Excluded_volume_4;
-    double Excluded_volume_5;
+    double P30_connected; // linear density of percolating clusters
+    double P32_connected; // areal density of percolation clusters
+    //double Percolation_parameter_a; // do not use
+    //double Percolation_parameter_b;
+    //double Percolation_parameter_c;
+    //double Percolation_parameter_d;
+    //double Percolation_parameter_e;
+    double Ratio_of_P32;
+    double Ratio_of_P30; ///< linear probability of a fracture belonging to percolating clusters
+    //double Excluded_volume_1;
+    //double Excluded_volume_2;
+    //double Excluded_volume_3;
+    //double Excluded_volume_4;
+    //double Excluded_volume_5;
     size_t No_Verts_trim;
 
-    double P30_largest_cluster;
-    double P32_largest_cluster;
+    double P30_largest_cluster; // linear density of largest clusters
+    double P32_largest_cluster; // areal density of largest clusters
 
-    double Xi;      ///< correlation length
-    double max_R_s; ///< max gyration radius
-    Vector3d Center_of_cluster;
+    //double Xi;      ///< correlation length, do not use it
+    //double max_R_s; ///< max gyration radius, do not use it
+    //Vector3d Center_of_cluster;
     double Last_frac_size;
 
     std::vector<Fracture> Surfaces;                                                     ///< model surface
     std::vector<size_t> Connections_S;                                                  ///< thos fractures intersect with surfaces
     std::map<std::pair<size_t, size_t>, std::pair<Vector3d, Vector3d>> Intersections_S; ///< Map of line intersection between fractures and surfaces
+
+    bool mode_2D = false;
 
 public:
     void Re_identify_intersection_considering_trimmed_frac();
@@ -104,14 +106,14 @@ public:
     ///< Check the connectivity array
     // to form the clusters
 
-    void Correlation_length_and_gyration_radius();
+    void Determine_max_cluster();
     //
 
     void Average_number_of_intersections_per_fracture();
     ///< Average_number_of_intersections_per_fracture
 
     void Determine_excluded_volume(const string str_ori, const string str_frac_size, double alpha_g = 0, double kappa = 0, double mean_i = 0, double var_i = 0, double min_R_i = 0, double max_R_i = 0);
-    //
+    // do not use
 
     size_t Identify_percolation_clusters(string str);
     //
@@ -175,90 +177,136 @@ inline void Domain::Create_whole_model(const size_t n,
 
     Last_frac_size = -1;
 
-    if (str_ori == "uniform")
+    if (mode_2D == false)
     {
-        for (size_t i = 0; i < n; ++i)
+        if (str_ori == "uniform")
         {
-            if (str_frac_size == "powerlaw")
+            for (size_t i = 0; i < n; ++i)
             {
-                //cout << "debug 1\n";
-                Fracture f(str_ori, str_frac_size, i, r1, array11, array12[0] /*, array13*/, Last_frac_size, conductivity_distri);
-                //cout << "debug 2\n";
-                AddSquareFracture(i, f);
-                No_Verts_trim += f.Nvertices_trim;
-                //cout << "debug 3\n";
-            }
-            else if (str_frac_size == "lognormal")
-            {
-
-                Fracture f(str_ori, str_frac_size, i, r1, array11, array12[0] /*, array13*/, Last_frac_size, conductivity_distri);
-                AddSquareFracture(i, f);
-                No_Verts_trim += f.Nvertices_trim;
-            }
-            else if (str_frac_size == "uniform")
-            {
-                Fracture f(str_ori, str_frac_size, i, r1, array11, array12[0] /*, array13*/, Last_frac_size, conductivity_distri);
-                AddSquareFracture(i, f);
-                No_Verts_trim += f.Nvertices_trim;
-            }
-            else if (str_frac_size == "single")
-            {
-
-                Fracture f(str_ori, str_frac_size, i, r1, array11, array12[0] /*, array13*/, Last_frac_size, conductivity_distri);
-                AddSquareFracture(i, f);
-                No_Verts_trim += f.Nvertices_trim;
-            }
-        }
-    }
-    else if (str_ori == "fisher")
-    {
-        size_t numofsets_1 = DenWeight.size();
-        for (size_t i = 0; i < numofsets_1; ++i)
-        {
-            size_t init_jkk = 0;
-            double Weight_k = 0;
-            for (size_t j = 0; j < i; j++)
-            {
-                Weight_k = Weight_k + DenWeight[j];
-            }
-            init_jkk = n * Weight_k;
-
-            size_t end_jkk = 0;
-            double Weight_i = 0;
-            for (size_t j = 0; j <= i; ++j)
-            {
-                Weight_i = DenWeight[j] + Weight_i;
-            }
-            end_jkk = n * Weight_i;
-            //std::cout<<"start: "<< init_jkk<<" ; end: "<<end_jkk<<"\n";
-            for (size_t j = init_jkk; j < end_jkk; ++j)
-            {
-
                 if (str_frac_size == "powerlaw")
                 {
-                    Fracture f(str_ori, str_frac_size, j, r1, array11, array12[i], array13[i], Last_frac_size, conductivity_distri);
-                    AddSquareFracture(j, f);
+                    //cout << "debug 1\n";
+                    Fracture f(str_ori, str_frac_size, i, r1, array11, array12[0] /*, array13*/, Last_frac_size, conductivity_distri);
+                    //cout << "debug 2\n";
+                    AddSquareFracture(i, f);
                     No_Verts_trim += f.Nvertices_trim;
+                    //cout << "debug 3\n";
                 }
                 else if (str_frac_size == "lognormal")
                 {
-                    Fracture f(str_ori, str_frac_size, j, r1, array11, array12[i], array13[i], Last_frac_size, conductivity_distri);
-                    AddSquareFracture(j, f);
+
+                    Fracture f(str_ori, str_frac_size, i, r1, array11, array12[0] /*, array13*/, Last_frac_size, conductivity_distri);
+                    AddSquareFracture(i, f);
                     No_Verts_trim += f.Nvertices_trim;
                 }
                 else if (str_frac_size == "uniform")
                 {
-                    Fracture f(str_ori, str_frac_size, j, r1, array11, array12[i], array13[i], Last_frac_size, conductivity_distri);
-                    AddSquareFracture(j, f);
+                    Fracture f(str_ori, str_frac_size, i, r1, array11, array12[0] /*, array13*/, Last_frac_size, conductivity_distri);
+                    AddSquareFracture(i, f);
                     No_Verts_trim += f.Nvertices_trim;
                 }
                 else if (str_frac_size == "single")
                 {
-                    Fracture f(str_ori, str_frac_size, j, r1, array11, array12[i], array13[i], Last_frac_size, conductivity_distri);
-                    AddSquareFracture(j, f);
+
+                    Fracture f(str_ori, str_frac_size, i, r1, array11, array12[0] /*, array13*/, Last_frac_size, conductivity_distri);
+                    AddSquareFracture(i, f);
                     No_Verts_trim += f.Nvertices_trim;
                 }
             }
+        }
+        else if (str_ori == "fisher")
+        {
+            size_t numofsets_1 = DenWeight.size();
+            for (size_t i = 0; i < numofsets_1; ++i)
+            {
+                size_t init_jkk = 0;
+                double Weight_k = 0;
+                for (size_t j = 0; j < i; j++)
+                {
+                    Weight_k = Weight_k + DenWeight[j];
+                }
+                init_jkk = n * Weight_k;
+
+                size_t end_jkk = 0;
+                double Weight_i = 0;
+                for (size_t j = 0; j <= i; ++j)
+                {
+                    Weight_i = DenWeight[j] + Weight_i;
+                }
+                end_jkk = n * Weight_i;
+                //std::cout<<"start: "<< init_jkk<<" ; end: "<<end_jkk<<"\n";
+                for (size_t j = init_jkk; j < end_jkk; ++j)
+                {
+
+                    if (str_frac_size == "powerlaw")
+                    {
+                        Fracture f(str_ori, str_frac_size, j, r1, array11, array12[i], array13[i], Last_frac_size, conductivity_distri);
+                        AddSquareFracture(j, f);
+                        No_Verts_trim += f.Nvertices_trim;
+                    }
+                    else if (str_frac_size == "lognormal")
+                    {
+                        Fracture f(str_ori, str_frac_size, j, r1, array11, array12[i], array13[i], Last_frac_size, conductivity_distri);
+                        AddSquareFracture(j, f);
+                        No_Verts_trim += f.Nvertices_trim;
+                    }
+                    else if (str_frac_size == "uniform")
+                    {
+                        Fracture f(str_ori, str_frac_size, j, r1, array11, array12[i], array13[i], Last_frac_size, conductivity_distri);
+                        AddSquareFracture(j, f);
+                        No_Verts_trim += f.Nvertices_trim;
+                    }
+                    else if (str_frac_size == "single")
+                    {
+                        Fracture f(str_ori, str_frac_size, j, r1, array11, array12[i], array13[i], Last_frac_size, conductivity_distri);
+                        AddSquareFracture(j, f);
+                        No_Verts_trim += f.Nvertices_trim;
+                    }
+                }
+            }
+        }
+    }
+    else
+    {
+        if (str_ori == "uniform")
+        {
+            for (size_t i = 0; i < n; ++i)
+            {
+                bool mode2d = true;
+                if (str_frac_size == "powerlaw")
+                {
+                    //cout << "debug 1\n";
+                    Fracture f(mode2d, str_ori, str_frac_size, i, r1, array11, array12[0] /*, array13*/, Last_frac_size, conductivity_distri);
+                    //cout << "debug 2\n";
+                    AddSquareFracture(i, f);
+                    No_Verts_trim += f.Nvertices_trim;
+                    //cout << "debug 3\n";
+                }
+                else if (str_frac_size == "lognormal")
+                {
+
+                    Fracture f(mode2d, str_ori, str_frac_size, i, r1, array11, array12[0] /*, array13*/, Last_frac_size, conductivity_distri);
+                    AddSquareFracture(i, f);
+                    No_Verts_trim += f.Nvertices_trim;
+                }
+                else if (str_frac_size == "uniform")
+                {
+                    Fracture f(mode2d, str_ori, str_frac_size, i, r1, array11, array12[0] /*, array13*/, Last_frac_size, conductivity_distri);
+                    AddSquareFracture(i, f);
+                    No_Verts_trim += f.Nvertices_trim;
+                }
+                else if (str_frac_size == "single")
+                {
+
+                    Fracture f(mode2d, str_ori, str_frac_size, i, r1, array11, array12[0] /*, array13*/, Last_frac_size, conductivity_distri);
+                    AddSquareFracture(i, f);
+                    No_Verts_trim += f.Nvertices_trim;
+                }
+            }
+        }
+        else
+        {
+            throw Error_throw_pause("Undefined mode!\n");
         }
     }
 
@@ -269,17 +317,17 @@ inline void Domain::Create_whole_model(const size_t n,
         P32_connected = 0;
         P30 = 0;
         P30_connected = 0;
-        Percolation_parameter_a = 0;
-        Percolation_parameter_b = 0;
-        Percolation_parameter_c = 0;
-        Percolation_parameter_d = 0;
+        //Percolation_parameter_a = 0;
+        //Percolation_parameter_b = 0;
+        //Percolation_parameter_c = 0;
+        //Percolation_parameter_d = 0;
         Ratio_of_P32 = 0;
         Ratio_of_P30 = 0;
-        Excluded_volume_1 = 0;
-        Excluded_volume_2 = 0;
-        Excluded_volume_3 = 0;
-        Excluded_volume_4 = 0;
-        Excluded_volume_5 = 0;
+        //Excluded_volume_1 = 0;
+        //Excluded_volume_2 = 0;
+        //Excluded_volume_3 = 0;
+        //Excluded_volume_4 = 0;
+        //Excluded_volume_5 = 0;
         return;
     };
 
@@ -287,7 +335,10 @@ inline void Domain::Create_whole_model(const size_t n,
     {
         for (size_t j = i + 1; j < nz; ++j)
         {
-            Intersect(Fractures[i], Fractures[j], false);
+            if (mode_2D == false)
+                Intersect(Fractures[i], Fractures[j], false);
+            else
+                Intersect(Fractures[i], Fractures[j], false);
         }
     }
 
@@ -296,8 +347,9 @@ inline void Domain::Create_whole_model(const size_t n,
     Clusters();
     //}
 
-    Correlation_length_and_gyration_radius();
+    Determine_max_cluster();
     Average_number_of_intersections_per_fracture();
+    /*
     if (str_ori == "uniform")
     {
         if (str_frac_size == "powerlaw")
@@ -348,6 +400,7 @@ inline void Domain::Create_whole_model(const size_t n,
     {
         throw Error_throw_pause("Error! Did not define fracture orientation distribution!\n");
     };
+    */
 };
 
 inline void Domain::Model_set(const Vector6d model_size)
@@ -1768,21 +1821,22 @@ inline void Domain::Clusters()
     }
 }
 
-inline void Domain::Correlation_length_and_gyration_radius()
+inline void Domain::Determine_max_cluster()
 {
-    Xi = 0;
-    max_R_s = 0;
+    //Xi = 0;
+    //max_R_s = 0;
     size_t max_cluster = 0;
     size_t max_size = 0;
+
     if (Listofclusters.size() != 0)
     {
-        max_cluster = 0;
-        max_size = 0;
+        //max_cluster = 0;
+        //max_size = 0;
         //double total_distance = 0;
         for (size_t i = 0; i < Listofclusters.size(); ++i)
         {
             //std::cout << "Cluster " << i << "'s size is: " << Listofclusters[i].size() << std::endl;
-            if (max_size <= Listofclusters[i].size())
+            if (max_size < Listofclusters[i].size())
             {
                 max_size = Listofclusters[i].size();
                 max_cluster = i;
@@ -1790,8 +1844,11 @@ inline void Domain::Correlation_length_and_gyration_radius()
         }
         //std::cout << "the largest cluster is " << max_cluster << std::endl;
         //std::cout << "size of max cluster is " << Listofclusters[max_cluster].size() << std::endl;
+        //cout << max_cluster << endl;
+        //cout << Listofclusters[max_cluster].size() << endl;
         if (Listofclusters[max_cluster].size() > 1)
         {
+            /*
             Center_of_cluster[0] = 0;
             Center_of_cluster[1] = 0;
             Center_of_cluster[2] = 0;
@@ -1814,9 +1871,10 @@ inline void Domain::Correlation_length_and_gyration_radius()
                 if (max_R_s <= module)
                     max_R_s = module;
             }
-
+            */
             double Model_volume = (Model_domain(0) - Model_domain(1)) * (Model_domain(3) - Model_domain(2)) * (Model_domain(5) - Model_domain(4));
-            P30_largest_cluster = Listofclusters[max_cluster].size() / Model_volume;
+            P30_largest_cluster = (double)Listofclusters[max_cluster].size() / Model_volume;
+            //cout << "P30_largest_cluster: " << P30_largest_cluster << endl;
             double area_total = 0;
             for (size_t i = 0; i < Listofclusters[max_cluster].size(); ++i)
             {
@@ -1827,14 +1885,15 @@ inline void Domain::Correlation_length_and_gyration_radius()
         }
         else
         {
-            /*Xi = 0;*/
-            max_R_s = 0;
             P30_largest_cluster = 0;
             P32_largest_cluster = 0;
         }
+        //Xi = 0;
+        //max_R_s = 0;
     }
 
     /// now, determine Xi
+    /*
     if (Listofclusters.size() > 1)
     {
         size_t k = Listofclusters.size();
@@ -1862,7 +1921,7 @@ inline void Domain::Correlation_length_and_gyration_radius()
                 }
             }
         }
-        /*
+        
         double numerator_h = 0;
         double denominator_h = 0;
         for (size_t i = 0; i < kss.size(); ++i)
@@ -1900,7 +1959,7 @@ inline void Domain::Correlation_length_and_gyration_radius()
         //std::cout << numerator_h <<"\n" << denominator_h <<"\n";
         Xi = 2 * numerator_h / denominator_h;
         Xi = pow(Xi, 0.5);*/
-
+    /*
         Xi = 0;
         size_t ku = 0;
         for (size_t i = 1; i < kss.size(); ++i)
@@ -1956,7 +2015,7 @@ inline void Domain::Correlation_length_and_gyration_radius()
     {
         Xi = 0;
     }
-
+    */
     //std::cout << Center_of_cluster[0] << ", " << Center_of_cluster[1] <<", " << Center_of_cluster[2] << std::endl;
 };
 
@@ -1965,202 +2024,203 @@ inline void Domain::Average_number_of_intersections_per_fracture()
     n_I = (double)(Connections.size() / 2) / (double)Fractures.size();
 };
 
-inline void Domain::Determine_excluded_volume(const string str_ori, const string str_frac_size, double alpha_g, double kappa, double mean_i, double var_i, double min_R_i, double max_R_i)
-{
-    if (str_ori == "uniform")
-    {
-        //double C1 = (1-alpha_g)/((2-alpha_g)*(pow(x1,1-alpha_g)-pow(x0,1-alpha_g)));
-        //double Expected_value_of_radius = C1*pow(x1,2-alpha_g) - C1*pow(x0,2-alpha_g);
-        //std::cout<<"Expected_value_of_radius: "<<Expected_value_of_radius<<std::endl;
-        if (str_frac_size == "powerlaw")
-        {
-            double x0, x1;
-            x0 = min_R_i * pow(2.0, 0.5);
-            x1 = max_R_i * pow(2.0, 0.5);
-            double C2 = (1 - alpha_g) / (pow(x1, 1 - alpha_g) - pow(x0, 1 - alpha_g));
-            //********below is 0.5*<A*P>
-            Excluded_volume_1 = C2 * 4.0 * (pow(x1, 4.0 - alpha_g) - pow(x0, 4.0 - alpha_g)) / (4.0 - alpha_g);
-            Excluded_volume_1 = 0.5 * Excluded_volume_1;
-
-            //********below is 0.5*<A>*<P>
-            Excluded_volume_2 = 0.5 * C2 * (pow(x1, 3.0 - alpha_g) - pow(x0, 3.0 - alpha_g)) / (3.0 - alpha_g);                       //0.5*<A>
-            Excluded_volume_2 = Excluded_volume_2 * (4.0 * C2 * (pow(x1, 2.0 - alpha_g) - pow(x0, 2.0 - alpha_g)) / (2.0 - alpha_g)); //<A>*<P>
-
-            //********below is 0.5 * <l^3>
-            Excluded_volume_3 = 0.5 * C2 * (pow(x1, 4.0 - alpha_g) - pow(x0, 4.0 - alpha_g)) / (4.0 - alpha_g);
-
-            //********below is 0.5 * <l^3>/<l^2>, and note that the percolation parameter equals to P32*<l^3>/<l^2>
-            Excluded_volume_4 = Excluded_volume_3 / (C2 / (3.0 - alpha_g) * (pow(x1, 3.0 - alpha_g) - pow(x0, 3.0 - alpha_g)));
-
-            //********below is 0.5 * <A*P>/<l^2>, and note that the percolation parameter equals to P32*<l^3>/<l^2>
-            Excluded_volume_5 = Excluded_volume_1 / (C2 / (3.0 - alpha_g) * (pow(x1, 3.0 - alpha_g) - pow(x0, 3.0 - alpha_g)));
-        }
-        else if (str_frac_size == "lognormal")
-        {
-            double mean, var;
-            mean = mean_i * pow(2, 0.5);
-            var = 2.0 * var_i;
-
-            double mean_1 = log(mean * mean / (pow(var + mean * mean, 0.5)));
-            double var_1 = pow(log(1 + ((double)var) / (mean * mean)), 0.5); //var_1 is input std. deviation
-
-            //********below is 0.5*<A*P>
-            Excluded_volume_1 = 0.5 * 4.0 * exp(3 * mean_1 + (9.00 / 2.0) * (var_1 * var_1));
-            //std::cout << "Vex: " << Excluded_volume_1 <<"\n";
-
-            //********below is 0.5*<A>*<P>
-            Excluded_volume_2 = 0.5 * exp(2.0 * mean_1 + 2.0 * var_1 * var_1) * 4.0 * exp(mean_1 + 0.5 * var_1 * var_1);
-
-            //********below is 0.5 * <l^3>
-            Excluded_volume_3 = 0.5 * exp(3.0 * mean_1 + (9.00 / 2.0) * (var_1 * var_1));
-
-            //********below is 0.5 * <l^3>/<l^2>, and note that the percolation parameter equals to P32*<l^3>/<l^2>
-            Excluded_volume_4 = Excluded_volume_3 / (exp(2.0 * mean_1 + 2.0 * var_1 * var_1));
-
-            //********below is 0.5 * <A*P>/<l^2>, and note that the percolation parameter equals to P32*<l^3>/<l^2>
-            Excluded_volume_5 = Excluded_volume_1 / (exp(2.0 * mean_1 + 2.0 * var_1 * var_1));
-        }
-        else if (str_frac_size == "uniform")
-        {
-            double max_R, min_R;
-            max_R = max_R_i * pow(2.0, 0.5);
-            min_R = min_R_i * pow(2.0, 0.5);
-            double C2 = 1 / (max_R - min_R);
-
-            //********below is 0.5*<A*P>
-            Excluded_volume_1 = 0.5 * C2 * 4.0 / 4.0 * (pow(max_R, 4) - pow(min_R, 4));
-
-            //********below is 0.5*<A>*<P>
-            Excluded_volume_2 = 0.5 * C2 * (pow(max_R, 3.0) - pow(min_R, 3.0)) / 3.0 * C2 * 4.0 * (pow(max_R, 2.0) - pow(min_R, 2.0)) / 2.0;
-
-            //********below is 0.5 * <l^3>
-            Excluded_volume_3 = 0.5 * C2 * ((pow(max_R, 4.0) - pow(min_R, 4.0)) / 4.0);
-
-            //********below is 0.5 * <l^3>/<l^2>, and note that the percolation parameter equals to P32*<l^3>/<l^2>
-            Excluded_volume_4 = Excluded_volume_3 / (C2 * ((pow(max_R, 3.0) - pow(min_R, 3.0)) / 3.0));
-
-            //********below is 0.5 * <A*P>/<l^2>, and note that the percolation parameter equals to P32*<l^3>/<l^2>
-            Excluded_volume_5 = Excluded_volume_1 / (C2 * ((pow(max_R, 3.0) - pow(min_R, 3.0)) / 3.0));
-        }
-        else if (str_frac_size == "single")
-        {
-            double R = min_R_i * pow(2.0, 0.5);
-            //********below is 0.5*<A*P>
-            Excluded_volume_1 = 0.5 * pow(R, 2) * 4.0 * R;
-
-            //********below is 0.5*<A>*<P>
-            Excluded_volume_2 = Excluded_volume_1;
-
-            //********below is 0.5 * <l^3>
-            Excluded_volume_3 = 0.5 * R * R * R;
-
-            //********below is 0.5 * <l^3>/<l^2>, and note that the percolation parameter equals to P32*<l^3>/<l^2>
-            Excluded_volume_4 = Excluded_volume_3 / (R * R);
-
-            //********below is 0.5 * <A*P>/<l^2>, and note that the percolation parameter equals to P32*<l^3>/<l^2>
-            Excluded_volume_5 = Excluded_volume_1 / (R * R);
-        }
-    }
-    else if (str_ori == "fisher")
-    {
-        //here, we need to calculate more,i.e., the statistical average of sinγ
-        double psi = (2 / ((sinh(kappa)) * (sinh(kappa)))) * (first_modified_Bessel(0, 2 * kappa) - (1 / kappa) * first_modified_Bessel(1, 2 * kappa));
-        double pi = acos(-1);
-        double SinGamma = psi * pi / 4;
-        //--------------------------------------------------------
-        if (str_frac_size == "powerlaw")
-        {
-            double x0, x1;
-            x0 = min_R_i * pow(2.0, 0.5);
-            x1 = max_R_i * pow(2.0, 0.5);
-            double C2 = (1 - alpha_g) / (pow(x1, 1 - alpha_g) - pow(x0, 1 - alpha_g));
-            //********below is 2/pi * < sinγ > * < A * P >
-            Excluded_volume_1 = C2 * 4.0 * (pow(x1, 4.0 - alpha_g) - pow(x0, 4.0 - alpha_g)) / (4.0 - alpha_g);
-            Excluded_volume_1 = 2 / pi * SinGamma * Excluded_volume_1;
-
-            //********below is 2/pi * < sinγ > *<A>*<P>
-            Excluded_volume_2 = C2 * (pow(x1, 3.0 - alpha_g) - pow(x0, 3.0 - alpha_g)) / (3.0 - alpha_g);                                                 //<A>
-            Excluded_volume_2 = 2 / pi * SinGamma * Excluded_volume_2 * (4.0 * C2 * (pow(x1, 2.0 - alpha_g) - pow(x0, 2.0 - alpha_g)) / (2.0 - alpha_g)); //<A>*<P>
-
-            //********below is 2/pi * < sinγ > * <l^3>
-            Excluded_volume_3 = 2 / pi * SinGamma * C2 * (pow(x1, 4.0 - alpha_g) - pow(x0, 4.0 - alpha_g)) / (4.0 - alpha_g);
-
-            //********below is 2/pi * < sinγ > * <l^3>/<l^2>, and note that the percolation parameter equals to P32*< sinγ >*<l^3>/<l^2>
-            Excluded_volume_4 = Excluded_volume_3 / (C2 / (3.0 - alpha_g) * (pow(x1, 3.0 - alpha_g) - pow(x0, 3.0 - alpha_g)));
-
-            //********below is 2/pi * < sinγ > * <A*P>/<l^2>, and note that the percolation parameter equals to P32*< sinγ >*<l^3>/<l^2>
-            Excluded_volume_5 = Excluded_volume_1 / (C2 / (3.0 - alpha_g) * (pow(x1, 3.0 - alpha_g) - pow(x0, 3.0 - alpha_g)));
-        }
-        else if (str_frac_size == "lognormal")
-        {
-            double mean, var;
-            mean = mean_i * pow(2, 0.5);
-            var = 2.0 * var_i;
-
-            double mean_1 = log(mean * mean / (pow(var + mean * mean, 0.5)));
-            double var_1 = pow(log(1 + ((double)var) / (mean * mean)), 0.5); //var_1 is input std. deviation
-
-            //********below is 2/pi * < sinγ > * < A * P >
-            Excluded_volume_1 = 2 / pi * SinGamma * 4.0 * exp(3 * mean_1 + (9.00 / 2.0) * (var_1 * var_1));
-            //std::cout << "Vex: " << Excluded_volume_1 <<"\n";
-
-            //********below is 2/pi * < sinγ > *<A>*<P>
-            Excluded_volume_2 = 2 / pi * SinGamma * exp(2.0 * mean_1 + 2.0 * var_1 * var_1) * 4.0 * exp(mean_1 + 0.5 * var_1 * var_1);
-
-            //********below is 2/pi * < sinγ > * <l^3>
-            Excluded_volume_3 = 2 / pi * SinGamma * exp(3.0 * mean_1 + (9.00 / 2.0) * (var_1 * var_1));
-
-            //********below is 2/pi * < sinγ > * <l^3>/<l^2>, and note that the percolation parameter equals to P32*< sinγ >*<l^3>/<l^2>
-            Excluded_volume_4 = Excluded_volume_3 / (exp(2.0 * mean_1 + 2.0 * var_1 * var_1));
-
-            //********below is 2/pi * < sinγ > * <A*P>/<l^2>, and note that the percolation parameter equals to P32*< sinγ >*<l^3>/<l^2>
-            Excluded_volume_5 = Excluded_volume_1 / (exp(2.0 * mean_1 + 2.0 * var_1 * var_1));
-        }
-        else if (str_frac_size == "uniform")
-        {
-            double max_R, min_R;
-            max_R = max_R_i * pow(2.0, 0.5);
-            min_R = min_R_i * pow(2.0, 0.5);
-            double C2 = 1 / (max_R - min_R);
-
-            //********below is 2/pi * < sinγ > * < A * P >
-            Excluded_volume_1 = 2 / pi * SinGamma * C2 * 4.0 / 4.0 * (pow(max_R, 4) - pow(min_R, 4));
-
-            //********below is 2/pi * < sinγ > *<A>*<P>
-            Excluded_volume_2 = 2 / pi * SinGamma * C2 * (pow(max_R, 3.0) - pow(min_R, 3.0)) / 3.0 * C2 * 4.0 * (pow(max_R, 2.0) - pow(min_R, 2.0)) / 2.0;
-
-            //********below is 2/pi * < sinγ > * <l^3>
-            Excluded_volume_3 = 2 / pi * SinGamma * C2 * ((pow(max_R, 4.0) - pow(min_R, 4.0)) / 4.0);
-
-            //********below is 2/pi * < sinγ > * <l^3>/<l^2>, and note that the percolation parameter equals to P32*< sinγ >*<l^3>/<l^2>
-            Excluded_volume_4 = Excluded_volume_3 / (C2 * ((pow(max_R, 3.0) - pow(min_R, 3.0)) / 3.0));
-
-            //********below is 2/pi * < sinγ > * <A*P>/<l^2>, and note that the percolation parameter equals to P32*< sinγ >*<l^3>/<l^2>
-            Excluded_volume_5 = Excluded_volume_1 / (C2 * ((pow(max_R, 3.0) - pow(min_R, 3.0)) / 3.0));
-        }
-        else if (str_frac_size == "single")
-        {
-            double R = min_R_i * pow(2.0, 0.5);
-            //********below is 2/pi * < sinγ > * < A * P >
-            Excluded_volume_1 = 2 / pi * SinGamma * (R * R) * (4.0 * R);
-
-            //********below is 2/pi * < sinγ > *<A>*<P>
-            Excluded_volume_2 = Excluded_volume_1;
-
-            //********below is 2/pi * < sinγ > * <l^3>
-            Excluded_volume_3 = 2 / pi * SinGamma * R * R * R;
-
-            //********below is 2/pi * < sinγ > * <l^3>/<l^2>, and note that the percolation parameter equals to P32*< sinγ >*<l^3>/<l^2>
-            Excluded_volume_4 = Excluded_volume_3 / (R * R);
-
-            //********below is 2/pi * < sinγ > * <A*P>/<l^2>, and note that the percolation parameter equals to P32*< sinγ >*<l^3>/<l^2>
-            Excluded_volume_5 = Excluded_volume_1 / (R * R);
-        }
-    }
-    else
-    {
-        throw Error_throw_pause("Error! Please define the orientation distribution!\n");
-    }
+inline void Domain::Determine_excluded_volume(const string str_ori, const string str_frac_size, double alpha_g, double kappa, double mean_i, double var_i, double min_R_i, double max_R_i){
+    //
+    //if (str_ori == "uniform")
+    //{
+    //    //double C1 = (1-alpha_g)/((2-alpha_g)*(pow(x1,1-alpha_g)-pow(x0,1-alpha_g)));
+    //    //double Expected_value_of_radius = C1*pow(x1,2-alpha_g) - C1*pow(x0,2-alpha_g);
+    //    //std::cout<<"Expected_value_of_radius: "<<Expected_value_of_radius<<std::endl;
+    //    if (str_frac_size == "powerlaw")
+    //    {
+    //        double x0, x1;
+    //        x0 = min_R_i * pow(2.0, 0.5);
+    //        x1 = max_R_i * pow(2.0, 0.5);
+    //        double C2 = (1 - alpha_g) / (pow(x1, 1 - alpha_g) - pow(x0, 1 - alpha_g));
+    //        //********below is 0.5*<A*P>
+    //        Excluded_volume_1 = C2 * 4.0 * (pow(x1, 4.0 - alpha_g) - pow(x0, 4.0 - alpha_g)) / (4.0 - alpha_g);
+    //        Excluded_volume_1 = 0.5 * Excluded_volume_1;
+    //
+    //        //********below is 0.5*<A>*<P>
+    //        Excluded_volume_2 = 0.5 * C2 * (pow(x1, 3.0 - alpha_g) - pow(x0, 3.0 - alpha_g)) / (3.0 - alpha_g);                       //0.5*<A>
+    //        Excluded_volume_2 = Excluded_volume_2 * (4.0 * C2 * (pow(x1, 2.0 - alpha_g) - pow(x0, 2.0 - alpha_g)) / (2.0 - alpha_g)); //<A>*<P>
+    //
+    //        //********below is 0.5 * <l^3>
+    //        Excluded_volume_3 = 0.5 * C2 * (pow(x1, 4.0 - alpha_g) - pow(x0, 4.0 - alpha_g)) / (4.0 - alpha_g);
+    //
+    //        //********below is 0.5 * <l^3>/<l^2>, and note that the percolation parameter equals to P32*<l^3>/<l^2>
+    //        Excluded_volume_4 = Excluded_volume_3 / (C2 / (3.0 - alpha_g) * (pow(x1, 3.0 - alpha_g) - pow(x0, 3.0 - alpha_g)));
+    //
+    //        //********below is 0.5 * <A*P>/<l^2>, and note that the percolation parameter equals to P32*<l^3>/<l^2>
+    //        Excluded_volume_5 = Excluded_volume_1 / (C2 / (3.0 - alpha_g) * (pow(x1, 3.0 - alpha_g) - pow(x0, 3.0 - alpha_g)));
+    //    }
+    //    else if (str_frac_size == "lognormal")
+    //    {
+    //        double mean, var;
+    //        mean = mean_i * pow(2, 0.5);
+    //        var = 2.0 * var_i;
+    //
+    //        double mean_1 = log(mean * mean / (pow(var + mean * mean, 0.5)));
+    //        double var_1 = pow(log(1 + ((double)var) / (mean * mean)), 0.5); //var_1 is input std. deviation
+    //
+    //        //********below is 0.5*<A*P>
+    //        Excluded_volume_1 = 0.5 * 4.0 * exp(3 * mean_1 + (9.00 / 2.0) * (var_1 * var_1));
+    //        //std::cout << "Vex: " << Excluded_volume_1 <<"\n";
+    //
+    //        //********below is 0.5*<A>*<P>
+    //        Excluded_volume_2 = 0.5 * exp(2.0 * mean_1 + 2.0 * var_1 * var_1) * 4.0 * exp(mean_1 + 0.5 * var_1 * var_1);
+    //
+    //        //********below is 0.5 * <l^3>
+    //        Excluded_volume_3 = 0.5 * exp(3.0 * mean_1 + (9.00 / 2.0) * (var_1 * var_1));
+    //
+    //        //********below is 0.5 * <l^3>/<l^2>, and note that the percolation parameter equals to P32*<l^3>/<l^2>
+    //        Excluded_volume_4 = Excluded_volume_3 / (exp(2.0 * mean_1 + 2.0 * var_1 * var_1));
+    //
+    //        //********below is 0.5 * <A*P>/<l^2>, and note that the percolation parameter equals to P32*<l^3>/<l^2>
+    //        Excluded_volume_5 = Excluded_volume_1 / (exp(2.0 * mean_1 + 2.0 * var_1 * var_1));
+    //    }
+    //    else if (str_frac_size == "uniform")
+    //    {
+    //        double max_R, min_R;
+    //        max_R = max_R_i * pow(2.0, 0.5);
+    //        min_R = min_R_i * pow(2.0, 0.5);
+    //        double C2 = 1 / (max_R - min_R);
+    //
+    //        //********below is 0.5*<A*P>
+    //        Excluded_volume_1 = 0.5 * C2 * 4.0 / 4.0 * (pow(max_R, 4) - pow(min_R, 4));
+    //
+    //        //********below is 0.5*<A>*<P>
+    //        Excluded_volume_2 = 0.5 * C2 * (pow(max_R, 3.0) - pow(min_R, 3.0)) / 3.0 * C2 * 4.0 * (pow(max_R, 2.0) - pow(min_R, 2.0)) / 2.0;
+    //
+    //        //********below is 0.5 * <l^3>
+    //        Excluded_volume_3 = 0.5 * C2 * ((pow(max_R, 4.0) - pow(min_R, 4.0)) / 4.0);
+    //
+    //        //********below is 0.5 * <l^3>/<l^2>, and note that the percolation parameter equals to P32*<l^3>/<l^2>
+    //        Excluded_volume_4 = Excluded_volume_3 / (C2 * ((pow(max_R, 3.0) - pow(min_R, 3.0)) / 3.0));
+    //
+    //        //********below is 0.5 * <A*P>/<l^2>, and note that the percolation parameter equals to P32*<l^3>/<l^2>
+    //        Excluded_volume_5 = Excluded_volume_1 / (C2 * ((pow(max_R, 3.0) - pow(min_R, 3.0)) / 3.0));
+    //    }
+    //    else if (str_frac_size == "single")
+    //    {
+    //        double R = min_R_i * pow(2.0, 0.5);
+    //        //********below is 0.5*<A*P>
+    //        Excluded_volume_1 = 0.5 * pow(R, 2) * 4.0 * R;
+    //
+    //        //********below is 0.5*<A>*<P>
+    //        Excluded_volume_2 = Excluded_volume_1;
+    //
+    //        //********below is 0.5 * <l^3>
+    //        Excluded_volume_3 = 0.5 * R * R * R;
+    //
+    //        //********below is 0.5 * <l^3>/<l^2>, and note that the percolation parameter equals to P32*<l^3>/<l^2>
+    //        Excluded_volume_4 = Excluded_volume_3 / (R * R);
+    //
+    //        //********below is 0.5 * <A*P>/<l^2>, and note that the percolation parameter equals to P32*<l^3>/<l^2>
+    //        Excluded_volume_5 = Excluded_volume_1 / (R * R);
+    //    }
+    //}
+    //else if (str_ori == "fisher")
+    //{
+    //    //here, we need to calculate more,i.e., the statistical average of sinγ
+    //    double psi = (2 / ((sinh(kappa)) * (sinh(kappa)))) * (first_modified_Bessel(0, 2 * kappa) - (1 / kappa) * first_modified_Bessel(1, 2 * kappa));
+    //    double pi = acos(-1);
+    //    double SinGamma = psi * pi / 4;
+    //    //--------------------------------------------------------
+    //    if (str_frac_size == "powerlaw")
+    //    {
+    //        double x0, x1;
+    //        x0 = min_R_i * pow(2.0, 0.5);
+    //        x1 = max_R_i * pow(2.0, 0.5);
+    //        double C2 = (1 - alpha_g) / (pow(x1, 1 - alpha_g) - pow(x0, 1 - alpha_g));
+    //        //********below is 2/pi * < sinγ > * < A * P >
+    //        Excluded_volume_1 = C2 * 4.0 * (pow(x1, 4.0 - alpha_g) - pow(x0, 4.0 - alpha_g)) / (4.0 - alpha_g);
+    //        Excluded_volume_1 = 2 / pi * SinGamma * Excluded_volume_1;
+    //
+    //        //********below is 2/pi * < sinγ > *<A>*<P>
+    //        Excluded_volume_2 = C2 * (pow(x1, 3.0 - alpha_g) - pow(x0, 3.0 - alpha_g)) / (3.0 - alpha_g);                                                 //<A>
+    //        Excluded_volume_2 = 2 / pi * SinGamma * Excluded_volume_2 * (4.0 * C2 * (pow(x1, 2.0 - alpha_g) - pow(x0, 2.0 - alpha_g)) / (2.0 - alpha_g)); //<A>*<P>
+    //
+    //        //********below is 2/pi * < sinγ > * <l^3>
+    //        Excluded_volume_3 = 2 / pi * SinGamma * C2 * (pow(x1, 4.0 - alpha_g) - pow(x0, 4.0 - alpha_g)) / (4.0 - alpha_g);
+    //
+    //        //********below is 2/pi * < sinγ > * <l^3>/<l^2>, and note that the percolation parameter equals to P32*< sinγ >*<l^3>/<l^2>
+    //        Excluded_volume_4 = Excluded_volume_3 / (C2 / (3.0 - alpha_g) * (pow(x1, 3.0 - alpha_g) - pow(x0, 3.0 - alpha_g)));
+    //
+    //        //********below is 2/pi * < sinγ > * <A*P>/<l^2>, and note that the percolation parameter equals to P32*< sinγ >*<l^3>/<l^2>
+    //        Excluded_volume_5 = Excluded_volume_1 / (C2 / (3.0 - alpha_g) * (pow(x1, 3.0 - alpha_g) - pow(x0, 3.0 - alpha_g)));
+    //    }
+    //    else if (str_frac_size == "lognormal")
+    //    {
+    //        double mean, var;
+    //        mean = mean_i * pow(2, 0.5);
+    //        var = 2.0 * var_i;
+    //
+    //        double mean_1 = log(mean * mean / (pow(var + mean * mean, 0.5)));
+    //        double var_1 = pow(log(1 + ((double)var) / (mean * mean)), 0.5); //var_1 is input std. deviation
+    //
+    //        //********below is 2/pi * < sinγ > * < A * P >
+    //        Excluded_volume_1 = 2 / pi * SinGamma * 4.0 * exp(3 * mean_1 + (9.00 / 2.0) * (var_1 * var_1));
+    //        //std::cout << "Vex: " << Excluded_volume_1 <<"\n";
+    //
+    //        //********below is 2/pi * < sinγ > *<A>*<P>
+    //        Excluded_volume_2 = 2 / pi * SinGamma * exp(2.0 * mean_1 + 2.0 * var_1 * var_1) * 4.0 * exp(mean_1 + 0.5 * var_1 * var_1);
+    //
+    //        //********below is 2/pi * < sinγ > * <l^3>
+    //        Excluded_volume_3 = 2 / pi * SinGamma * exp(3.0 * mean_1 + (9.00 / 2.0) * (var_1 * var_1));
+    //
+    //        //********below is 2/pi * < sinγ > * <l^3>/<l^2>, and note that the percolation parameter equals to P32*< sinγ >*<l^3>/<l^2>
+    //        Excluded_volume_4 = Excluded_volume_3 / (exp(2.0 * mean_1 + 2.0 * var_1 * var_1));
+    //
+    //        //********below is 2/pi * < sinγ > * <A*P>/<l^2>, and note that the percolation parameter equals to P32*< sinγ >*<l^3>/<l^2>
+    //        Excluded_volume_5 = Excluded_volume_1 / (exp(2.0 * mean_1 + 2.0 * var_1 * var_1));
+    //    }
+    //    else if (str_frac_size == "uniform")
+    //    {
+    //        double max_R, min_R;
+    //        max_R = max_R_i * pow(2.0, 0.5);
+    //        min_R = min_R_i * pow(2.0, 0.5);
+    //        double C2 = 1 / (max_R - min_R);
+    //
+    //        //********below is 2/pi * < sinγ > * < A * P >
+    //        Excluded_volume_1 = 2 / pi * SinGamma * C2 * 4.0 / 4.0 * (pow(max_R, 4) - pow(min_R, 4));
+    //
+    //        //********below is 2/pi * < sinγ > *<A>*<P>
+    //        Excluded_volume_2 = 2 / pi * SinGamma * C2 * (pow(max_R, 3.0) - pow(min_R, 3.0)) / 3.0 * C2 * 4.0 * (pow(max_R, 2.0) - pow(min_R, 2.0)) / 2.0;
+    //
+    //        //********below is 2/pi * < sinγ > * <l^3>
+    //        Excluded_volume_3 = 2 / pi * SinGamma * C2 * ((pow(max_R, 4.0) - pow(min_R, 4.0)) / 4.0);
+    //
+    //        //********below is 2/pi * < sinγ > * <l^3>/<l^2>, and note that the percolation parameter equals to P32*< sinγ >*<l^3>/<l^2>
+    //        Excluded_volume_4 = Excluded_volume_3 / (C2 * ((pow(max_R, 3.0) - pow(min_R, 3.0)) / 3.0));
+    //
+    //        //********below is 2/pi * < sinγ > * <A*P>/<l^2>, and note that the percolation parameter equals to P32*< sinγ >*<l^3>/<l^2>
+    //        Excluded_volume_5 = Excluded_volume_1 / (C2 * ((pow(max_R, 3.0) - pow(min_R, 3.0)) / 3.0));
+    //    }
+    //    else if (str_frac_size == "single")
+    //    {
+    //        double R = min_R_i * pow(2.0, 0.5);
+    //        //********below is 2/pi * < sinγ > * < A * P >
+    //        Excluded_volume_1 = 2 / pi * SinGamma * (R * R) * (4.0 * R);
+    //
+    //        //********below is 2/pi * < sinγ > *<A>*<P>
+    //        Excluded_volume_2 = Excluded_volume_1;
+    //
+    //        //********below is 2/pi * < sinγ > * <l^3>
+    //        Excluded_volume_3 = 2 / pi * SinGamma * R * R * R;
+    //
+    //        //********below is 2/pi * < sinγ > * <l^3>/<l^2>, and note that the percolation parameter equals to P32*< sinγ >*<l^3>/<l^2>
+    //        Excluded_volume_4 = Excluded_volume_3 / (R * R);
+    //
+    //        //********below is 2/pi * < sinγ > * <A*P>/<l^2>, and note that the percolation parameter equals to P32*< sinγ >*<l^3>/<l^2>
+    //        Excluded_volume_5 = Excluded_volume_1 / (R * R);
+    //    }
+    //}
+    //else
+    //{
+    //    throw Error_throw_pause("Error! Please define the orientation distribution!\n");
+    //}
+    //
 };
 
 inline size_t Domain::Identify_percolation_clusters(string str)
@@ -2264,17 +2324,17 @@ inline void Domain::Connectivity_uniform_orientation(string str_perco_dir)
     std::vector<size_t> temp;
     if (str_perco_dir == "x")
     {
-        temp.resize(Percolation_cluster[0].size());
+        //temp.resize(Percolation_cluster[0].size());
         temp = Percolation_cluster[0];
     }
     else if (str_perco_dir == "y")
     {
-        temp.resize(Percolation_cluster[1].size());
+        //temp.resize(Percolation_cluster[1].size());
         temp = Percolation_cluster[1];
     }
     else if (str_perco_dir == "z")
     {
-        temp.resize(Percolation_cluster[2].size());
+        //temp.resize(Percolation_cluster[2].size());
         temp = Percolation_cluster[2];
     }
     else
@@ -2310,11 +2370,11 @@ inline void Domain::Connectivity_uniform_orientation(string str_perco_dir)
 
     Ratio_of_P30 = P30_connected / P30;
 
-    Percolation_parameter_a = P30 * Excluded_volume_1;
-    Percolation_parameter_b = P30 * Excluded_volume_2;
-    Percolation_parameter_c = P30 * Excluded_volume_3;
-    Percolation_parameter_d = P32_total * Excluded_volume_4;
-    Percolation_parameter_e = P32_total * Excluded_volume_5;
+    //Percolation_parameter_a = 0;//P30 * Excluded_volume_1;
+    //Percolation_parameter_b = 0;//P30 * Excluded_volume_2;
+    //Percolation_parameter_c = 0;//P30 * Excluded_volume_3;
+    //Percolation_parameter_d = 0;//P32_total * Excluded_volume_4;
+    //Percolation_parameter_e = 0;//P32_total * Excluded_volume_5;
 };
 
 inline void Domain::Connectivity_fisher_orientation(string str_perco_dir)
@@ -2372,11 +2432,11 @@ inline void Domain::Connectivity_fisher_orientation(string str_perco_dir)
     P30_connected = nooffractures_connected / Model_volume;
     Ratio_of_P30 = P30_connected / P30;
 
-    Percolation_parameter_a = P30 * Excluded_volume_1;
-    Percolation_parameter_b = P30 * Excluded_volume_2;
-    Percolation_parameter_c = P30 * Excluded_volume_3;
-    Percolation_parameter_d = P32_total * Excluded_volume_4;
-    Percolation_parameter_e = P32_total * Excluded_volume_5;
+    //Percolation_parameter_a = P30 * Excluded_volume_1;
+    //Percolation_parameter_b = P30 * Excluded_volume_2;
+    //Percolation_parameter_c = P30 * Excluded_volume_3;
+    //Percolation_parameter_d = P32_total * Excluded_volume_4;
+    //Percolation_parameter_e = P32_total * Excluded_volume_5;
 };
 
 inline void Domain::PlotMatlab_DFN(string FileKey)
@@ -2886,17 +2946,17 @@ inline void Domain::Create_whole_model_II(const Vector6d model_size, std::vector
         P32_connected = 0;
         P30 = 0;
         P30_connected = 0;
-        Percolation_parameter_a = 0;
-        Percolation_parameter_b = 0;
-        Percolation_parameter_c = 0;
-        Percolation_parameter_d = 0;
+        //Percolation_parameter_a = 0;
+        //Percolation_parameter_b = 0;
+        //Percolation_parameter_c = 0;
+        //Percolation_parameter_d = 0;
         Ratio_of_P32 = 0;
         Ratio_of_P30 = 0;
-        Excluded_volume_1 = 0;
-        Excluded_volume_2 = 0;
-        Excluded_volume_3 = 0;
-        Excluded_volume_4 = 0;
-        Excluded_volume_5 = 0;
+        //Excluded_volume_1 = 0;
+        //Excluded_volume_2 = 0;
+        //Excluded_volume_3 = 0;
+        //Excluded_volume_4 = 0;
+        //Excluded_volume_5 = 0;
         return;
     };
 
