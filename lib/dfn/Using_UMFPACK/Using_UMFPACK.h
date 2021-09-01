@@ -45,24 +45,13 @@ inline Using_UMFPACK::Using_UMFPACK(const double *K_a, const size_t Dim, double 
 
     Ap_xx.push_back(Ai_xx.size());
 
-    int *Ai;
-    int *Ap;
-    double *Ax;
+    int *Ai = Ai_xx.data();
+    int *Ap = Ap_xx.data();
+    double *Ax = Ax_xx.data();
 
-    Ai = (int *)calloc(Ai_xx.size(), sizeof(int));
-    Ap = (int *)calloc(Ap_xx.size(), sizeof(int));
-    Ax = (double *)calloc(Ax_xx.size(), sizeof(double));
-
-    for (size_t is = 0; is < Ai_xx.size(); ++is)
-    {
-        Ai[is] = Ai_xx[is];
-        Ax[is] = Ax_xx[is];
-    }
-
-    for (size_t is = 0; is < Ap_xx.size(); ++is)
-    {
-        Ap[is] = Ap_xx[is];
-    }
+    Ai_xx.clear();
+    Ap_xx.clear();
+    Ax_xx.clear();
 
     int n = Dim;
     double *null = (double *)NULL;
@@ -79,10 +68,6 @@ inline Using_UMFPACK::Using_UMFPACK(const double *K_a, const size_t Dim, double 
 
     for (size_t is = 0; is < Dim; is++)
         B[is] = x[is];
-
-    free(Ai);
-    free(Ap);
-    free(Ax);
 
     status++;
 };

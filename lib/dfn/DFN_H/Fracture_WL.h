@@ -425,7 +425,7 @@ inline Fracture::Fracture(string string_ori,
     if (string_ori == "fisher")
     {
 
-        c.fisher(array3[0], array3[1], array3[2], array3[3], array3[4], array3[5], array3[6], Dip_direction, Dip_angle);
+        c.Fisher_1(array3[0], array3[1], array3[2], array3[3], array3[4], array3[5], array3[6], Dip_direction, Dip_angle);
     }
     else
     {
@@ -435,7 +435,9 @@ inline Fracture::Fracture(string string_ori,
     ///---------------------a piece of debuging code---
     if (Dip_direction > 360 || Dip_angle > 90 || Dip_direction < 0 || Dip_angle < 0)
     {
-        throw Error_throw_ignore("Error!!! The orientation is incorrect!\n");
+        string AS = "Error!!! The orientation is incorrect!\n";
+        AS = AS + to_string(Dip_direction) + ", " + to_string(Dip_angle) + "\n";
+        throw Error_throw_ignore(AS);
     };
     //cout << "Dip_direction: " << Dip_direction << " Dip_angle: " << Dip_angle << endl;
 
@@ -646,6 +648,7 @@ inline Fracture::Fracture(bool mode2D,
                           double Last_frac_size,
                           string conductivity_distri)
 {
+    //cout << "generating" << endl;
     if (mode2D == false)
     {
         throw Error_throw_pause("mode2D is not on!\n");
@@ -719,6 +722,7 @@ inline Fracture::Fracture(bool mode2D,
     }
 
     //--------------------dip direction and dip angle
+
     if (string_ori == "uniform")
     {
         double l_1 = 0;
@@ -758,9 +762,44 @@ inline Fracture::Fracture(bool mode2D,
         //--------------------normal vector--------
         Normal_vector << l_1, m_1, n_1;
     }
+    else if (string_ori == "orthogonal")
+    {
+        
+        int po = c.Bernoulli(0.3);
+
+        double l_1 = 0;
+        double m_1 = 0;
+        double n_1 = 0;
+        
+        if (po == 1)
+            n_1 = 1;
+        else if (po == 0)
+            l_1 = 1;
+      
+
+        double r_k = pow(l_1 * l_1 + m_1 * m_1 + n_1 * n_1, 0.5);
+
+        double beta_tmp = acos(n_1 / r_k) * 180.0 / M_PI;
+        double alpha_tmp = atan2(m_1, l_1) * 180.0 / M_PI;
+
+        if (alpha_tmp < 0)
+            alpha_tmp = 360 + alpha_tmp;
+
+        Dip_angle = beta_tmp;
+
+        if (alpha_tmp <= 90)
+            Dip_direction = 90 - alpha_tmp;
+
+        else if (alpha_tmp > 90)
+            Dip_direction = 450 - alpha_tmp;
+
+        //--------------------normal vector--------
+        Normal_vector << l_1, m_1, n_1;
+        
+    }
     else
     {
-        throw Error_throw_pause("Error! Please define orientation distribution!\n");
+        throw Error_throw_pause("Error! Please define orientation distribution! in class Fracture\n");
     }
 
     ///---------------------a piece of debuging code---
@@ -869,7 +908,7 @@ inline Fracture::Fracture(bool mode2D,
 
     for (size_t i = 0; i < Nvertices; ++i)
     {
-        if(Verts[i][1] > 0)
+        if (Verts[i][1] > 0)
             Verts[i][1] = (abs(array1[1][1]) + 5.);
         else
             Verts[i][1] = -(abs(array1[1][1]) + 5.);
@@ -903,7 +942,7 @@ inline Fracture::Fracture(bool mode2D,
     ///----------------------Area
     //Area = pow(2 * Radius * Radius, 0.5);
     //Area = Area * Area;
-    Area = 0;    
+    Area = 0;
     for (size_t i = 0; i < Nvertices - 2; ++i)
     {
         size_t j = i + 1;

@@ -148,7 +148,7 @@ public:
     //are both following the same distribution,
     // but seems not work
 
-    void PlotMatlab_Radius_and_Perimeter_kstest(string FileKey);
+    void PlotMatlab_Radius_and_Perimeter(string FileKey);
 
     void DataFile_Radius_AreaAndPerimeter(string FileKey);
     ///< outputs the data
@@ -268,45 +268,39 @@ inline void Domain::Create_whole_model(const size_t n,
     }
     else
     {
-        if (str_ori == "uniform")
+
+        for (size_t i = 0; i < n; ++i)
         {
-            for (size_t i = 0; i < n; ++i)
+            bool mode2d = true;
+            if (str_frac_size == "powerlaw")
             {
-                bool mode2d = true;
-                if (str_frac_size == "powerlaw")
-                {
-                    //cout << "debug 1\n";
-                    Fracture f(mode2d, str_ori, str_frac_size, i, r1, array11, array12[0] /*, array13*/, Last_frac_size, conductivity_distri);
-                    //cout << "debug 2\n";
-                    AddSquareFracture(i, f);
-                    No_Verts_trim += f.Nvertices_trim;
-                    //cout << "debug 3\n";
-                }
-                else if (str_frac_size == "lognormal")
-                {
-
-                    Fracture f(mode2d, str_ori, str_frac_size, i, r1, array11, array12[0] /*, array13*/, Last_frac_size, conductivity_distri);
-                    AddSquareFracture(i, f);
-                    No_Verts_trim += f.Nvertices_trim;
-                }
-                else if (str_frac_size == "uniform")
-                {
-                    Fracture f(mode2d, str_ori, str_frac_size, i, r1, array11, array12[0] /*, array13*/, Last_frac_size, conductivity_distri);
-                    AddSquareFracture(i, f);
-                    No_Verts_trim += f.Nvertices_trim;
-                }
-                else if (str_frac_size == "single")
-                {
-
-                    Fracture f(mode2d, str_ori, str_frac_size, i, r1, array11, array12[0] /*, array13*/, Last_frac_size, conductivity_distri);
-                    AddSquareFracture(i, f);
-                    No_Verts_trim += f.Nvertices_trim;
-                }
+                //cout << "debug 1\n";
+                Fracture f(mode2d, str_ori, str_frac_size, i, r1, array11, array12[0] /*, array13*/, Last_frac_size, conductivity_distri);
+                //cout << "debug 2\n";
+                AddSquareFracture(i, f);
+                No_Verts_trim += f.Nvertices_trim;
+                //cout << "debug 3\n";
             }
-        }
-        else
-        {
-            throw Error_throw_pause("Undefined mode!\n");
+            else if (str_frac_size == "lognormal")
+            {
+
+                Fracture f(mode2d, str_ori, str_frac_size, i, r1, array11, array12[0] /*, array13*/, Last_frac_size, conductivity_distri);
+                AddSquareFracture(i, f);
+                No_Verts_trim += f.Nvertices_trim;
+            }
+            else if (str_frac_size == "uniform")
+            {
+                Fracture f(mode2d, str_ori, str_frac_size, i, r1, array11, array12[0] /*, array13*/, Last_frac_size, conductivity_distri);
+                AddSquareFracture(i, f);
+                No_Verts_trim += f.Nvertices_trim;
+            }
+            else if (str_frac_size == "single")
+            {
+                Fracture f(mode2d, str_ori, str_frac_size, i, r1, array11, array12[0] /*, array13*/, Last_frac_size, conductivity_distri);
+
+                AddSquareFracture(i, f);
+                No_Verts_trim += f.Nvertices_trim;
+            }
         }
     }
 
@@ -2629,6 +2623,7 @@ inline void Domain::PlotMatlab_ORI_SCATTER(string FileKey)
     for (size_t i = 0; i < Fractures.size(); ++i)
     {
         double DD = Fractures[i].Dip_direction;
+
         double alpha = 0;
         if (DD > 90)
             alpha = 450 - DD;
@@ -2636,6 +2631,8 @@ inline void Domain::PlotMatlab_ORI_SCATTER(string FileKey)
             alpha = 90 - DD;
         alpha = alpha * pi / 180.0;
         oss << alpha << ", ...\n";
+
+        //oss << DD * pi / 180.0 << ", ...\n";
     }
     oss << "];\nr = [";
 
@@ -2861,49 +2858,55 @@ inline void Domain::PlotMatlab_Radius_and_Area_kstest(string FileKey)
     oss.close();
 };
 
-inline void Domain::PlotMatlab_Radius_and_Perimeter_kstest(string FileKey)
+inline void Domain::PlotMatlab_Radius_and_Perimeter(string FileKey)
 {
     std::ofstream oss(FileKey, ios::out);
     oss << "clc;\nclose all;\nclear all;\n";
-    oss << "x1=[";
+    oss << "Radius=[";
     for (size_t i = 0; i < Fractures.size(); ++i)
     {
-        oss << Fractures[i].Radius << "\t";
+        oss << Fractures[i].Radius << ", ...\n";
     }
     oss << "];\n";
-
+    /*
     oss << "x2=[";
     for (size_t i = 0; i < Fractures.size(); ++i)
     {
         oss << Fractures[i].Perimeter << "\t";
     }
     oss << "];\n";
-
-    oss << "[h,p,k] = kstest2(x1,x2);\n";
-    oss << "%if h = 1, means the two groups of data are not having similar distributions;\n";
-    oss << "hold on;\n";
+    */
     oss << "nbins = 30;\n";
-    oss << "subplot(2,1,1);\n";
-    oss << "histogram(x1,nbins);\n";
+    oss << "figure(1);\n";
+    oss << "histogram(Radius,nbins);\n";
     oss << "hold on;\n";
-    oss << "subplot(2,1,2);\n";
-    oss << "%histogram(x2);\n";
-    oss << "histogram(x2,nbins);\n";
+    oss << "[Frequency, Data_bin]=hist(Radius,nbins);\n";
+    oss << "\n\n%if power law, uncommect the following-------\n";
+    oss << "%f = fittype('c*x^(-alpha)','independent','x','coefficients',{'c','alpha'} );\n";
+    oss << "%cfun = fit(Data_bin',Frequency',f)\n";
+    oss << "%upper = ;\n";
+    oss << "%lower = ;\n";
+    oss << "%alph = ;\n";
+    oss << "%true_constant = (1-alph)/(upper^(1-alph) - lower^(1-alph))\n\n\n";
 
+    oss << "\n\n%if lognormal, uncommect the following-------\n";
+    oss << "%figure(2);\n";
+    oss << "%histfit(Radius, nbins, 'lognormal');\n";
+    oss << "%pd=fitdist(Radius','lognormal')\n";
+    oss << "%Ex = exp(pd.mu + pd.sigma^2*0.5)\n";
+    oss << "%Dx = exp(2*pd.mu+pd.sigma^2)*(exp(pd.sigma^2)-1)\n";
     oss.close();
 };
 
 inline void Domain::DataFile_Radius_AreaAndPerimeter(string FileKey)
 {
     std::ofstream oss(FileKey, ios::out);
-    oss << "Radius\tArea\tPerimeter\n";
+    oss << "Radius = [";
     for (size_t i = 0; i < Fractures.size(); ++i)
     {
-        if (i == Fractures.size() - 1)
-            oss << Fractures[i].Radius << "\t" << Fractures[i].Area << "\t" << Fractures[i].Perimeter;
-        oss << Fractures[i].Radius << "\t" << Fractures[i].Area << "\t" << Fractures[i].Perimeter << "\n";
+        oss << Fractures[i].Radius << ";\n";
     };
-
+    oss << "];\n";
     oss.close();
 }
 

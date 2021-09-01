@@ -60,14 +60,14 @@ inline FEM_DFN_A::FEM_DFN_A(DFN::Mesh_DFN_overall DFN_mesh, DFN::Domain dom)
 
     //Matrix_D += (2 * NUM_ELES /*+ NUM_TRACE_ELES*/);
 
-    double *K_overall = new double[Matrix_D * Matrix_D];
+    double *K_overall = new double[Matrix_D * Matrix_D]();
 
     if (K_overall == NULL)
     {
         throw Error_throw_ignore("Error! Cannot alloc to matrix 'K_overall'!\n");
     }
 
-    F_overall = new double[Matrix_D];
+    F_overall = new double[Matrix_D]();
     if (F_overall == NULL)
     {
         throw Error_throw_ignore("Error! Cannot alloc to matrix 'F_overall'!\n");
@@ -75,12 +75,12 @@ inline FEM_DFN_A::FEM_DFN_A(DFN::Mesh_DFN_overall DFN_mesh, DFN::Domain dom)
 
     this->Assemble_overall_matrix(DFN_mesh, K_overall, F_overall, dom);
 
-#pragma omp critical
-    {
-        std::cout << "\033[32mstart solving matrix;\n\033[0m";
-        DFN::Using_UMFPACK U{K_overall, Matrix_D, F_overall};
-        std::cout << "\033[32mfinish solving matrix;\n\033[0m";
-    }
+    //#pragma omp critical
+    //{
+    //std::cout << "\033[32mstart solving matrix;\n\033[0m";
+    DFN::Using_UMFPACK U{K_overall, Matrix_D, F_overall};
+    //std::cout << "\033[32mfinish solving matrix;\n\033[0m";
+    //}
 
     /*  
     cout << "\nF_overall;\n";
@@ -91,6 +91,10 @@ inline FEM_DFN_A::FEM_DFN_A(DFN::Mesh_DFN_overall DFN_mesh, DFN::Domain dom)
     */
     this->FEM_results(DFN_mesh, F_overall, dom);
     this->In_and_Out_flux(DFN_mesh, dom);
+    //cout << "Q_out: " << Q_out << endl;
+    //cout << "Q_in: " << Q_in << endl;
+    //cout << "Permeability: " << Permeability << endl;
+
     delete[] K_overall;
     K_overall = NULL;
 };
@@ -104,13 +108,6 @@ inline FEM_DFN_A::~FEM_DFN_A()
 inline void FEM_DFN_A::Assemble_overall_matrix(DFN::Mesh_DFN_overall DFN_mesh, double *K_overall, double *F_overall, DFN::Domain dom)
 {
     size_t Matrix_D = DFN_mesh.NUM_of_NODES;
-    //size_t NUM_ELES = DFN_mesh.JM.size();
-    //size_t NUM_TRACE_ELES = DFN_mesh.NUM_trace_ele_sets;
-
-    //Matrix_D += (2 * NUM_ELES /*+ NUM_TRACE_ELES*/);
-
-    Eigen::MatrixXf KK_big = Eigen::MatrixXf::Zero(Matrix_D, Matrix_D);
-    Eigen::VectorXf FF_big = Eigen::VectorXf::Zero(Matrix_D);
 
     for (size_t i = 0; i < DFN_mesh.JM_Each_Frac.size(); ++i)
     {
@@ -186,7 +183,8 @@ inline void FEM_DFN_A::Assemble_overall_matrix(DFN::Mesh_DFN_overall DFN_mesh, d
                     size_t Node_m = DFN_mesh.JM_Each_Frac[i][j](jq);
                     size_t Node_n = DFN_mesh.JM_Each_Frac[i][j](kq);
 
-                    KK_big(Node_m, Node_n) += Ke(jq, kq);
+                    // KK_big(Node_m, Node_n) += Ke(jq, kq);
+                    K_overall[Node_m * Matrix_D + Node_n] += Ke(jq, kq);
                 }
             }
         }
@@ -244,31 +242,21 @@ inline void FEM_DFN_A::Assemble_overall_matrix(DFN::Mesh_DFN_overall DFN_mesh, d
 
             for (size_t go = 0; go < Matrix_D; ++go)
             {
-                FF_big[go] -= KK_big(go, node_s) * BC_1;
+                F_overall[go] -= K_overall[go * Matrix_D + node_s] * BC_1;
             }
 
             for (size_t go = 0; go < Matrix_D; ++go)
             {
-                KK_big(go, node_s) = 0; // column
+                K_overall[go * Matrix_D + node_s] = 0;
             }
 
             for (size_t go = 0; go < Matrix_D; ++go)
             {
-                KK_big(node_s, go) = 0; // row
+                K_overall[node_s * Matrix_D + go] = 0;
             }
 
-            KK_big(node_s, node_s) = 1;
-            FF_big[node_s] = BC_1;
-        }
-    }
-
-    for (size_t i = 0; i < Matrix_D; ++i)
-    {
-        F_overall[i] = FF_big[i];
-        for (size_t j = 0; j < Matrix_D; ++j)
-        {
-            size_t ID_dx = i * Matrix_D + j;
-            K_overall[ID_dx] = KK_big(i, j);
+            K_overall[node_s * Matrix_D + node_s] = 1;
+            F_overall[node_s] = BC_1;
         }
     }
 };
@@ -679,12 +667,13 @@ inline void FEM_DFN_A::In_and_Out_flux(DFN::Mesh_DFN_overall DFN_mesh, DFN::Doma
         L_out += L;
     }
 
-    cout << "Q_in: " << Q_in << endl;
-    cout << "Q_out: " << Q_out << endl
-         << endl;
+    if ((abs(Q_in - Q_out) / (Q_in > Q_out ? Q_in : Q_out)) > 0.1)
+    {
+        string AS = "Warning! The difference between Q_in and Q_out is too large!\n";
+        throw Error_throw_ignore(AS);
+    }
 
-    cout << "L_in: " << L_in << endl;
-    cout << "L_out: " << L_out << endl;
+    this->Permeability = 0.5 * (Q_out + Q_in) / abs(dom.Model_domain(0) - dom.Model_domain(1));
 }
 
 }; // namespace DFN

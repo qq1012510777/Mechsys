@@ -12,16 +12,16 @@ namespace DFN
 class Loop_DFN
 {
 public:
-    double times;                   ///< loop times, each time DFN modeling, the density will be increased compared to last time DFN modeling
-    std::vector<Vector4d> array12;  ///< alpha (power law), min_radius, max_radius,
-    double L;                       ///< model size
-    size_t Nproc;                   ///< num of threads
-    size_t nt;                      ///< should not larger than times! which model is the model shown to us
-    size_t nk;                      ///< when nk DFN models are finished, output one time
-    size_t nv_MC_TIMES;             ///< each density, the MC times
-    double nx;                      ///< the increment of fracture number regard to each DFN modeling time
-    double Density_c; ///< when percolation probability equals to 0.5, the densit is
-    size_t NumofFsets;              ///< number of fracture sets
+    double times;                  ///< loop times, each time DFN modeling, the density will be increased compared to last time DFN modeling
+    std::vector<Vector4d> array12; ///< alpha (power law), min_radius, max_radius,
+    double L;                      ///< model size
+    size_t Nproc;                  ///< num of threads
+    size_t nt;                     ///< should not larger than times! which model is the model shown to us
+    size_t nk;                     ///< when nk DFN models are finished, output one time
+    size_t nv_MC_TIMES;            ///< each density, the MC times
+    double nx;                     ///< the increment of fracture number regard to each DFN modeling time
+    double Density_c;              ///< when percolation probability equals to 0.5, the densit is
+    size_t NumofFsets;             ///< number of fracture sets
     size_t Nb_flow_sim_MC_times;
 
     size_t n_initial_frac_density = 0;
@@ -63,7 +63,6 @@ public:
                           const double max_ele_edge,
                           const string conductivity_distri,
                           size_t modelno);
-
 
     void Sign_of_finding_pc(string FileKey);
     ///< if Pc is found, outputs a file
@@ -110,6 +109,7 @@ inline void Loop_DFN::Loop_create_DFNs(gsl_rng *random_seed,
 {
     bool if_probability_1 = false;
     bool if_probability_2 = false;
+    bool show_flow = false;
 
     size_t nv = nv_MC_TIMES;
     //each density, the MC times
@@ -252,11 +252,10 @@ inline void Loop_DFN::Loop_create_DFNs(gsl_rng *random_seed,
                 }
                 else if (switch_2D == 1)
                 {
-                    if (str_ori == "uniform")
-                    {
-                        dom.mode_2D = true;
-                        
-                        dom.Create_whole_model((n + n_initial_frac_density),
+
+                    dom.mode_2D = true;
+
+                    dom.Create_whole_model((n + n_initial_frac_density),
                                            DenWeight,
                                            random_seed,
                                            model_size,
@@ -266,10 +265,6 @@ inline void Loop_DFN::Loop_create_DFNs(gsl_rng *random_seed,
                                            array12,
                                            array13,
                                            conductivity_distri);
-                        
-                    }
-                    else
-                        throw Error_throw_pause("2D mode does not include non-uniform orientation\n");
                 }
                 else
                 {
@@ -278,13 +273,13 @@ inline void Loop_DFN::Loop_create_DFNs(gsl_rng *random_seed,
                 ///uniform means oritation data
                 //are generated uniformly, so,
                 //actually, array13 is input but not used
-                if(switch_2D == 1 && percolation_direction != "z")
+                if (switch_2D == 1 && percolation_direction != "z")
                 {
-                    throw Error_throw_pause("When it is in 2D mode, percolation direction must be along z direction!\n");    
+                    throw Error_throw_pause("When it is in 2D mode, percolation direction must be along z direction!\n");
                 }
 
                 size_t z = dom.Identify_percolation_clusters(percolation_direction);
-                if (str_ori == "uniform")
+                if (str_ori == "uniform" || str_ori == "orthogonal")
                     dom.Connectivity_uniform_orientation(percolation_direction);
                 else if (str_ori == "fisher")
                     dom.Connectivity_fisher_orientation(percolation_direction);
@@ -341,8 +336,8 @@ inline void Loop_DFN::Loop_create_DFNs(gsl_rng *random_seed,
                     dom.PlotMatlab_DFN_Highlight_Cluster("tdfn01_DFN_Highlight_Cluster.m");
                     dom.PLotMatlab_DFN_Cluster_along_a_direction("tdfn01_DFN_Z_clusters.m", "z");
                     //dom.PlotMatlab_Radius_and_Area_kstest("tdfn01_DFN_Fracture_Radius_and_Area.m");
-                    //dom.PlotMatlab_Radius_and_Perimeter_kstest("tdfn01_DFN_Fracture_Radius_and_Perimeter.m");
-                    //dom.DataFile_Radius_AreaAndPerimeter("tdfn01_DFN_Radius_AreaAndPerimeter.txt");
+                    dom.PlotMatlab_Radius_and_Perimeter("tdfn01_DFN_Fracture_Radius_and_Perimeter.m");
+                    //dom.DataFile_Radius_AreaAndPerimeter("tdfn01_DFN_Radius_AreaAndPerimeter.m");
                     dom.Matlab_Out_Frac_matfile("Fractures.mat");
                 }
 
@@ -411,7 +406,7 @@ inline void Loop_DFN::Loop_create_DFNs(gsl_rng *random_seed,
 
                 if (z == 1 && i < Nb_flow_sim_MC_times)
                 {
-                    /*
+                    
                     dom.Re_identify_intersection_considering_trimmed_frac();
                     size_t z2 = dom.Identify_percolation_clusters(percolation_direction);
                     //dom.PlotMatlab_DFN_and_Intersection("tdfn01_DFN_and_Intersections_II.m");
@@ -423,15 +418,16 @@ inline void Loop_DFN::Loop_create_DFNs(gsl_rng *random_seed,
                     DFN::Mesh_DFN_overall mesh(dom, min_ele_edge, max_ele_edge);
 
                     DFN::FEM_DFN_A CC(mesh, dom);
-                    if (np == nt && i == nv - 1)
+                    if (np == nt && show_flow == false)
                     {
+                        show_flow = true;
                         mesh.Matlab_plot("mesh_DFN.mat", "mesh_DFN.m", dom);
                         CC.matlab_plot("FEM_DFN.mat", "FEM_DFN.m", dom, mesh, CC.F_overall);
                     }
 
                     Permeability_A[i] = CC.Permeability;
-                    */
-                    Permeability_A[i] = 0;
+                    
+                    //Permeability_A[i] = 0;
                 }
                 else if (z == 0 && i < Nb_flow_sim_MC_times)
                 {
@@ -459,6 +455,7 @@ inline void Loop_DFN::Loop_create_DFNs(gsl_rng *random_seed,
             }
         }
 
+        
         this->Matlab_Data_output_stepBYstep(np,
                                             Data_MatFile,
                                             P32_total_A,
@@ -523,7 +520,6 @@ inline void Loop_DFN::Loop_create_DFNs(gsl_rng *random_seed,
     this->Matlab_command(Data_CommandFile, Data_MatFile, np, np, modelno);
     std::cout << "Loop finished!\n";
 };
-
 
 inline void Loop_DFN::Matlab_Data_output_stepBYstep(const size_t np,
                                                     string FileKey_mat,

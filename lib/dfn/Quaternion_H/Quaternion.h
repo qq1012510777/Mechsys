@@ -23,6 +23,8 @@ inline void NormalizeRotation(double Theta, Vector3d const &Axis, Quaternion_t &
     C(1) = A(0) * sin(Theta / 2.0);
     C(2) = A(1) * sin(Theta / 2.0);
     C(3) = A(2) * sin(Theta / 2.0);
+
+    //cout << "C: " << C.transpose() << endl;
 }
 
 inline void Conjugate_Q(Quaternion_t const &A, Quaternion_t &C)
@@ -62,8 +64,13 @@ inline void Rotation(Vector3d const &A, Quaternion_t const &B, Vector3d &C)
 {
     Quaternion_t t1, t2, t3;
     SetQuaternion(0.0, A, t1);
+    //cout << "t1: " << t1.transpose() << endl;
     QuaternionProduct(B, t1, t2);
+    //cout << "t2: " << t2.transpose() << endl;
     Conjugate_Q(B, t3);
+    //cout << "t3: " << t3.transpose() << endl;
     QuaternionProduct(t2, t3, t1);
+    //cout << "t1: " << t1.transpose() << endl;
     GetVector(t1, C);
+    //cout << "C: " << C.transpose() << endl;
 }
