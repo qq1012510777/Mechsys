@@ -25,31 +25,21 @@ public:
     std::vector<std::vector<size_t>> Percolation_cluster;                             ///< three orders, N dimensions; first order means x direction, second means y, third means z; alone a percolation direction, there might be zero or more clusters; each element is the subscript of array (Listofclusters)
     std::map<std::pair<size_t, size_t>, std::pair<Vector3d, Vector3d>> Intersections; ///< Map of line intersection between pairs of fractures
     Vector6d Model_domain;                                                            ///< Top-zmax, bottom-zmin, front-ymin, back-ymax, left-xmin, right-xmax
-    double n_I;                                                                       ///< Average number of intersections per fracture
+
+    std::vector<bool> Percolation_status = {false, false, false}; ///< if the model is percolative along x, y ,and z
+    double n_I;                                                   ///< Average number of intersections per fracture
     double P30;
     double P32_total;
-    double P30_connected; // linear density of percolating clusters
-    double P32_connected; // areal density of percolation clusters
-    //double Percolation_parameter_a; // do not use
-    //double Percolation_parameter_b;
-    //double Percolation_parameter_c;
-    //double Percolation_parameter_d;
-    //double Percolation_parameter_e;
-    double Ratio_of_P32;
-    double Ratio_of_P30; ///< linear probability of a fracture belonging to percolating clusters
-    //double Excluded_volume_1;
-    //double Excluded_volume_2;
-    //double Excluded_volume_3;
-    //double Excluded_volume_4;
-    //double Excluded_volume_5;
-    size_t No_Verts_trim;
+
+    Vector3d P30_connected; // linear density of percolating clusters
+    Vector3d P32_connected; // areal density of percolating clusters
+
+    Vector3d Ratio_of_P32; ///< areal probability of a fracture belonging to percolating clusters
+    Vector3d Ratio_of_P30; ///< linear probability of a fracture belonging to percolating clusters
 
     double P30_largest_cluster; // linear density of largest clusters
     double P32_largest_cluster; // areal density of largest clusters
 
-    //double Xi;      ///< correlation length, do not use it
-    //double max_R_s; ///< max gyration radius, do not use it
-    //Vector3d Center_of_cluster;
     double Last_frac_size;
 
     std::vector<Fracture> Surfaces;                                                     ///< model surface
@@ -83,15 +73,6 @@ public:
     // are connected, but no intersection points
     // are returned
 
-    void Modify_fracture_attributes_Zmax(Fracture &F2); ///< modify fracture F2 (its Nvertices, vertexes and area), because F2 intersects surface(s)
-    // if a fracture intersects with
-    // a boundary face, then trim it
-    void Modify_fracture_attributes_Zmin(Fracture &F2);
-    void Modify_fracture_attributes_Ymin(Fracture &F2);
-    void Modify_fracture_attributes_Ymax(Fracture &F2);
-    void Modify_fracture_attributes_Xmin(Fracture &F2);
-    void Modify_fracture_attributes_Xmax(Fracture &F2);
-
     void Modify_trimmed_fractures_attribute(Fracture &F2);
 
     void If_fracture_intersect_boundary(Fracture &F2);
@@ -115,11 +96,10 @@ public:
     void Determine_excluded_volume(const string str_ori, const string str_frac_size, double alpha_g = 0, double kappa = 0, double mean_i = 0, double var_i = 0, double min_R_i = 0, double max_R_i = 0);
     // do not use
 
-    size_t Identify_percolation_clusters(string str);
+    void Identify_percolation_clusters();
     //
 
-    void Connectivity_uniform_orientation(string str_perco_dir); ///< When orientation data have uniform distribution, determines percolation-related varibales
-    void Connectivity_fisher_orientation(string str_perco_dir);  ///< not finished
+    void Connectivity_analysis(); ///< for percolating cluster
 
     void PlotMatlab_DFN(string FileKey);
     //< matlab plot dfn
@@ -170,7 +150,6 @@ inline void Domain::Create_whole_model(const size_t n,
                                        const string conductivity_distri)
 {
 
-    No_Verts_trim = 0;
     Random_function r1 = Random_function(random_seed);
 
     Model_set(model_size);
@@ -189,7 +168,7 @@ inline void Domain::Create_whole_model(const size_t n,
                     Fracture f(str_ori, str_frac_size, i, r1, array11, array12[0] /*, array13*/, Last_frac_size, conductivity_distri);
                     //cout << "debug 2\n";
                     AddSquareFracture(i, f);
-                    No_Verts_trim += f.Nvertices_trim;
+
                     //cout << "debug 3\n";
                 }
                 else if (str_frac_size == "lognormal")
@@ -197,20 +176,17 @@ inline void Domain::Create_whole_model(const size_t n,
 
                     Fracture f(str_ori, str_frac_size, i, r1, array11, array12[0] /*, array13*/, Last_frac_size, conductivity_distri);
                     AddSquareFracture(i, f);
-                    No_Verts_trim += f.Nvertices_trim;
                 }
                 else if (str_frac_size == "uniform")
                 {
                     Fracture f(str_ori, str_frac_size, i, r1, array11, array12[0] /*, array13*/, Last_frac_size, conductivity_distri);
                     AddSquareFracture(i, f);
-                    No_Verts_trim += f.Nvertices_trim;
                 }
                 else if (str_frac_size == "single")
                 {
 
                     Fracture f(str_ori, str_frac_size, i, r1, array11, array12[0] /*, array13*/, Last_frac_size, conductivity_distri);
                     AddSquareFracture(i, f);
-                    No_Verts_trim += f.Nvertices_trim;
                 }
             }
         }
@@ -242,25 +218,21 @@ inline void Domain::Create_whole_model(const size_t n,
                     {
                         Fracture f(str_ori, str_frac_size, j, r1, array11, array12[i], array13[i], Last_frac_size, conductivity_distri);
                         AddSquareFracture(j, f);
-                        No_Verts_trim += f.Nvertices_trim;
                     }
                     else if (str_frac_size == "lognormal")
                     {
                         Fracture f(str_ori, str_frac_size, j, r1, array11, array12[i], array13[i], Last_frac_size, conductivity_distri);
                         AddSquareFracture(j, f);
-                        No_Verts_trim += f.Nvertices_trim;
                     }
                     else if (str_frac_size == "uniform")
                     {
                         Fracture f(str_ori, str_frac_size, j, r1, array11, array12[i], array13[i], Last_frac_size, conductivity_distri);
                         AddSquareFracture(j, f);
-                        No_Verts_trim += f.Nvertices_trim;
                     }
                     else if (str_frac_size == "single")
                     {
                         Fracture f(str_ori, str_frac_size, j, r1, array11, array12[i], array13[i], Last_frac_size, conductivity_distri);
                         AddSquareFracture(j, f);
-                        No_Verts_trim += f.Nvertices_trim;
                     }
                 }
             }
@@ -278,7 +250,7 @@ inline void Domain::Create_whole_model(const size_t n,
                 Fracture f(mode2d, str_ori, str_frac_size, i, r1, array11, array12[0] /*, array13*/, Last_frac_size, conductivity_distri);
                 //cout << "debug 2\n";
                 AddSquareFracture(i, f);
-                No_Verts_trim += f.Nvertices_trim;
+
                 //cout << "debug 3\n";
             }
             else if (str_frac_size == "lognormal")
@@ -286,20 +258,17 @@ inline void Domain::Create_whole_model(const size_t n,
 
                 Fracture f(mode2d, str_ori, str_frac_size, i, r1, array11, array12[0] /*, array13*/, Last_frac_size, conductivity_distri);
                 AddSquareFracture(i, f);
-                No_Verts_trim += f.Nvertices_trim;
             }
             else if (str_frac_size == "uniform")
             {
                 Fracture f(mode2d, str_ori, str_frac_size, i, r1, array11, array12[0] /*, array13*/, Last_frac_size, conductivity_distri);
                 AddSquareFracture(i, f);
-                No_Verts_trim += f.Nvertices_trim;
             }
             else if (str_frac_size == "single")
             {
                 Fracture f(mode2d, str_ori, str_frac_size, i, r1, array11, array12[0] /*, array13*/, Last_frac_size, conductivity_distri);
 
                 AddSquareFracture(i, f);
-                No_Verts_trim += f.Nvertices_trim;
             }
         }
     }
@@ -308,20 +277,13 @@ inline void Domain::Create_whole_model(const size_t n,
     if (nz == 0)
     {
         P32_total = 0;
-        P32_connected = 0;
+        P32_connected = Eigen::VectorXd::Zero(3, 1);
         P30 = 0;
-        P30_connected = 0;
-        //Percolation_parameter_a = 0;
-        //Percolation_parameter_b = 0;
-        //Percolation_parameter_c = 0;
-        //Percolation_parameter_d = 0;
-        Ratio_of_P32 = 0;
-        Ratio_of_P30 = 0;
-        //Excluded_volume_1 = 0;
-        //Excluded_volume_2 = 0;
-        //Excluded_volume_3 = 0;
-        //Excluded_volume_4 = 0;
-        //Excluded_volume_5 = 0;
+        P30_connected = Eigen::VectorXd::Zero(3, 1);
+
+        Ratio_of_P32 = Eigen::VectorXd::Zero(3, 1);
+        Ratio_of_P30 = Eigen::VectorXd::Zero(3, 1);
+
         return;
     };
 
@@ -336,65 +298,10 @@ inline void Domain::Create_whole_model(const size_t n,
         }
     }
 
-    //#pragma omp critical
-    //{
-    Clusters();
-    //}
+    this->Clusters();
 
-    Determine_max_cluster();
-    Average_number_of_intersections_per_fracture();
-    /*
-    if (str_ori == "uniform")
-    {
-        if (str_frac_size == "powerlaw")
-        {
-            Determine_excluded_volume(str_ori, str_frac_size, array12[0][0], 0, 0, 0, array12[0][1], array12[0][2]);
-        }
-        else if (str_frac_size == "lognormal")
-        {
-            Determine_excluded_volume(str_ori, str_frac_size, 0, 0, array12[0][0], array12[0][1], 0, 0);
-        }
-        else if (str_frac_size == "uniform")
-        {
-            Determine_excluded_volume(str_ori, str_frac_size, 0, 0, 0, 0, array12[0][0], array12[0][1]);
-        }
-        else if (str_frac_size == "single")
-        {
-            Determine_excluded_volume(str_ori, str_frac_size, 0, 0, 0, 0, array12[0][0], array12[0][0]);
-        }
-        else
-        {
-            throw Error_throw_pause("Error! Did not define fracture size distribution!\n");
-        }
-    }
-    else if (str_ori == "fisher")
-    {
-        if (str_frac_size == "powerlaw")
-        {
-            Determine_excluded_volume(str_ori, str_frac_size, array12[0][0], array13[0][2], 0, 0, array12[0][1], array12[0][2]);
-        }
-        else if (str_frac_size == "lognormal")
-        {
-            Determine_excluded_volume(str_ori, str_frac_size, 0, array13[0][2], array12[0][0], array12[0][1], 0, 0);
-        }
-        else if (str_frac_size == "uniform")
-        {
-            Determine_excluded_volume(str_ori, str_frac_size, 0, array13[0][2], 0, 0, array12[0][0], array12[0][1]);
-        }
-        else if (str_frac_size == "single")
-        {
-            Determine_excluded_volume(str_ori, str_frac_size, 0, array13[0][2], 0, 0, array12[0][0], array12[0][0]);
-        }
-        else
-        {
-            throw Error_throw_pause("Error! Did not define fracture size distribution!\n");
-        }
-    }
-    else
-    {
-        throw Error_throw_pause("Error! Did not define fracture orientation distribution!\n");
-    };
-    */
+    this->Determine_max_cluster();
+    this->Average_number_of_intersections_per_fracture();
 };
 
 inline void Domain::Model_set(const Vector6d model_size)
@@ -518,33 +425,27 @@ inline void Domain::AddSquareFracture(size_t Tag,
             if (y1 == 1)
             {
                 c.If_intersect_surfaces(0) = 1;
-                //Modify_fracture_attributes_Zmax(c);
             }
 
             if (y2 == 1)
             {
                 c.If_intersect_surfaces(1) = 1;
-                //Modify_fracture_attributes_Zmin(c);
             }
             if (y3 == 1)
             {
                 c.If_intersect_surfaces(2) = 1;
-                //Modify_fracture_attributes_Ymin(c);
             }
             if (y4 == 1)
             {
                 c.If_intersect_surfaces(3) = 1;
-                //Modify_fracture_attributes_Ymax(c);
             }
             if (y5 == 1)
             {
                 c.If_intersect_surfaces(4) = 1;
-                //Modify_fracture_attributes_Xmin(c);
             }
             if (y6 == 1)
             {
                 c.If_intersect_surfaces(5) = 1;
-                //Modify_fracture_attributes_Xmax(c);
             }
 
             std::vector<Vector3d> YT = c.Verts_trim;
@@ -575,37 +476,31 @@ inline void Domain::AddSquareFracture(size_t Tag,
             {
 
                 c.If_intersect_surfaces(0) = 1;
-                //Modify_fracture_attributes_Zmax(c);
             }
             if (y2 == 1)
             {
 
                 c.If_intersect_surfaces(1) = 1;
-                //Modify_fracture_attributes_Zmin(c);
             }
             if (y3 == 1)
             {
 
                 c.If_intersect_surfaces(2) = 1;
-                //Modify_fracture_attributes_Ymin(c);
             }
             if (y4 == 1)
             {
 
                 c.If_intersect_surfaces(3) = 1;
-                //Modify_fracture_attributes_Ymax(c);
             }
             if (y5 == 1)
             {
 
                 c.If_intersect_surfaces(4) = 1;
-                //Modify_fracture_attributes_Xmin(c);
             }
             if (y6 == 1)
             {
 
                 c.If_intersect_surfaces(5) = 1;
-                //Modify_fracture_attributes_Xmax(c);
             }
 
             std::vector<Vector3d> YT = c.Verts_trim;
@@ -652,986 +547,6 @@ inline bool Domain::Intersect_A(const Fracture F1, const Fracture F2)
     //DFN::Intersection_Frac Interse{f1, f2};
     DFN::Intersection_Frac_boost Interse{f1, f2};
     return Interse.If_intersect;
-}
-
-inline void Domain::Modify_fracture_attributes_Zmax(Fracture &F2) ///modify vertexes, area, Nvertices
-{
-    //std::cout << "Zmax called\n";
-    std::vector<Vector3d> Verts_temp1;
-    size_t nt = 0;
-    double Surf = Surfaces[0].Verts_trim[0](2);
-    /// Fractures[0], Top, Zmax
-
-    if (F2.Verts_trim[0](2) <= Surf)
-    {
-        // first
-        for (size_t i = 0; i < F2.Nvertices_trim; ++i)
-        {
-            size_t ni = i + 1 - (size_t)((i + 1) / F2.Nvertices_trim) * (i + 1);
-
-            if (F2.Verts_trim[i](2) <= Surf && Surf < F2.Verts_trim[ni](2))
-            {
-
-                Verts_temp1.push_back(F2.Verts_trim[i]);
-                //need push intersect point
-                double l = F2.Verts_trim[ni](0) - F2.Verts_trim[i](0);
-                double m = F2.Verts_trim[ni](1) - F2.Verts_trim[i](1);
-                double n = F2.Verts_trim[ni](2) - F2.Verts_trim[i](2);
-
-                double t = (Surf - F2.Verts_trim[i](2)) / n;
-                Vector3d temp_A;
-                temp_A(0) = t * l + F2.Verts_trim[i](0);
-                temp_A(1) = t * m + F2.Verts_trim[i](1);
-                temp_A(2) = Surf;
-                ///----------------------------------------
-
-                Verts_temp1.push_back(temp_A);
-                nt = i + 1;
-                break;
-            }
-            else
-            {
-                Verts_temp1.push_back(F2.Verts_trim[i]);
-            }
-            nt = F2.Nvertices_trim;
-        }
-        //second
-        for (size_t i = nt; i < F2.Nvertices_trim; ++i)
-        {
-            size_t ni = i + 1 - (size_t)((i + 1) / F2.Nvertices_trim) * (i + 1);
-
-            if ((F2.Verts_trim[i](2) >= Surf && Surf >= F2.Verts_trim[ni](2)))
-            {
-                //need push intersect point
-                double l = F2.Verts_trim[ni](0) - F2.Verts_trim[i](0);
-                double m = F2.Verts_trim[ni](1) - F2.Verts_trim[i](1);
-                double n = F2.Verts_trim[ni](2) - F2.Verts_trim[i](2);
-
-                double t = (Surf - F2.Verts_trim[i](2)) / n;
-                Vector3d temp_A;
-                temp_A(0) = t * l + F2.Verts_trim[i](0);
-                temp_A(1) = t * m + F2.Verts_trim[i](1);
-                temp_A(2) = Surf;
-
-                Verts_temp1.push_back(temp_A);
-                nt = i + 1;
-                break;
-            }
-        }
-        //third
-        for (size_t i = nt; i < F2.Nvertices_trim; ++i)
-        {
-            Verts_temp1.push_back(F2.Verts_trim[i]);
-        }
-    }
-    else if (F2.Verts_trim[0](2) > Surf)
-    {
-        // first
-        for (size_t i = 0; i < F2.Nvertices_trim; ++i)
-        {
-            size_t ni = i + 1 - (size_t)((i + 1) / F2.Nvertices_trim) * (i + 1);
-            if (F2.Verts_trim[i](2) >= Surf && Surf > F2.Verts_trim[ni](2))
-            {
-                double l = F2.Verts_trim[ni](0) - F2.Verts_trim[i](0);
-                double m = F2.Verts_trim[ni](1) - F2.Verts_trim[i](1);
-                double n = F2.Verts_trim[ni](2) - F2.Verts_trim[i](2);
-                double t = (Surf - F2.Verts_trim[i](2)) / n;
-                Vector3d temp_A;
-                temp_A(0) = t * l + F2.Verts_trim[i](0);
-                temp_A(1) = t * m + F2.Verts_trim[i](1);
-                temp_A(2) = Surf;
-                Verts_temp1.push_back(temp_A);
-
-                nt = i + 1;
-                break;
-            }
-            nt = F2.Nvertices_trim;
-        }
-        //second
-        for (size_t i = nt; i < F2.Nvertices_trim; ++i)
-        {
-            size_t ni = i + 1 - (size_t)((i + 1) / F2.Nvertices_trim) * (i + 1);
-
-            if ((F2.Verts_trim[i](2) <= Surf && Surf <= F2.Verts_trim[ni](2)))
-            {
-                Verts_temp1.push_back(F2.Verts_trim[i]);
-
-                //need push intersect point
-                double l = F2.Verts_trim[ni](0) - F2.Verts_trim[i](0);
-                double m = F2.Verts_trim[ni](1) - F2.Verts_trim[i](1);
-                double n = F2.Verts_trim[ni](2) - F2.Verts_trim[i](2);
-
-                double t = (Surf - F2.Verts_trim[i](2)) / n;
-                Vector3d temp_A;
-                temp_A(0) = t * l + F2.Verts_trim[i](0);
-                temp_A(1) = t * m + F2.Verts_trim[i](1);
-                temp_A(2) = Surf;
-
-                Verts_temp1.push_back(temp_A);
-
-                nt = i + 1;
-                break;
-            }
-            else
-            {
-                Verts_temp1.push_back(F2.Verts_trim[i]);
-            }
-        }
-    }
-
-    ///-----------------
-    F2.Nvertices_trim = Verts_temp1.size();
-    F2.Verts_trim.resize(0);
-    for (size_t i = 0; i < F2.Nvertices_trim; ++i)
-        F2.Verts_trim.push_back(Verts_temp1[i]);
-    ///-------------------Area
-    ///Heron's formula
-
-    F2.Area_trim = 0;
-    for (size_t i = 0; i < F2.Nvertices_trim - 2; ++i)
-    {
-        size_t j = i + 1;
-        size_t k = i + 2 - (size_t)((i + 2) / F2.Nvertices_trim) * (i + 2);
-        double a, b, c, p;
-        a = pow((F2.Verts_trim[0] - F2.Verts_trim[j]).dot((F2.Verts_trim[0] - F2.Verts_trim[j])), 0.5);
-        b = pow((F2.Verts_trim[j] - F2.Verts_trim[k]).dot((F2.Verts_trim[j] - F2.Verts_trim[k])), 0.5);
-        c = pow((F2.Verts_trim[k] - F2.Verts_trim[0]).dot((F2.Verts_trim[k] - F2.Verts_trim[0])), 0.5);
-        p = (a + b + c) / 2;
-
-        double Area_1;
-        if (a == 0 || b == 0 || c == 0)
-            Area_1 = 0;
-        else
-            Area_1 = pow((p * (p - a) * (p - b) * (p - c)), 0.5);
-        F2.Area_trim = F2.Area_trim + Area_1;
-    }
-
-    ///--------------Perimeter
-    F2.Perimeter_trim = 0;
-    for (size_t i = 0; i < F2.Verts_trim.size(); ++i)
-    {
-        size_t j = i + 1 - (size_t)((i + 1) / (F2.Verts_trim.size())) * (i + 1);
-        double p = pow((F2.Verts_trim[i] - F2.Verts_trim[j]).dot((F2.Verts_trim[i] - F2.Verts_trim[j])), 0.5);
-        F2.Perimeter_trim = F2.Perimeter_trim + p;
-    }
-}
-
-inline void Domain::Modify_fracture_attributes_Zmin(Fracture &F2) ///modify vertexes, area, Nvertices
-{
-    //	std::cout << "Zmin called\n";
-    std::vector<Vector3d> Verts_temp1;
-    size_t nt = 0;
-    double Surf = Surfaces[1].Verts_trim[0](2);
-    /// Fractures[1], Bottom, Zmin
-
-    if (F2.Verts_trim[0](2) >= Surf)
-    {
-        // first
-        for (size_t i = 0; i < F2.Nvertices_trim; ++i)
-        {
-
-            size_t ni = i + 1 - (size_t)((i + 1) / F2.Nvertices_trim) * (i + 1);
-
-            if (F2.Verts_trim[i](2) >= Surf && Surf > F2.Verts_trim[ni](2))
-            {
-
-                Verts_temp1.push_back(F2.Verts_trim[i]);
-                //need push intersect point
-                double l = F2.Verts_trim[ni](0) - F2.Verts_trim[i](0);
-                double m = F2.Verts_trim[ni](1) - F2.Verts_trim[i](1);
-                double n = F2.Verts_trim[ni](2) - F2.Verts_trim[i](2);
-
-                double t = (Surf - F2.Verts_trim[i](2)) / n;
-                Vector3d temp_A;
-                temp_A(0) = t * l + F2.Verts_trim[i](0);
-                temp_A(1) = t * m + F2.Verts_trim[i](1);
-                temp_A(2) = Surf;
-
-                Verts_temp1.push_back(temp_A);
-                nt = i + 1;
-                break;
-            }
-            else
-            {
-                Verts_temp1.push_back(F2.Verts_trim[i]);
-            }
-            nt = F2.Nvertices_trim;
-        }
-        //second
-        for (size_t i = nt; i < F2.Nvertices_trim; ++i)
-        {
-            size_t ni = i + 1 - (size_t)((i + 1) / F2.Nvertices_trim) * (i + 1);
-
-            if ((F2.Verts_trim[i](2) <= Surf && Surf <= F2.Verts_trim[ni](2)))
-            {
-                //need push intersect point
-                double l = F2.Verts_trim[ni](0) - F2.Verts_trim[i](0);
-                double m = F2.Verts_trim[ni](1) - F2.Verts_trim[i](1);
-                double n = F2.Verts_trim[ni](2) - F2.Verts_trim[i](2);
-
-                double t = (Surf - F2.Verts_trim[i](2)) / n;
-                Vector3d temp_A;
-                temp_A(0) = t * l + F2.Verts_trim[i](0);
-                temp_A(1) = t * m + F2.Verts_trim[i](1);
-                temp_A(2) = Surf;
-
-                Verts_temp1.push_back(temp_A);
-                nt = i + 1;
-                break;
-            }
-        }
-        //third
-        for (size_t i = nt; i < F2.Nvertices_trim; ++i)
-        {
-            Verts_temp1.push_back(F2.Verts_trim[i]);
-        }
-    }
-    else if (F2.Verts_trim[0](2) < Surf)
-    {
-        // first
-        for (size_t i = 0; i < F2.Nvertices_trim; ++i)
-        {
-            size_t ni = i + 1 - (size_t)((i + 1) / F2.Nvertices_trim) * (i + 1);
-            if (F2.Verts_trim[i](2) <= Surf && Surf < F2.Verts_trim[ni](2))
-            {
-                double l = F2.Verts_trim[ni](0) - F2.Verts_trim[i](0);
-                double m = F2.Verts_trim[ni](1) - F2.Verts_trim[i](1);
-                double n = F2.Verts_trim[ni](2) - F2.Verts_trim[i](2);
-                double t = (Surf - F2.Verts_trim[i](2)) / n;
-                Vector3d temp_A;
-                temp_A(0) = t * l + F2.Verts_trim[i](0);
-                temp_A(1) = t * m + F2.Verts_trim[i](1);
-                temp_A(2) = Surf;
-                Verts_temp1.push_back(temp_A);
-
-                nt = i + 1;
-                break;
-            }
-            nt = F2.Nvertices_trim;
-        }
-        //second
-        for (size_t i = nt; i < F2.Nvertices_trim; ++i)
-        {
-            size_t ni = i + 1 - (size_t)((i + 1) / F2.Nvertices_trim) * (i + 1);
-
-            if ((F2.Verts_trim[i](2) >= Surf && Surf >= F2.Verts_trim[ni](2)))
-            {
-                Verts_temp1.push_back(F2.Verts_trim[i]);
-
-                //need push intersect point
-                double l = F2.Verts_trim[ni](0) - F2.Verts_trim[i](0);
-                double m = F2.Verts_trim[ni](1) - F2.Verts_trim[i](1);
-                double n = F2.Verts_trim[ni](2) - F2.Verts_trim[i](2);
-
-                double t = (Surf - F2.Verts_trim[i](2)) / n;
-                Vector3d temp_A;
-                temp_A(0) = t * l + F2.Verts_trim[i](0);
-                temp_A(1) = t * m + F2.Verts_trim[i](1);
-                temp_A(2) = Surf;
-
-                Verts_temp1.push_back(temp_A);
-
-                nt = i + 1;
-                break;
-            }
-            else
-            {
-                Verts_temp1.push_back(F2.Verts_trim[i]);
-            }
-        }
-    }
-
-    ///-----------------
-    F2.Nvertices_trim = Verts_temp1.size();
-    F2.Verts_trim.resize(0);
-    for (size_t i = 0; i < F2.Nvertices_trim; ++i)
-        F2.Verts_trim.push_back(Verts_temp1[i]);
-    ///-------------------Area
-    ///Heron's formula
-
-    F2.Area_trim = 0;
-    for (size_t i = 0; i < F2.Nvertices_trim - 2; ++i)
-    {
-        size_t j = i + 1;
-        size_t k = i + 2 - (size_t)((i + 2) / F2.Nvertices_trim) * (i + 2);
-        double a, b, c, p;
-        a = pow((F2.Verts_trim[0] - F2.Verts_trim[j]).dot((F2.Verts_trim[0] - F2.Verts_trim[j])), 0.5);
-        b = pow((F2.Verts_trim[j] - F2.Verts_trim[k]).dot((F2.Verts_trim[j] - F2.Verts_trim[k])), 0.5);
-        c = pow((F2.Verts_trim[k] - F2.Verts_trim[0]).dot((F2.Verts_trim[k] - F2.Verts_trim[0])), 0.5);
-        p = (a + b + c) / 2;
-
-        double Area_1;
-        if (a == 0 || b == 0 || c == 0)
-            Area_1 = 0;
-        else
-            Area_1 = pow((p * (p - a) * (p - b) * (p - c)), 0.5);
-        F2.Area_trim = F2.Area_trim + Area_1;
-    }
-
-    F2.Perimeter_trim = 0;
-    for (size_t i = 0; i < F2.Verts_trim.size(); ++i)
-    {
-        size_t j = i + 1 - (size_t)((i + 1) / (F2.Verts_trim.size())) * (i + 1);
-        double p = pow((F2.Verts_trim[i] - F2.Verts_trim[j]).dot((F2.Verts_trim[i] - F2.Verts_trim[j])), 0.5);
-        F2.Perimeter_trim = F2.Perimeter_trim + p;
-    }
-}
-
-inline void Domain::Modify_fracture_attributes_Ymin(Fracture &F2) ///modify vertexes, area, Nvertices
-{
-    //	std::cout << "Ymin called\n";
-    std::vector<Vector3d> Verts_temp1;
-    size_t nt = 0;
-    double Surf = Surfaces[2].Verts_trim[0](1);
-    /// Fractures[2], Front, Ymin
-
-    if (F2.Verts_trim[0](1) >= Surf)
-    {
-        // first
-        for (size_t i = 0; i < F2.Nvertices_trim; ++i)
-        {
-
-            size_t ni = i + 1 - (size_t)((i + 1) / F2.Nvertices_trim) * (i + 1);
-
-            if (F2.Verts_trim[i](1) >= Surf && Surf > F2.Verts_trim[ni](1))
-            {
-
-                Verts_temp1.push_back(F2.Verts_trim[i]);
-                //need push intersect point
-                double l = F2.Verts_trim[ni](0) - F2.Verts_trim[i](0);
-                double m = F2.Verts_trim[ni](1) - F2.Verts_trim[i](1);
-                double n = F2.Verts_trim[ni](2) - F2.Verts_trim[i](2);
-
-                double t = (Surf - F2.Verts_trim[i](1)) / m;
-                Vector3d temp_A;
-                temp_A(0) = t * l + F2.Verts_trim[i](0);
-                temp_A(1) = Surf;
-                temp_A(2) = t * n + F2.Verts_trim[i](2);
-
-                Verts_temp1.push_back(temp_A);
-                nt = i + 1;
-                break;
-            }
-            else
-            {
-                Verts_temp1.push_back(F2.Verts_trim[i]);
-            }
-            nt = F2.Nvertices_trim;
-        }
-        //second
-        for (size_t i = nt; i < F2.Nvertices_trim; ++i)
-        {
-            size_t ni = i + 1 - (size_t)((i + 1) / F2.Nvertices_trim) * (i + 1);
-
-            if ((F2.Verts_trim[i](1) <= Surf && Surf <= F2.Verts_trim[ni](1)))
-            {
-                //need push intersect point
-                double l = F2.Verts_trim[ni](0) - F2.Verts_trim[i](0);
-                double m = F2.Verts_trim[ni](1) - F2.Verts_trim[i](1);
-                double n = F2.Verts_trim[ni](2) - F2.Verts_trim[i](2);
-
-                double t = (Surf - F2.Verts_trim[i](1)) / m;
-                Vector3d temp_A;
-                temp_A(0) = t * l + F2.Verts_trim[i](0);
-                temp_A(1) = Surf;
-                temp_A(2) = t * n + F2.Verts_trim[i](2);
-
-                Verts_temp1.push_back(temp_A);
-                nt = i + 1;
-                break;
-            }
-        }
-        //third
-        for (size_t i = nt; i < F2.Nvertices_trim; ++i)
-        {
-            Verts_temp1.push_back(F2.Verts_trim[i]);
-        }
-    }
-    else if (F2.Verts_trim[0](1) < Surf)
-    {
-        // first
-        for (size_t i = 0; i < F2.Nvertices_trim; ++i)
-        {
-            size_t ni = i + 1 - (size_t)((i + 1) / F2.Nvertices_trim) * (i + 1);
-            if (F2.Verts_trim[i](1) <= Surf && Surf < F2.Verts_trim[ni](1))
-            {
-                double l = F2.Verts_trim[ni](0) - F2.Verts_trim[i](0);
-                double m = F2.Verts_trim[ni](1) - F2.Verts_trim[i](1);
-                double n = F2.Verts_trim[ni](2) - F2.Verts_trim[i](2);
-                double t = (Surf - F2.Verts_trim[i](1)) / m;
-                Vector3d temp_A;
-                temp_A(0) = t * l + F2.Verts_trim[i](0);
-                temp_A(1) = Surf;
-                temp_A(2) = t * n + F2.Verts_trim[i](2);
-                Verts_temp1.push_back(temp_A);
-
-                nt = i + 1;
-                break;
-            }
-            nt = F2.Nvertices_trim;
-        }
-        //second
-        for (size_t i = nt; i < F2.Nvertices_trim; ++i)
-        {
-            size_t ni = i + 1 - (size_t)((i + 1) / F2.Nvertices_trim) * (i + 1);
-
-            if ((F2.Verts_trim[i](1) >= Surf && Surf >= F2.Verts_trim[ni](1)))
-            {
-                Verts_temp1.push_back(F2.Verts_trim[i]);
-
-                //need push intersect point
-                double l = F2.Verts_trim[ni](0) - F2.Verts_trim[i](0);
-                double m = F2.Verts_trim[ni](1) - F2.Verts_trim[i](1);
-                double n = F2.Verts_trim[ni](2) - F2.Verts_trim[i](2);
-
-                double t = (Surf - F2.Verts_trim[i](1)) / m;
-                Vector3d temp_A;
-                temp_A(0) = t * l + F2.Verts_trim[i](0);
-                temp_A(1) = Surf;
-                temp_A(2) = t * n + F2.Verts_trim[i](2);
-
-                Verts_temp1.push_back(temp_A);
-
-                nt = i + 1;
-                break;
-            }
-            else
-            {
-                Verts_temp1.push_back(F2.Verts_trim[i]);
-            }
-        }
-    }
-
-    ///-----------------
-    F2.Nvertices_trim = Verts_temp1.size();
-    F2.Verts_trim.resize(0);
-    for (size_t i = 0; i < F2.Nvertices_trim; ++i)
-        F2.Verts_trim.push_back(Verts_temp1[i]);
-    ///-------------------Area
-    ///Heron's formula
-
-    F2.Area_trim = 0;
-    for (size_t i = 0; i < F2.Nvertices_trim - 2; ++i)
-    {
-        size_t j = i + 1;
-        size_t k = i + 2 - (size_t)((i + 2) / F2.Nvertices_trim) * (i + 2);
-        double a, b, c, p;
-        a = pow((F2.Verts_trim[0] - F2.Verts_trim[j]).dot((F2.Verts_trim[0] - F2.Verts_trim[j])), 0.5);
-        b = pow((F2.Verts_trim[j] - F2.Verts_trim[k]).dot((F2.Verts_trim[j] - F2.Verts_trim[k])), 0.5);
-        c = pow((F2.Verts_trim[k] - F2.Verts_trim[0]).dot((F2.Verts_trim[k] - F2.Verts_trim[0])), 0.5);
-        p = (a + b + c) / 2;
-
-        double Area_1;
-        if (a == 0 || b == 0 || c == 0)
-            Area_1 = 0;
-        else
-            Area_1 = pow((p * (p - a) * (p - b) * (p - c)), 0.5);
-        F2.Area_trim = F2.Area_trim + Area_1;
-    }
-    F2.Perimeter_trim = 0;
-    for (size_t i = 0; i < F2.Verts_trim.size(); ++i)
-    {
-        size_t j = i + 1 - (size_t)((i + 1) / (F2.Verts_trim.size())) * (i + 1);
-        double p = pow((F2.Verts_trim[i] - F2.Verts_trim[j]).dot((F2.Verts_trim[i] - F2.Verts_trim[j])), 0.5);
-        F2.Perimeter_trim = F2.Perimeter_trim + p;
-    }
-}
-
-inline void Domain::Modify_fracture_attributes_Ymax(Fracture &F2) ///modify vertexes, area, Nvertices
-{
-    //	std::cout << "Ymax called\n";
-    std::vector<Vector3d> Verts_temp1;
-    size_t nt = 0;
-    double Surf = Surfaces[3].Verts_trim[0](1);
-    /// Fractures[2], Back, Ymax
-
-    if (F2.Verts_trim[0](1) <= Surf)
-    {
-        // first
-        for (size_t i = 0; i < F2.Nvertices_trim; ++i)
-        {
-
-            size_t ni = i + 1 - (size_t)((i + 1) / F2.Nvertices_trim) * (i + 1);
-
-            if (F2.Verts_trim[i](1) <= Surf && Surf < F2.Verts_trim[ni](1))
-            {
-
-                Verts_temp1.push_back(F2.Verts_trim[i]);
-                //need push intersect point
-                double l = F2.Verts_trim[ni](0) - F2.Verts_trim[i](0);
-                double m = F2.Verts_trim[ni](1) - F2.Verts_trim[i](1);
-                double n = F2.Verts_trim[ni](2) - F2.Verts_trim[i](2);
-
-                double t = (Surf - F2.Verts_trim[i](1)) / m;
-                Vector3d temp_A;
-                temp_A(0) = t * l + F2.Verts_trim[i](0);
-                temp_A(1) = Surf;
-                temp_A(2) = t * n + F2.Verts_trim[i](2);
-
-                Verts_temp1.push_back(temp_A);
-                nt = i + 1;
-                break;
-            }
-            else
-            {
-                Verts_temp1.push_back(F2.Verts_trim[i]);
-            }
-            nt = F2.Nvertices_trim;
-        }
-        //second
-        for (size_t i = nt; i < F2.Nvertices_trim; ++i)
-        {
-            size_t ni = i + 1 - (size_t)((i + 1) / F2.Nvertices_trim) * (i + 1);
-
-            if ((F2.Verts_trim[i](1) >= Surf && Surf >= F2.Verts_trim[ni](1)))
-            {
-                //need push intersect point
-                double l = F2.Verts_trim[ni](0) - F2.Verts_trim[i](0);
-                double m = F2.Verts_trim[ni](1) - F2.Verts_trim[i](1);
-                double n = F2.Verts_trim[ni](2) - F2.Verts_trim[i](2);
-
-                double t = (Surf - F2.Verts_trim[i](1)) / m;
-                Vector3d temp_A;
-                temp_A(0) = t * l + F2.Verts_trim[i](0);
-                temp_A(1) = Surf;
-                temp_A(2) = t * n + F2.Verts_trim[i](2);
-
-                Verts_temp1.push_back(temp_A);
-                nt = i + 1;
-                break;
-            }
-        }
-        //third
-        for (size_t i = nt; i < F2.Nvertices_trim; ++i)
-        {
-            Verts_temp1.push_back(F2.Verts_trim[i]);
-        }
-    }
-    else if (F2.Verts_trim[0](1) > Surf)
-    {
-        // first
-        for (size_t i = 0; i < F2.Nvertices_trim; ++i)
-        {
-            size_t ni = i + 1 - (size_t)((i + 1) / F2.Nvertices_trim) * (i + 1);
-            if (F2.Verts_trim[i](1) >= Surf && Surf > F2.Verts_trim[ni](1))
-            {
-                double l = F2.Verts_trim[ni](0) - F2.Verts_trim[i](0);
-                double m = F2.Verts_trim[ni](1) - F2.Verts_trim[i](1);
-                double n = F2.Verts_trim[ni](2) - F2.Verts_trim[i](2);
-                double t = (Surf - F2.Verts_trim[i](1)) / m;
-                Vector3d temp_A;
-                temp_A(0) = t * l + F2.Verts_trim[i](0);
-                temp_A(1) = Surf;
-                temp_A(2) = t * n + F2.Verts_trim[i](2);
-                Verts_temp1.push_back(temp_A);
-
-                nt = i + 1;
-                break;
-            }
-            nt = F2.Nvertices_trim;
-        }
-        //second
-        for (size_t i = nt; i < F2.Nvertices_trim; ++i)
-        {
-            size_t ni = i + 1 - (size_t)((i + 1) / F2.Nvertices_trim) * (i + 1);
-
-            if ((F2.Verts_trim[i](1) <= Surf && Surf <= F2.Verts_trim[ni](1)))
-            {
-                Verts_temp1.push_back(F2.Verts_trim[i]);
-
-                //need push intersect point
-                double l = F2.Verts_trim[ni](0) - F2.Verts_trim[i](0);
-                double m = F2.Verts_trim[ni](1) - F2.Verts_trim[i](1);
-                double n = F2.Verts_trim[ni](2) - F2.Verts_trim[i](2);
-
-                double t = (Surf - F2.Verts_trim[i](1)) / m;
-                Vector3d temp_A;
-                temp_A(0) = t * l + F2.Verts_trim[i](0);
-                temp_A(1) = Surf;
-                temp_A(2) = t * n + F2.Verts_trim[i](2);
-
-                Verts_temp1.push_back(temp_A);
-
-                nt = i + 1;
-                break;
-            }
-            else
-            {
-                Verts_temp1.push_back(F2.Verts_trim[i]);
-            }
-        }
-    }
-
-    ///-----------------
-    F2.Nvertices_trim = Verts_temp1.size();
-    F2.Verts_trim.resize(0);
-    for (size_t i = 0; i < F2.Nvertices_trim; ++i)
-        F2.Verts_trim.push_back(Verts_temp1[i]);
-    ///-------------------Area
-    ///Heron's formula
-
-    F2.Area_trim = 0;
-    for (size_t i = 0; i < F2.Nvertices_trim - 2; ++i)
-    {
-        size_t j = i + 1;
-        size_t k = i + 2 - (size_t)((i + 2) / F2.Nvertices_trim) * (i + 2);
-        double a, b, c, p;
-        a = pow((F2.Verts_trim[0] - F2.Verts_trim[j]).dot((F2.Verts_trim[0] - F2.Verts_trim[j])), 0.5);
-        b = pow((F2.Verts_trim[j] - F2.Verts_trim[k]).dot((F2.Verts_trim[j] - F2.Verts_trim[k])), 0.5);
-        c = pow((F2.Verts_trim[k] - F2.Verts_trim[0]).dot((F2.Verts_trim[k] - F2.Verts_trim[0])), 0.5);
-        p = (a + b + c) / 2;
-
-        double Area_1;
-        if (a == 0 || b == 0 || c == 0)
-            Area_1 = 0;
-        else
-            Area_1 = pow((p * (p - a) * (p - b) * (p - c)), 0.5);
-        F2.Area_trim = F2.Area_trim + Area_1;
-    }
-
-    F2.Perimeter_trim = 0;
-    for (size_t i = 0; i < F2.Verts_trim.size(); ++i)
-    {
-        size_t j = i + 1 - (size_t)((i + 1) / (F2.Verts_trim.size())) * (i + 1);
-        double p = pow((F2.Verts_trim[i] - F2.Verts_trim[j]).dot((F2.Verts_trim[i] - F2.Verts_trim[j])), 0.5);
-        F2.Perimeter_trim = F2.Perimeter_trim + p;
-    }
-}
-
-inline void Domain::Modify_fracture_attributes_Xmin(Fracture &F2) ///modify vertexes, area, Nvertices
-{
-    //std::cout << "Xmin called\n";
-    std::vector<Vector3d> Verts_temp1;
-    size_t nt = 0;
-    double Surf = Surfaces[4].Verts_trim[0](0);
-    /// Fractures[4], Left, Xmin
-
-    if (F2.Verts_trim[0](0) >= Surf)
-    {
-        // first
-        for (size_t i = 0; i < F2.Nvertices_trim; ++i)
-        {
-
-            size_t ni = i + 1 - (size_t)((i + 1) / F2.Nvertices_trim) * (i + 1);
-
-            if (F2.Verts_trim[i](0) >= Surf && Surf > F2.Verts_trim[ni](0))
-            {
-
-                Verts_temp1.push_back(F2.Verts_trim[i]);
-                //need push intersect point
-                double l = F2.Verts_trim[ni](0) - F2.Verts_trim[i](0);
-                double m = F2.Verts_trim[ni](1) - F2.Verts_trim[i](1);
-                double n = F2.Verts_trim[ni](2) - F2.Verts_trim[i](2);
-
-                double t = (Surf - F2.Verts_trim[i](0)) / l;
-                Vector3d temp_A;
-                temp_A(0) = Surf;
-                temp_A(1) = t * m + F2.Verts_trim[i](1);
-                temp_A(2) = t * n + F2.Verts_trim[i](2);
-
-                Verts_temp1.push_back(temp_A);
-                nt = i + 1;
-                break;
-            }
-            else
-            {
-                Verts_temp1.push_back(F2.Verts_trim[i]);
-            }
-            nt = F2.Nvertices_trim;
-        }
-        //second
-        for (size_t i = nt; i < F2.Nvertices_trim; ++i)
-        {
-            size_t ni = i + 1 - (size_t)((i + 1) / F2.Nvertices_trim) * (i + 1);
-
-            if ((F2.Verts_trim[i](0) <= Surf && Surf <= F2.Verts_trim[ni](0)))
-            {
-                //need push intersect point
-                double l = F2.Verts_trim[ni](0) - F2.Verts_trim[i](0);
-                double m = F2.Verts_trim[ni](1) - F2.Verts_trim[i](1);
-                double n = F2.Verts_trim[ni](2) - F2.Verts_trim[i](2);
-
-                double t = (Surf - F2.Verts_trim[i](0)) / l;
-                Vector3d temp_A;
-                temp_A(0) = Surf;
-                temp_A(1) = t * m + F2.Verts_trim[i](1);
-                temp_A(2) = t * n + F2.Verts_trim[i](2);
-
-                Verts_temp1.push_back(temp_A);
-                nt = i + 1;
-                break;
-            }
-        }
-        //third
-        for (size_t i = nt; i < F2.Nvertices_trim; ++i)
-        {
-            Verts_temp1.push_back(F2.Verts_trim[i]);
-        }
-    }
-    else if (F2.Verts_trim[0](0) < Surf)
-    {
-        // first
-        for (size_t i = 0; i < F2.Nvertices_trim; ++i)
-        {
-            size_t ni = i + 1 - (size_t)((i + 1) / F2.Nvertices_trim) * (i + 1);
-            if (F2.Verts_trim[i](0) <= Surf && Surf < F2.Verts_trim[ni](0))
-            {
-                double l = F2.Verts_trim[ni](0) - F2.Verts_trim[i](0);
-                double m = F2.Verts_trim[ni](1) - F2.Verts_trim[i](1);
-                double n = F2.Verts_trim[ni](2) - F2.Verts_trim[i](2);
-                double t = (Surf - F2.Verts_trim[i](0)) / l;
-                Vector3d temp_A;
-                temp_A(0) = Surf;
-                temp_A(1) = t * m + F2.Verts_trim[i](1);
-                temp_A(2) = t * n + F2.Verts_trim[i](2);
-                Verts_temp1.push_back(temp_A);
-
-                nt = i + 1;
-                break;
-            }
-            nt = F2.Nvertices_trim;
-        }
-        //second
-        for (size_t i = nt; i < F2.Nvertices_trim; ++i)
-        {
-            size_t ni = i + 1 - (size_t)((i + 1) / F2.Nvertices_trim) * (i + 1);
-
-            if ((F2.Verts_trim[i](0) >= Surf && Surf >= F2.Verts_trim[ni](0)))
-            {
-                Verts_temp1.push_back(F2.Verts_trim[i]);
-
-                //need push intersect point
-                double l = F2.Verts_trim[ni](0) - F2.Verts_trim[i](0);
-                double m = F2.Verts_trim[ni](1) - F2.Verts_trim[i](1);
-                double n = F2.Verts_trim[ni](2) - F2.Verts_trim[i](2);
-
-                double t = (Surf - F2.Verts_trim[i](0)) / l;
-                Vector3d temp_A;
-                temp_A(0) = Surf;
-                temp_A(1) = t * m + F2.Verts_trim[i](1);
-                temp_A(2) = t * n + F2.Verts_trim[i](2);
-
-                Verts_temp1.push_back(temp_A);
-
-                nt = i + 1;
-                break;
-            }
-            else
-            {
-                Verts_temp1.push_back(F2.Verts_trim[i]);
-            }
-        }
-    }
-
-    ///-----------------
-    F2.Nvertices_trim = Verts_temp1.size();
-    F2.Verts_trim.resize(0);
-    for (size_t i = 0; i < F2.Nvertices_trim; ++i)
-        F2.Verts_trim.push_back(Verts_temp1[i]);
-    ///-------------------Area
-    ///Heron's formula
-
-    F2.Area_trim = 0;
-    for (size_t i = 0; i < F2.Nvertices_trim - 2; ++i)
-    {
-        size_t j = i + 1;
-        size_t k = i + 2 - (size_t)((i + 2) / F2.Nvertices_trim) * (i + 2);
-        double a, b, c, p;
-        a = pow((F2.Verts_trim[0] - F2.Verts_trim[j]).dot((F2.Verts_trim[0] - F2.Verts_trim[j])), 0.5);
-        b = pow((F2.Verts_trim[j] - F2.Verts_trim[k]).dot((F2.Verts_trim[j] - F2.Verts_trim[k])), 0.5);
-        c = pow((F2.Verts_trim[k] - F2.Verts_trim[0]).dot((F2.Verts_trim[k] - F2.Verts_trim[0])), 0.5);
-        p = (a + b + c) / 2;
-
-        double Area_1;
-        if (a == 0 || b == 0 || c == 0)
-            Area_1 = 0;
-        else
-            Area_1 = pow((p * (p - a) * (p - b) * (p - c)), 0.5);
-        F2.Area_trim = F2.Area_trim + Area_1;
-    }
-
-    F2.Perimeter_trim = 0;
-    for (size_t i = 0; i < F2.Verts_trim.size(); ++i)
-    {
-        size_t j = i + 1 - (size_t)((i + 1) / (F2.Verts_trim.size())) * (i + 1);
-        double p = pow((F2.Verts_trim[i] - F2.Verts_trim[j]).dot((F2.Verts_trim[i] - F2.Verts_trim[j])), 0.5);
-        F2.Perimeter_trim = F2.Perimeter_trim + p;
-    }
-}
-
-inline void Domain::Modify_fracture_attributes_Xmax(Fracture &F2) ///modify vertexes, area, Nvertices
-{
-    //	std::cout << "Xmax called\n";
-    std::vector<Vector3d> Verts_temp1;
-    size_t nt = 0;
-    double Surf = Surfaces[5].Verts_trim[0](0);
-
-    /// Fractures[5], Right, Xmax
-    cout << "111 Frac_trim: \n";
-    for (size_t i = 0; i < F2.Verts_trim.size(); ++i)
-        cout << F2.Verts_trim[i].transpose() << endl;
-    cout << "111 Frac: \n";
-    for (size_t i = 0; i < F2.Verts.size(); ++i)
-        cout << F2.Verts[i].transpose() << endl;
-
-    if (F2.Verts_trim[0](0) <= Surf)
-    {
-        // first
-        for (size_t i = 0; i < F2.Nvertices_trim; ++i)
-        {
-
-            size_t ni = i + 1 - (size_t)((i + 1) / F2.Nvertices_trim) * (i + 1);
-
-            if (F2.Verts_trim[i](0) <= Surf && Surf < F2.Verts_trim[ni](0))
-            {
-
-                Verts_temp1.push_back(F2.Verts_trim[i]);
-                //need push intersect point
-                double l = F2.Verts_trim[ni](0) - F2.Verts_trim[i](0);
-                double m = F2.Verts_trim[ni](1) - F2.Verts_trim[i](1);
-                double n = F2.Verts_trim[ni](2) - F2.Verts_trim[i](2);
-
-                double t = (Surf - F2.Verts_trim[i](0)) / l;
-                Vector3d temp_A;
-                temp_A(0) = Surf;
-                temp_A(1) = t * m + F2.Verts_trim[i](1);
-                temp_A(2) = t * n + F2.Verts_trim[i](2);
-
-                Verts_temp1.push_back(temp_A);
-                nt = i + 1;
-                break;
-            }
-            else
-            {
-                Verts_temp1.push_back(F2.Verts_trim[i]);
-            }
-            nt = F2.Nvertices_trim;
-        }
-        //second
-        for (size_t i = nt; i < F2.Nvertices_trim; ++i)
-        {
-            size_t ni = i + 1 - (size_t)((i + 1) / F2.Nvertices_trim) * (i + 1);
-
-            if ((F2.Verts_trim[i](0) >= Surf && Surf >= F2.Verts_trim[ni](0)))
-            {
-                //need push intersect point
-                double l = F2.Verts_trim[ni](0) - F2.Verts_trim[i](0);
-                double m = F2.Verts_trim[ni](1) - F2.Verts_trim[i](1);
-                double n = F2.Verts_trim[ni](2) - F2.Verts_trim[i](2);
-
-                double t = (Surf - F2.Verts_trim[i](0)) / l;
-                Vector3d temp_A;
-                temp_A(0) = Surf;
-                temp_A(1) = t * m + F2.Verts_trim[i](1);
-                temp_A(2) = t * n + F2.Verts_trim[i](2);
-
-                Verts_temp1.push_back(temp_A);
-                nt = i + 1;
-                break;
-            }
-        }
-        //third
-        for (size_t i = nt; i < F2.Nvertices_trim; ++i)
-        {
-            Verts_temp1.push_back(F2.Verts_trim[i]);
-        }
-    }
-    else if (F2.Verts_trim[0](0) > Surf)
-    {
-        // first
-        for (size_t i = 0; i < F2.Nvertices_trim; ++i)
-        {
-            size_t ni = i + 1 - (size_t)((i + 1) / F2.Nvertices_trim) * (i + 1);
-            if (F2.Verts_trim[i](0) >= Surf && Surf > F2.Verts_trim[ni](0))
-            {
-                double l = F2.Verts_trim[ni](0) - F2.Verts_trim[i](0);
-                double m = F2.Verts_trim[ni](1) - F2.Verts_trim[i](1);
-                double n = F2.Verts_trim[ni](2) - F2.Verts_trim[i](2);
-                double t = (Surf - F2.Verts_trim[i](0)) / l;
-                Vector3d temp_A;
-                temp_A(0) = Surf;
-                temp_A(1) = t * m + F2.Verts_trim[i](1);
-                temp_A(2) = t * n + F2.Verts_trim[i](2);
-                Verts_temp1.push_back(temp_A);
-
-                nt = i + 1;
-                break;
-            }
-            nt = F2.Nvertices_trim;
-        }
-        //second
-        for (size_t i = nt; i < F2.Nvertices_trim; ++i)
-        {
-            size_t ni = i + 1 - (size_t)((i + 1) / F2.Nvertices_trim) * (i + 1);
-
-            if ((F2.Verts_trim[i](0) <= Surf && Surf <= F2.Verts_trim[ni](0)))
-            {
-                Verts_temp1.push_back(F2.Verts_trim[i]);
-
-                //need push intersect point
-                double l = F2.Verts_trim[ni](0) - F2.Verts_trim[i](0);
-                double m = F2.Verts_trim[ni](1) - F2.Verts_trim[i](1);
-                double n = F2.Verts_trim[ni](2) - F2.Verts_trim[i](2);
-
-                double t = (Surf - F2.Verts_trim[i](0)) / l;
-                Vector3d temp_A;
-                temp_A(0) = Surf;
-                temp_A(1) = t * m + F2.Verts_trim[i](1);
-                temp_A(2) = t * n + F2.Verts_trim[i](2);
-
-                Verts_temp1.push_back(temp_A);
-
-                nt = i + 1;
-                break;
-            }
-            else
-            {
-                Verts_temp1.push_back(F2.Verts_trim[i]);
-            }
-        }
-    }
-    cout << "222\n";
-    ///-----------------
-    F2.Nvertices_trim = Verts_temp1.size();
-
-    F2.Verts_trim.resize(0);
-    for (size_t i = 0; i < F2.Nvertices_trim; ++i)
-        F2.Verts_trim.push_back(Verts_temp1[i]);
-    ///-------------------Area
-    ///Heron's formula
-    cout << "333\n";
-    F2.Area_trim = 0;
-    for (size_t i = 0; i < F2.Nvertices_trim - 2; ++i)
-    {
-        cout << "3.1\n";
-        size_t j = i + 1;
-
-        size_t k = i + 2 - (size_t)((i + 2) / F2.Nvertices_trim) * (i + 2);
-        cout << "3.2\n";
-        double a, b, c, p;
-        a = pow((F2.Verts_trim[0] - F2.Verts_trim[j]).dot((F2.Verts_trim[0] - F2.Verts_trim[j])), 0.5);
-        b = pow((F2.Verts_trim[j] - F2.Verts_trim[k]).dot((F2.Verts_trim[j] - F2.Verts_trim[k])), 0.5);
-        c = pow((F2.Verts_trim[k] - F2.Verts_trim[0]).dot((F2.Verts_trim[k] - F2.Verts_trim[0])), 0.5);
-        p = (a + b + c) / 2;
-        cout << "3.3\n";
-        double Area_1;
-        if (a == 0 || b == 0 || c == 0)
-            Area_1 = 0;
-        else
-            Area_1 = pow((p * (p - a) * (p - b) * (p - c)), 0.5);
-        cout << "3.4\n";
-        F2.Area_trim = F2.Area_trim + Area_1;
-        cout << "3.5\n";
-    }
-    cout << "444\n";
-    F2.Perimeter_trim = 0;
-    for (size_t i = 0; i < F2.Verts_trim.size(); ++i)
-    {
-        size_t j = i + 1 - (size_t)((i + 1) / (F2.Verts_trim.size())) * (i + 1);
-        double p = pow((F2.Verts_trim[i] - F2.Verts_trim[j]).dot((F2.Verts_trim[i] - F2.Verts_trim[j])), 0.5);
-        F2.Perimeter_trim = F2.Perimeter_trim + p;
-    }
-    cout << "555\n";
 }
 
 inline void Domain::Modify_trimmed_fractures_attribute(Fracture &F2)
@@ -2217,13 +1132,14 @@ inline void Domain::Determine_excluded_volume(const string str_ori, const string
     //
 };
 
-inline size_t Domain::Identify_percolation_clusters(string str)
+inline void Domain::Identify_percolation_clusters()
 {
     Percolation_cluster.resize(3);
+
     if (Fractures.size() == 0)
     {
         //std::cout << "debug!!!?\n";
-        return 0;
+        return;
     }
     for (size_t i = 0; i < Listofclusters.size(); ++i) //Z direction
     {
@@ -2275,163 +1191,64 @@ inline size_t Domain::Identify_percolation_clusters(string str)
             }
         }
     }
-    if (str == "x")
+
+    if (Percolation_cluster[0].size() > 0)
     {
-        if (Percolation_cluster[0].size() == 0)
-        {
-            return 0;
-        }
-        else
-            return 1;
+        Percolation_status[0] = true;
     }
-    else if (str == "y")
+
+    if (Percolation_cluster[1].size() > 0)
     {
-        if (Percolation_cluster[1].size() == 0)
-        {
-            return 0;
-        }
-        else
-            return 1;
+        Percolation_status[1] = true;
     }
-    else if (str == "z")
+
+    if (Percolation_cluster[2].size() > 0)
     {
-        if (Percolation_cluster[2].size() == 0)
-        {
-            return 0;
-        }
-        else
-            return 1;
-    }
-    else
-    {
-        throw Error_throw_pause("Please define a percolation direction with x, y, z\n");
+        Percolation_status[2] = true;
     }
 }
 
-inline void Domain::Connectivity_uniform_orientation(string str_perco_dir)
+inline void Domain::Connectivity_analysis()
 {
 
-    if (Fractures.size() == 0)
+    for (size_t km = 0; km < Percolation_cluster.size(); ++km)
     {
-        return;
-    }
-    std::vector<size_t> temp;
-    if (str_perco_dir == "x")
-    {
-        //temp.resize(Percolation_cluster[0].size());
-        temp = Percolation_cluster[0];
-    }
-    else if (str_perco_dir == "y")
-    {
-        //temp.resize(Percolation_cluster[1].size());
-        temp = Percolation_cluster[1];
-    }
-    else if (str_perco_dir == "z")
-    {
-        //temp.resize(Percolation_cluster[2].size());
-        temp = Percolation_cluster[2];
-    }
-    else
-    {
-        throw Error_throw_pause("please define the percolation direction with char 'x', 'y' or 'z'\n");
-    }
-    P32_connected = 0;
-    P32_total = 0;
-    double Area_connected = 0;
-    double Area_total = 0;
-    double Model_volume = (Model_domain(0) - Model_domain(1)) * (Model_domain(3) - Model_domain(2)) * (Model_domain(5) - Model_domain(4));
+        std::vector<size_t> temp;
+        temp = Percolation_cluster[km];
 
-    double nooffractures_connected = 0;
-    for (size_t i = 0; i < temp.size(); ++i)
-    {
-        for (size_t j = 0; j < Listofclusters[temp[i]].size(); ++j)
+        P32_connected[km] = 0;
+        P32_total = 0;
+        double Area_connected = 0;
+        double Area_total = 0;
+        double Model_volume = (Model_domain(0) - Model_domain(1)) * (Model_domain(3) - Model_domain(2)) * (Model_domain(5) - Model_domain(4));
+
+        double nooffractures_connected = 0;
+
+        // temp is the percolating cluster
+        for (size_t i = 0; i < temp.size(); ++i)
         {
-            size_t nf = Listofclusters[temp[i]][j];
-            nooffractures_connected = nooffractures_connected + 1;
-            Area_connected = Area_connected + Fractures[nf].Area;
+            for (size_t j = 0; j < Listofclusters[temp[i]].size(); ++j)
+            {
+                size_t nf = Listofclusters[temp[i]][j];
+                nooffractures_connected = nooffractures_connected + 1;
+                Area_connected = Area_connected + Fractures[nf].Area;
+            }
         }
-    }
-    P32_connected = Area_connected / Model_volume;
-    for (size_t i = 0; i < Fractures.size(); ++i)
-    {
-        Area_total = Area_total + Fractures[i].Area;
-    }
-    P32_total = Area_total / Model_volume;
-    Ratio_of_P32 = P32_connected / P32_total;
-
-    P30 = Fractures.size() / Model_volume;
-    P30_connected = nooffractures_connected / Model_volume;
-
-    Ratio_of_P30 = P30_connected / P30;
-
-    //Percolation_parameter_a = 0;//P30 * Excluded_volume_1;
-    //Percolation_parameter_b = 0;//P30 * Excluded_volume_2;
-    //Percolation_parameter_c = 0;//P30 * Excluded_volume_3;
-    //Percolation_parameter_d = 0;//P32_total * Excluded_volume_4;
-    //Percolation_parameter_e = 0;//P32_total * Excluded_volume_5;
-};
-
-inline void Domain::Connectivity_fisher_orientation(string str_perco_dir)
-{
-    if (Fractures.size() == 0)
-    {
-        return;
-    }
-    std::vector<size_t> temp;
-    if (str_perco_dir == "x")
-    {
-        temp.resize(Percolation_cluster[0].size());
-        temp = Percolation_cluster[0];
-    }
-    else if (str_perco_dir == "y")
-    {
-        temp.resize(Percolation_cluster[1].size());
-        temp = Percolation_cluster[1];
-    }
-    else if (str_perco_dir == "z")
-    {
-        temp.resize(Percolation_cluster[2].size());
-        temp = Percolation_cluster[2];
-    }
-    else
-    {
-        throw Error_throw_pause("please define the percolation direction with char 'x', 'y' or 'z'\n");
-    }
-    P32_connected = 0;
-    P32_total = 0;
-    double Area_connected = 0;
-    double Area_total = 0;
-    double Model_volume = (Model_domain(0) - Model_domain(1)) * (Model_domain(3) - Model_domain(2)) * (Model_domain(5) - Model_domain(4));
-
-    double nooffractures_connected = 0;
-    for (size_t i = 0; i < temp.size(); ++i)
-    {
-        for (size_t j = 0; j < Listofclusters[temp[i]].size(); ++j)
+        P32_connected[km] = Area_connected / Model_volume;
+        for (size_t i = 0; i < Fractures.size(); ++i)
         {
-            size_t nf = Listofclusters[temp[i]][j];
-            nooffractures_connected = nooffractures_connected + 1;
-            Area_connected = Area_connected + Fractures[nf].Area;
+            Area_total = Area_total + Fractures[i].Area;
         }
+
+        P32_total = Area_total / Model_volume;
+        Ratio_of_P32[km] = P32_connected[km] / P32_total;
+
+        P30 = Fractures.size() / Model_volume;
+        P30_connected[km] = nooffractures_connected / Model_volume;
+
+        Ratio_of_P30[km] = P30_connected[km] / P30;
     }
-    P32_connected = Area_connected / Model_volume;
-    for (size_t i = 0; i < Fractures.size(); ++i)
-    {
-        Area_total = Area_total + Fractures[i].Area;
-    }
-    P32_total = Area_total / Model_volume;
-
-    Ratio_of_P32 = P32_connected / P32_total;
-
-    P30 = Fractures.size() / Model_volume;
-    P30_connected = nooffractures_connected / Model_volume;
-    Ratio_of_P30 = P30_connected / P30;
-
-    //Percolation_parameter_a = P30 * Excluded_volume_1;
-    //Percolation_parameter_b = P30 * Excluded_volume_2;
-    //Percolation_parameter_c = P30 * Excluded_volume_3;
-    //Percolation_parameter_d = P32_total * Excluded_volume_4;
-    //Percolation_parameter_e = P32_total * Excluded_volume_5;
-};
+}; // namespace DFN
 
 inline void Domain::PlotMatlab_DFN(string FileKey)
 {
@@ -2916,7 +1733,10 @@ inline void Domain::Re_identify_intersection_considering_trimmed_frac()
     Listofclusters.clear();
     Percolation_cluster.clear();
     Intersections.erase(Intersections.begin(), Intersections.end());
+    Percolation_status = {false, false, false};
+
     size_t nz = Fractures.size();
+
     for (size_t i = 0; i < nz - 1; ++i)
     {
         for (size_t j = i + 1; j < nz; ++j)
@@ -2943,25 +1763,6 @@ inline void Domain::Create_whole_model_II(const Vector6d model_size, std::vector
     }
 
     size_t nz = Fractures.size();
-    if (nz == 0)
-    {
-        P32_total = 0;
-        P32_connected = 0;
-        P30 = 0;
-        P30_connected = 0;
-        //Percolation_parameter_a = 0;
-        //Percolation_parameter_b = 0;
-        //Percolation_parameter_c = 0;
-        //Percolation_parameter_d = 0;
-        Ratio_of_P32 = 0;
-        Ratio_of_P30 = 0;
-        //Excluded_volume_1 = 0;
-        //Excluded_volume_2 = 0;
-        //Excluded_volume_3 = 0;
-        //Excluded_volume_4 = 0;
-        //Excluded_volume_5 = 0;
-        return;
-    };
 
     for (size_t i = 0; i < nz - 1; ++i)
     {

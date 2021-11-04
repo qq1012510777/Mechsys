@@ -2,6 +2,7 @@
 
 //#include "../Mesh_H/Mesh_DFN.h"
 #include "../Geometry_H/Normal_vector_2D.h"
+#include "../MATLAB_DATA_API/MATLAB_DATA_API.h"
 #include "../Mesh_H/Mesh_DFN_overall.h"
 #include "../Using_UMFPACK/Using_UMFPACK.h"
 namespace DFN
@@ -10,20 +11,24 @@ namespace DFN
 class FEM_DFN_A
 {
 public:
-    double *F_overall;
+    vector<double> X_overall;
     double Permeability = 0;
+
     std::vector<Vector3d> Velocity_3D;
     std::vector<Vector2d> Velocity_2D;
-    std::vector<Vector3s> BC_TOP; // ele ID, node 1, node 2
-    std::vector<Vector3s> BC_BOT;
+    std::vector<Vector3s> BC_IN; // ele ID, node 1, node 2
+    std::vector<Vector3s> BC_OUT;
     double Q_in;
     double Q_out;
+    double Q_error;
 
 public:
-    FEM_DFN_A(DFN::Mesh_DFN_overall DFN_mesh, DFN::Domain dom);
-    void Assemble_overall_matrix(DFN::Mesh_DFN_overall DFN_mesh, double *K_overall, double *F_overall, DFN::Domain dom);
-    void FEM_results(DFN::Mesh_DFN_overall DFN_mesh, double *F_overall, DFN::Domain dom);
-    void In_and_Out_flux(DFN::Mesh_DFN_overall DFN_mesh, DFN::Domain dom);
+    FEM_DFN_A(DFN::Mesh_DFN_overall DFN_mesh, DFN::Domain dom, size_t i /*direction*/);
+    void Assemble_overall_matrix(DFN::Mesh_DFN_overall DFN_mesh, double *K_overall, DFN::Domain dom);
+    void Apply_boundary_condition(DFN::Mesh_DFN_overall DFN_mesh, double *K_overall, double *F_overall, size_t direction, Vector2d BC_head);
+    void FEM_results(DFN::Mesh_DFN_overall DFN_mesh, DFN::Domain dom);
+    void Identify_In_and_Out_element(DFN::Mesh_DFN_overall DFN_mesh, size_t dir);
+    void In_and_Out_flux(DFN::Mesh_DFN_overall DFN_mesh, DFN::Domain dom, size_t dir);
     ~FEM_DFN_A();
 
     void p_PHI_over_p_xi_and_eta(double xi,
@@ -49,63 +54,76 @@ public:
                               VectorXd &pd_N_over_pd_y,
                               MatrixXd &Jacobi);
 
-    void matlab_plot(string FileKey_mat, string FileKey_m, DFN::Domain dom, DFN::Mesh_DFN_overall DFN_mesh, double *F_overall);
+    void matlab_plot(string FileKey_mat, string FileKey_m, DFN::Domain dom, DFN::Mesh_DFN_overall DFN_mesh);
 };
 
-inline FEM_DFN_A::FEM_DFN_A(DFN::Mesh_DFN_overall DFN_mesh, DFN::Domain dom)
+inline FEM_DFN_A::FEM_DFN_A(DFN::Mesh_DFN_overall DFN_mesh, DFN::Domain dom, size_t i /*direction*/)
 {
+
+    if (i > 2)
+    {
+        throw Error_throw_pause("Undefined direction!\n");
+    }
+
     size_t Matrix_D = DFN_mesh.NUM_of_NODES;
-    //size_t NUM_ELES = DFN_mesh.JM.size();
-    //size_t NUM_TRACE_ELES = DFN_mesh.NUM_trace_ele_sets;
+    Vector2d BC_head;
+    BC_head << 100, 20;
 
-    //Matrix_D += (2 * NUM_ELES /*+ NUM_TRACE_ELES*/);
+    //cout << "\t\t\tMatrix_D = " << Matrix_D << endl;
+    //double *K_overall = new double[Matrix_D * Matrix_D]();
+    //double *F_overall = new double[Matrix_D]();
+    //double K_overall[Matrix_D * Matrix_D] = {};
+    //double F_overall[Matrix_D] = {};
+    double *K_overall = (double *)malloc(Matrix_D * Matrix_D * sizeof(double));
+    double *F_overall = (double *)malloc(Matrix_D * sizeof(double));
+    memset(K_overall, 0, Matrix_D * Matrix_D * sizeof(double));
+    memset(F_overall, 0, Matrix_D * sizeof(double));
+    //cout << "\t\t\tMatrix initialization finished!\n";
 
-    double *K_overall = new double[Matrix_D * Matrix_D]();
-
-    if (K_overall == NULL)
+    if (K_overall == NULL || F_overall == NULL)
     {
-        throw Error_throw_ignore("Error! Cannot alloc to matrix 'K_overall'!\n");
+        //delete[] K_overall;
+        //K_overall = NULL;
+        //delete[] F_overall;
+        //F_overall = NULL;
+        free(K_overall);
+        free(F_overall);
+        //cout << "Matrix_D = " << Matrix_D << endl;
+        //cout << "Error! Cannot alloc to matrix 'K_overall' or 'F_overall'!\n";
+        throw Error_throw_ignore("Error! Cannot alloc to matrix 'K_overall' or 'F_overall'!\n");
     }
 
-    F_overall = new double[Matrix_D]();
-    if (F_overall == NULL)
-    {
-        throw Error_throw_ignore("Error! Cannot alloc to matrix 'F_overall'!\n");
-    }
+    //cout << "\t\t\tassemble matrix start" << endl;
+    this->Assemble_overall_matrix(DFN_mesh, K_overall, dom);
+    //cout << "\t\t\tassemble matrix finished" << endl;
 
-    this->Assemble_overall_matrix(DFN_mesh, K_overall, F_overall, dom);
+    //cout << "\t\t\tapply BC start" << endl;
+    this->Apply_boundary_condition(DFN_mesh, K_overall, F_overall, i, BC_head);
+    //cout << "\t\t\tapply BC finish" << endl;
 
-    //#pragma omp critical
-    //{
-    //std::cout << "\033[32mstart solving matrix;\n\033[0m";
+    //cout << "\t\t\tumfpack start" << endl;
     DFN::Using_UMFPACK U{K_overall, Matrix_D, F_overall};
-    //std::cout << "\033[32mfinish solving matrix;\n\033[0m";
-    //}
+    //cout << "\t\t\tumfpack finished" << endl;
 
-    /*  
-    cout << "\nF_overall;\n";
-    for (size_t i = 0; i < Matrix_D; ++i)
-    {
-        cout << F_overall[i] << endl;
-    }
-    */
-    this->FEM_results(DFN_mesh, F_overall, dom);
-    this->In_and_Out_flux(DFN_mesh, dom);
-    //cout << "Q_out: " << Q_out << endl;
-    //cout << "Q_in: " << Q_in << endl;
-    //cout << "Permeability: " << Permeability << endl;
+    X_overall = vector<double>{F_overall, F_overall + Matrix_D};
 
-    delete[] K_overall;
-    K_overall = NULL;
+    //delete[] K_overall;
+    //K_overall = NULL;
+    //delete[] F_overall;
+    //F_overall = NULL;
+    free(K_overall);
+    free(F_overall);
+
+    this->Identify_In_and_Out_element(DFN_mesh, i);
+    this->FEM_results(DFN_mesh, dom);
+    this->In_and_Out_flux(DFN_mesh, dom, i);
 };
 
-inline FEM_DFN_A::~FEM_DFN_A()
-{
-    delete[] F_overall;
-    F_overall = NULL;
+inline FEM_DFN_A::~FEM_DFN_A(){
+
 };
 
-inline void FEM_DFN_A::Assemble_overall_matrix(DFN::Mesh_DFN_overall DFN_mesh, double *K_overall, double *F_overall, DFN::Domain dom)
+inline void FEM_DFN_A::Assemble_overall_matrix(DFN::Mesh_DFN_overall DFN_mesh, double *K_overall, DFN::Domain dom)
 {
     size_t Matrix_D = DFN_mesh.NUM_of_NODES;
 
@@ -189,8 +207,13 @@ inline void FEM_DFN_A::Assemble_overall_matrix(DFN::Mesh_DFN_overall DFN_mesh, d
             }
         }
     }
+};
 
+inline void FEM_DFN_A::Apply_boundary_condition(DFN::Mesh_DFN_overall DFN_mesh, double *K_overall, double *F_overall, size_t direction, Vector2d BC_head)
+{
+    size_t Matrix_D = DFN_mesh.NUM_of_NODES;
     //---------------------BC
+    /*
     for (size_t i = 0; i < DFN_mesh.JM_Each_Frac.size(); ++i)
     {
 
@@ -220,26 +243,55 @@ inline void FEM_DFN_A::Assemble_overall_matrix(DFN::Mesh_DFN_overall DFN_mesh, d
             }
         }
     }
-
+    */
     for (size_t i = 0; i < DFN_mesh.NUM_of_NODES; ++i)
     {
-        if ((DFN_mesh.Pnt_attri[i].If_model_top == true || DFN_mesh.Pnt_attri[i].If_model_bottom == true))
+        double BC_1 = 0;
+
+        bool found_boun_pnt = false;
+
+        if (direction == 2)
         {
-            double BC_1 = 0;
-            if (DFN_mesh.Pnt_attri[i].If_model_top == true)
+            if ((DFN_mesh.Pnt_attri[i].If_model_top == true || DFN_mesh.Pnt_attri[i].If_model_bottom == true))
             {
-                BC_1 = 100;
-            }
+                found_boun_pnt = true;
+                if (DFN_mesh.Pnt_attri[i].If_model_top == true)
+                    BC_1 = BC_head[0];
 
-            if (DFN_mesh.Pnt_attri[i].If_model_bottom == true)
+                if (DFN_mesh.Pnt_attri[i].If_model_bottom == true)
+                    BC_1 = BC_head[1];
+            }
+        }
+        else if (direction == 1)
+        {
+            if ((DFN_mesh.Pnt_attri[i].If_model_back == true || DFN_mesh.Pnt_attri[i].If_model_front == true))
             {
-                BC_1 = 20;
-            }
+                found_boun_pnt = true;
+                if (DFN_mesh.Pnt_attri[i].If_model_back == true)
+                    BC_1 = BC_head[0];
 
+                if (DFN_mesh.Pnt_attri[i].If_model_front == true)
+                    BC_1 = BC_head[1];
+            }
+        }
+        else if (direction == 0)
+        {
+            if ((DFN_mesh.Pnt_attri[i].If_model_left == true || DFN_mesh.Pnt_attri[i].If_model_right == true))
+            {
+                found_boun_pnt = true;
+                if (DFN_mesh.Pnt_attri[i].If_model_left == true)
+                    BC_1 = BC_head[0];
+
+                if (DFN_mesh.Pnt_attri[i].If_model_right == true)
+                    BC_1 = BC_head[1];
+            }
+        }
+        else
+            throw Error_throw_pause("In FEM_DFN_A, the checking direction is not given!\n");
+
+        if (found_boun_pnt == true)
+        {
             int node_s = i;
-            //cout << "node_s: " << node_s + 1 << ", BC: " << BC_1 << endl;
-            //cout << "JB1.push_back(Vector2d(" << node_s << ", " << BC_1 << "));\n";
-
             for (size_t go = 0; go < Matrix_D; ++go)
             {
                 F_overall[go] -= K_overall[go * Matrix_D + node_s] * BC_1;
@@ -374,48 +426,11 @@ inline void FEM_DFN_A::p_PHI_over_p_x_and_y(double xi,
     }
 };
 
-inline void FEM_DFN_A::matlab_plot(string FileKey_mat, string FileKey_m, DFN::Domain dom, DFN::Mesh_DFN_overall DFN_mesh, double *F_overall)
+inline void FEM_DFN_A::matlab_plot(string FileKey_mat, string FileKey_m, DFN::Domain dom, DFN::Mesh_DFN_overall DFN_mesh)
 {
+    string Frac_JXY_3D = "Frac_JXY_3D";
 
-    const char *filename = FileKey_mat.c_str();
-    MATFile *pMatFile;
-    pMatFile = matOpen(filename, "w");
-
-    if (!pMatFile)
-    {
-        throw Error_throw_ignore("cannot create mat file in class Mesh_DFN\n");
-    }
-    // frac
-    //---------------------
-    double *pData1;
-    double *pData2;
-    double *pData3;
-    double *pData4;
-
-    pData1 = (double *)mxCalloc(DFN_mesh.JXY_3D.size() * 3, sizeof(double)); // xyz
-    pData2 = (double *)mxCalloc(DFN_mesh.JM.size() * 6, sizeof(double));     // topo
-    pData3 = (double *)mxCalloc(DFN_mesh.NUM_of_NODES, sizeof(double));      // head
-    pData4 = (double *)mxCalloc(DFN_mesh.JM.size() * 3, sizeof(double));     // head
-
-    mxArray *pMxArray1;
-    mxArray *pMxArray2;
-    mxArray *pMxArray3;
-    mxArray *pMxArray4;
-
-    pMxArray1 = mxCreateDoubleMatrix(DFN_mesh.JXY_3D.size(), 3, mxREAL);
-    pMxArray2 = mxCreateDoubleMatrix(DFN_mesh.JM.size(), 6, mxREAL);
-    pMxArray3 = mxCreateDoubleMatrix(DFN_mesh.NUM_of_NODES, 1, mxREAL);
-    pMxArray4 = mxCreateDoubleMatrix(DFN_mesh.JM.size(), 3, mxREAL);
-
-    if (!pMxArray1 || !pMxArray2 || !pMxArray3 || !pMxArray4)
-    {
-        throw Error_throw_pause("cannot create pMxArray in class FEM_DFN_A\n");
-    }
-
-    if (!pData1 || !pData2 || !pData3 || !pData4)
-    {
-        throw Error_throw_pause("cannot create pData in class FEM_DFN_A\n");
-    }
+    vector<double> JXY_3D_(DFN_mesh.JXY_3D.size() * 3);
 
     for (size_t j = 0; j < DFN_mesh.JXY_3D.size() * 3; ++j)
     {
@@ -423,8 +438,11 @@ inline void FEM_DFN_A::matlab_plot(string FileKey_mat, string FileKey_m, DFN::Do
         k = ceil(j / DFN_mesh.JXY_3D.size()); // column
         l = j % DFN_mesh.JXY_3D.size();       // row
 
-        pData1[j] = DFN_mesh.JXY_3D[l](k);
+        JXY_3D_[j] = DFN_mesh.JXY_3D[l](k);
     }
+    vector<double> JM_(DFN_mesh.JM.size() * 6);
+    vector<double> HEAD_(DFN_mesh.NUM_of_NODES);
+    vector<double> VELOCITY_(DFN_mesh.JM.size() * 3);
 
     for (size_t j = 0; j < DFN_mesh.JM.size() * 6; ++j)
     {
@@ -432,12 +450,12 @@ inline void FEM_DFN_A::matlab_plot(string FileKey_mat, string FileKey_m, DFN::Do
         k = ceil(j / DFN_mesh.JM.size()); // column
         l = j % DFN_mesh.JM.size();       // row
 
-        pData2[j] = DFN_mesh.JM[l](k) + 1;
+        JM_[j] = DFN_mesh.JM[l](k) + 1;
     }
 
     for (size_t j = 0; j < DFN_mesh.NUM_of_NODES; ++j)
     {
-        pData3[j] = this->F_overall[j];
+        HEAD_[j] = this->X_overall[j];
     }
 
     for (size_t j = 0; j < DFN_mesh.JM.size() * 3; ++j)
@@ -446,28 +464,17 @@ inline void FEM_DFN_A::matlab_plot(string FileKey_mat, string FileKey_m, DFN::Do
         k = ceil(j / DFN_mesh.JM.size()); // column
         l = j % DFN_mesh.JM.size();       // row
 
-        pData4[j] = this->Velocity_3D[l](k);
+        VELOCITY_[j] = this->Velocity_3D[l](k);
     }
 
-    mxSetData(pMxArray1, pData1);
-    mxSetData(pMxArray2, pData2);
-    mxSetData(pMxArray3, pData3);
-    mxSetData(pMxArray4, pData4);
+    string Topo_3D = "Topo_3D";
+    string Head = "Head";
+    string V_3D = "V_3D";
 
-    const char *Frac_JXY_3D = "Frac_JXY_3D";
-    const char *Topo_3D = "Topo_3D";
-    const char *Head = "Head";
-    const char *V_3D = "V_3D";
-
-    matPutVariable(pMatFile, Frac_JXY_3D, pMxArray1);
-    matPutVariable(pMatFile, Topo_3D, pMxArray2);
-    matPutVariable(pMatFile, Head, pMxArray3);
-    matPutVariable(pMatFile, V_3D, pMxArray4);
-
-    mxFree(pData1);
-    mxFree(pData2);
-    mxFree(pData3);
-    mxFree(pData4);
+    DFN::MATLAB_DATA_API M1_{FileKey_mat, "w", DFN_mesh.JXY_3D.size() * 3, DFN_mesh.JXY_3D.size(), 3, JXY_3D_, Frac_JXY_3D};
+    DFN::MATLAB_DATA_API M2_{FileKey_mat, "u", DFN_mesh.JM.size() * 6, DFN_mesh.JM.size(), 6, JM_, Topo_3D};
+    DFN::MATLAB_DATA_API M3_{FileKey_mat, "u", DFN_mesh.NUM_of_NODES, DFN_mesh.NUM_of_NODES, 1, HEAD_, Head};
+    DFN::MATLAB_DATA_API M4_{FileKey_mat, "u", DFN_mesh.JM.size() * 3, DFN_mesh.JM.size(), 3, VELOCITY_, V_3D};
 
     std::ofstream oss(FileKey_m, ios::out);
     oss << "clc;\nclose all;\nclear all;";
@@ -514,11 +521,12 @@ inline void FEM_DFN_A::matlab_plot(string FileKey_mat, string FileKey_m, DFN::Do
     oss.close();
 };
 
-inline void FEM_DFN_A::FEM_results(DFN::Mesh_DFN_overall DFN_mesh, double *F_overall, DFN::Domain dom)
+inline void FEM_DFN_A::FEM_results(DFN::Mesh_DFN_overall DFN_mesh, DFN::Domain dom)
 {
     Velocity_3D.resize(DFN_mesh.JM.size());
     Velocity_2D.resize(DFN_mesh.JM.size());
 
+    /*
     for (size_t i = DFN_mesh.NUM_of_NODES; i < DFN_mesh.NUM_of_NODES + DFN_mesh.JM.size(); ++i)
     {
         //size_t trueID = DFN_mesh.Matrix_PNT_ID[i][2];
@@ -528,8 +536,8 @@ inline void FEM_DFN_A::FEM_results(DFN::Mesh_DFN_overall DFN_mesh, double *F_ove
 
         std::vector<Vector3d> v_2d(1), v_3d(1);
 
-        v_2d[0](0) = F_overall[i];
-        v_2d[0](1) = F_overall[i + DFN_mesh.JM.size()];
+        v_2d[0](0) = this->X_overall[i];
+        v_2d[0](1) = this->X_overall[i + DFN_mesh.JM.size()];
         v_2d[0](2) = 0;
 
         Velocity_2D[i - DFN_mesh.NUM_of_NODES] << v_2d[0](0), v_2d[0](1);
@@ -540,6 +548,7 @@ inline void FEM_DFN_A::FEM_results(DFN::Mesh_DFN_overall DFN_mesh, double *F_ove
 
         Velocity_3D[i - DFN_mesh.NUM_of_NODES] = v_3d[0];
     }
+    */
 
     for (size_t i = 0; i < DFN_mesh.JM.size(); ++i)
     {
@@ -567,7 +576,7 @@ inline void FEM_DFN_A::FEM_results(DFN::Mesh_DFN_overall DFN_mesh, double *F_ove
         Eigen::VectorXd he;
         he = VectorXd::Zero(6);
         for (size_t j = 0; j < 6; ++j)
-            he[j] = F_overall[DFN_mesh.JM[i][j]];
+            he[j] = this->X_overall[DFN_mesh.JM[i][j]];
 
         Velocity_2D[i][0] = -1 * dom.Fractures[Frac_No].Conductivity * pd_N_over_pd_x.transpose() * he;
         Velocity_2D[i][1] = -1 * dom.Fractures[Frac_No].Conductivity * pd_N_over_pd_y.transpose() * he;
@@ -588,56 +597,126 @@ inline void FEM_DFN_A::FEM_results(DFN::Mesh_DFN_overall DFN_mesh, double *F_ove
     }
 };
 
-inline void FEM_DFN_A::In_and_Out_flux(DFN::Mesh_DFN_overall DFN_mesh, DFN::Domain dom)
+inline void FEM_DFN_A::Identify_In_and_Out_element(DFN::Mesh_DFN_overall DFN_mesh, size_t dir)
 {
-
-    for (size_t i = 0; i < DFN_mesh.JM.size(); ++i)
+    if (dir == 2)
     {
-        for (size_t ik = 0; ik < 6; ik += 2)
+        for (size_t i = 0; i < DFN_mesh.JM.size(); ++i)
         {
-            size_t edge_0 = ik;
-            size_t edge_1 = ik + 1;
-            size_t edge_2 = (ik + 2) % 6;
-
-            size_t pnt_ID_0 = DFN_mesh.JM[i](edge_0);
-            size_t pnt_ID_1 = DFN_mesh.JM[i](edge_1);
-            size_t pnt_ID_2 = DFN_mesh.JM[i](edge_2);
-
-            //-----------find if there are top or bottom edge-------
-            if (DFN_mesh.Pnt_attri[pnt_ID_0].If_model_top == true &&
-                DFN_mesh.Pnt_attri[pnt_ID_1].If_model_top == true &&
-                DFN_mesh.Pnt_attri[pnt_ID_2].If_model_top == true)
+            for (size_t ik = 0; ik < 6; ik += 2)
             {
-                BC_TOP.push_back(Vector3s{i, pnt_ID_0, pnt_ID_2}); //
-                //cout << "1st top: " << pnt_ID_0 + 1 << ", " << pnt_ID_1 + 1 << ", " << pnt_ID_2 + 1 << endl;
+                size_t edge_0 = ik;
+                size_t edge_1 = ik + 1;
+                size_t edge_2 = (ik + 2) % 6;
+
+                size_t pnt_ID_0 = DFN_mesh.JM[i](edge_0);
+                size_t pnt_ID_1 = DFN_mesh.JM[i](edge_1);
+                size_t pnt_ID_2 = DFN_mesh.JM[i](edge_2);
+
+                //-----------find if there are top or bottom edge-------
+                if (DFN_mesh.Pnt_attri[pnt_ID_0].If_model_top == true &&
+                    DFN_mesh.Pnt_attri[pnt_ID_1].If_model_top == true &&
+                    DFN_mesh.Pnt_attri[pnt_ID_2].If_model_top == true)
+                {
+                    BC_IN.push_back(Vector3s{i, pnt_ID_0, pnt_ID_2}); //
+                    //cout << "1st top: " << pnt_ID_0 + 1 << ", " << pnt_ID_1 + 1 << ", " << pnt_ID_2 + 1 << endl;
+                }
+                else if (DFN_mesh.Pnt_attri[pnt_ID_0].If_model_bottom == true &&
+                         DFN_mesh.Pnt_attri[pnt_ID_1].If_model_bottom == true &&
+                         DFN_mesh.Pnt_attri[pnt_ID_2].If_model_bottom == true)
+                {
+                    BC_OUT.push_back(Vector3s{i, pnt_ID_0, pnt_ID_2}); //
+                }
             }
-            else if (DFN_mesh.Pnt_attri[pnt_ID_0].If_model_bottom == true &&
-                     DFN_mesh.Pnt_attri[pnt_ID_1].If_model_bottom == true &&
-                     DFN_mesh.Pnt_attri[pnt_ID_2].If_model_bottom == true)
+        };
+    }
+    else if (dir == 1)
+    {
+        for (size_t i = 0; i < DFN_mesh.JM.size(); ++i)
+        {
+            for (size_t ik = 0; ik < 6; ik += 2)
             {
-                BC_BOT.push_back(Vector3s{i, pnt_ID_0, pnt_ID_2}); //
+                size_t edge_0 = ik;
+                size_t edge_1 = ik + 1;
+                size_t edge_2 = (ik + 2) % 6;
+
+                size_t pnt_ID_0 = DFN_mesh.JM[i](edge_0);
+                size_t pnt_ID_1 = DFN_mesh.JM[i](edge_1);
+                size_t pnt_ID_2 = DFN_mesh.JM[i](edge_2);
+
+                //-----------find if there are top or bottom edge-------
+                if (DFN_mesh.Pnt_attri[pnt_ID_0].If_model_back == true &&
+                    DFN_mesh.Pnt_attri[pnt_ID_1].If_model_back == true &&
+                    DFN_mesh.Pnt_attri[pnt_ID_2].If_model_back == true)
+                {
+                    BC_IN.push_back(Vector3s{i, pnt_ID_0, pnt_ID_2}); //
+                    //cout << "1st top: " << pnt_ID_0 + 1 << ", " << pnt_ID_1 + 1 << ", " << pnt_ID_2 + 1 << endl;
+                }
+                else if (DFN_mesh.Pnt_attri[pnt_ID_0].If_model_front == true &&
+                         DFN_mesh.Pnt_attri[pnt_ID_1].If_model_front == true &&
+                         DFN_mesh.Pnt_attri[pnt_ID_2].If_model_front == true)
+                {
+                    BC_OUT.push_back(Vector3s{i, pnt_ID_0, pnt_ID_2}); //
+                }
             }
-        }
-    };
+        };
+    }
+    else if (dir == 0)
+    {
+        for (size_t i = 0; i < DFN_mesh.JM.size(); ++i)
+        {
+            for (size_t ik = 0; ik < 6; ik += 2)
+            {
+                size_t edge_0 = ik;
+                size_t edge_1 = ik + 1;
+                size_t edge_2 = (ik + 2) % 6;
+
+                size_t pnt_ID_0 = DFN_mesh.JM[i](edge_0);
+                size_t pnt_ID_1 = DFN_mesh.JM[i](edge_1);
+                size_t pnt_ID_2 = DFN_mesh.JM[i](edge_2);
+
+                //-----------find if there are top or bottom edge-------
+                if (DFN_mesh.Pnt_attri[pnt_ID_0].If_model_left == true &&
+                    DFN_mesh.Pnt_attri[pnt_ID_1].If_model_left == true &&
+                    DFN_mesh.Pnt_attri[pnt_ID_2].If_model_left == true)
+                {
+                    BC_IN.push_back(Vector3s{i, pnt_ID_0, pnt_ID_2}); //
+                    //cout << "1st top: " << pnt_ID_0 + 1 << ", " << pnt_ID_1 + 1 << ", " << pnt_ID_2 + 1 << endl;
+                }
+                else if (DFN_mesh.Pnt_attri[pnt_ID_0].If_model_right == true &&
+                         DFN_mesh.Pnt_attri[pnt_ID_1].If_model_right == true &&
+                         DFN_mesh.Pnt_attri[pnt_ID_2].If_model_right == true)
+                {
+                    BC_OUT.push_back(Vector3s{i, pnt_ID_0, pnt_ID_2}); //
+                }
+            }
+        };
+    }
+    else
+        throw Error_throw_pause("Undefined checking direction!\n");
+};
+
+inline void FEM_DFN_A::In_and_Out_flux(DFN::Mesh_DFN_overall DFN_mesh, DFN::Domain dom, size_t dir)
+{
     Q_in = 0;
     Q_out = 0;
     double L_in = 0, L_out = 0;
 
-    for (size_t i = 0; i < BC_TOP.size(); ++i)
+    for (size_t i = 0; i < BC_IN.size(); ++i)
     {
-        size_t ele_ID = BC_TOP[i][0];
+        size_t ele_ID = BC_IN[i][0];
         size_t FRACTAG = DFN_mesh.JM_Frac_NO[ele_ID];
 
         std::vector<Vector2d> lines(2);
-        lines[0] << DFN_mesh.JXY_2D[FRACTAG][BC_TOP[i][1]][0], DFN_mesh.JXY_2D[FRACTAG][BC_TOP[i][1]][1];
-        lines[1] << DFN_mesh.JXY_2D[FRACTAG][BC_TOP[i][2]][0], DFN_mesh.JXY_2D[FRACTAG][BC_TOP[i][2]][1];
+        lines[0] << DFN_mesh.JXY_2D[FRACTAG][BC_IN[i][1]][0], DFN_mesh.JXY_2D[FRACTAG][BC_IN[i][1]][1];
+        lines[1] << DFN_mesh.JXY_2D[FRACTAG][BC_IN[i][2]][0], DFN_mesh.JXY_2D[FRACTAG][BC_IN[i][2]][1];
 
         DFN::Normal_vector_2D nor;
         nor.Normal_vector_of_a_line(lines);
 
         double ave_velocity = abs(this->Velocity_2D[ele_ID].dot(nor.Normal));
 
-        double L = (DFN_mesh.JXY_3D[BC_TOP[i][1]] - DFN_mesh.JXY_3D[BC_TOP[i][2]]).norm();
+        double L = (DFN_mesh.JXY_3D[BC_IN[i][1]] - DFN_mesh.JXY_3D[BC_IN[i][2]]).norm();
 
         double K = dom.Fractures[FRACTAG].Conductivity;
 
@@ -646,20 +725,20 @@ inline void FEM_DFN_A::In_and_Out_flux(DFN::Mesh_DFN_overall DFN_mesh, DFN::Doma
         L_in += L;
     }
     //cout << "---------------------\n";
-    for (size_t i = 0; i < BC_BOT.size(); ++i)
+    for (size_t i = 0; i < BC_OUT.size(); ++i)
     {
-        size_t ele_ID = BC_BOT[i][0];
+        size_t ele_ID = BC_OUT[i][0];
         size_t FRACTAG = DFN_mesh.JM_Frac_NO[ele_ID];
 
         std::vector<Vector2d> lines(2);
-        lines[0] << DFN_mesh.JXY_2D[FRACTAG][BC_BOT[i][1]][0], DFN_mesh.JXY_2D[FRACTAG][BC_BOT[i][1]][1];
-        lines[1] << DFN_mesh.JXY_2D[FRACTAG][BC_BOT[i][2]][0], DFN_mesh.JXY_2D[FRACTAG][BC_BOT[i][2]][1];
+        lines[0] << DFN_mesh.JXY_2D[FRACTAG][BC_OUT[i][1]][0], DFN_mesh.JXY_2D[FRACTAG][BC_OUT[i][1]][1];
+        lines[1] << DFN_mesh.JXY_2D[FRACTAG][BC_OUT[i][2]][0], DFN_mesh.JXY_2D[FRACTAG][BC_OUT[i][2]][1];
         DFN::Normal_vector_2D nor;
         nor.Normal_vector_of_a_line(lines);
 
         double ave_velocity = abs(this->Velocity_2D[ele_ID].dot(nor.Normal));
 
-        double L = (DFN_mesh.JXY_3D[BC_BOT[i][1]] - DFN_mesh.JXY_3D[BC_BOT[i][2]]).norm();
+        double L = (DFN_mesh.JXY_3D[BC_OUT[i][1]] - DFN_mesh.JXY_3D[BC_OUT[i][2]]).norm();
 
         double K = dom.Fractures[FRACTAG].Conductivity;
 
@@ -667,13 +746,39 @@ inline void FEM_DFN_A::In_and_Out_flux(DFN::Mesh_DFN_overall DFN_mesh, DFN::Doma
         L_out += L;
     }
 
+    //cout << "Difference: " << (abs(Q_in - Q_out) / (Q_in > Q_out ? Q_in : Q_out)) * 100 << "%" << endl;
+    //cout << "Q_in: " << Q_in << ", Q_out: " << Q_out << endl;
+    //cout << "L_in: " << L_in << ", L_out: " << L_out << endl;
+
+    /*
     if ((abs(Q_in - Q_out) / (Q_in > Q_out ? Q_in : Q_out)) > 0.1)
     {
         string AS = "Warning! The difference between Q_in and Q_out is too large!\n";
+        AS = AS + "Q_in: " + to_string(Q_in) + "\n";
+        AS = AS + "Q_out: " + to_string(Q_out) + "\n";
+        AS = AS + "Difference: " + to_string(abs(Q_in - Q_out) / (Q_in > Q_out ? Q_in : Q_out) * 100) + " %\n";
         throw Error_throw_ignore(AS);
+    }*/
+
+    this->Q_error = (abs(Q_in - Q_out) / (Q_in > Q_out ? Q_in : Q_out)) * 100.;
+
+    double l = 0, m = 0;
+    if (dir == 0)
+    {
+        l = 4;
+        m = 5;
+    }
+    else if (dir == 1)
+    {
+        l = 2;
+        m = 3;
+    }
+    else if (dir == 2)
+    {
+        l = 1;
+        m = 0;
     }
 
-    this->Permeability = 0.5 * (Q_out + Q_in) / abs(dom.Model_domain(0) - dom.Model_domain(1));
+    this->Permeability = 0.5 * (Q_out + Q_in) / abs(dom.Model_domain[l] - dom.Model_domain[m]);
 }
-
 }; // namespace DFN

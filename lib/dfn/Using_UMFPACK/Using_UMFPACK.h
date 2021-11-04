@@ -45,9 +45,18 @@ inline Using_UMFPACK::Using_UMFPACK(const double *K_a, const size_t Dim, double 
 
     Ap_xx.push_back(Ai_xx.size());
 
-    int *Ai = Ai_xx.data();
-    int *Ap = Ap_xx.data();
-    double *Ax = Ax_xx.data();
+    //cout << "umfpack mat init start_\n";
+    int *Ai = (int *)malloc(Ai_xx.size() * sizeof(int));
+    memset(Ai, 0, Ai_xx.size() * sizeof(int));
+    int *Ap = (int *)malloc(Ap_xx.size() * sizeof(int));
+    memset(Ap, 0, Ap_xx.size() * sizeof(int));
+    double *Ax = (double *)malloc(Ax_xx.size() * sizeof(double));
+    memset(Ax, 0, Ax_xx.size() * sizeof(double));
+    //cout << "umfpack mat init finish_\n";
+
+    std::copy(Ai_xx.begin(), Ai_xx.end(), Ai);
+    std::copy(Ap_xx.begin(), Ap_xx.end(), Ap);
+    std::copy(Ax_xx.begin(), Ax_xx.end(), Ax);
 
     Ai_xx.clear();
     Ap_xx.clear();
@@ -58,7 +67,9 @@ inline Using_UMFPACK::Using_UMFPACK(const double *K_a, const size_t Dim, double 
     void *Numeric;
     int status;
     void *Symbolic;
-    double x[Dim];
+
+    double *x = (double *)malloc(Dim * sizeof(double));
+    memset(x, 0, Dim * sizeof(double));
 
     status = umfpack_di_symbolic(n, n, Ap, Ai, Ax, &Symbolic, null, null);
     status = umfpack_di_numeric(Ap, Ai, Ax, Symbolic, &Numeric, null, null);
@@ -66,8 +77,14 @@ inline Using_UMFPACK::Using_UMFPACK(const double *K_a, const size_t Dim, double 
     status = umfpack_di_solve(UMFPACK_A, Ap, Ai, Ax, x, B, Numeric, null, null);
     umfpack_di_free_numeric(&Numeric);
 
+    free(Ai);
+    free(Ap);
+    free(Ax);
+
     for (size_t is = 0; is < Dim; is++)
         B[is] = x[is];
+
+    free(x);
 
     status++;
 };

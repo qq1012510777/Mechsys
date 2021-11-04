@@ -118,7 +118,7 @@ inline Fracture::Fracture(string string_ori,
         }
         else if (string_frac_size == "lognormal")
         {
-            Radius = c.lognor(array2[0], array2[1], array2[2], array2[3]); // mean, std_var, min, max
+            Radius = c.lognor_truncated(array2[0], array2[1], array2[2], array2[3]); // mean, std_var, min, max
             min_radius = array2[2];
         }
         else if (string_frac_size == "uniform")
@@ -379,7 +379,7 @@ inline Fracture::Fracture(string string_ori,
         }
         else if (string_frac_size == "lognormal")
         {
-            Radius = c.lognor(array2[0], array2[1], array2[2], array2[3]);
+            Radius = c.lognor_truncated(array2[0], array2[1], array2[2], array2[3]);
             min_radius = array2[2];
         }
         else if (string_frac_size == "uniform")
@@ -425,7 +425,7 @@ inline Fracture::Fracture(string string_ori,
     if (string_ori == "fisher")
     {
 
-        c.Fisher_1(array3[0], array3[1], array3[2], array3[3], array3[4], array3[5], array3[6], Dip_direction, Dip_angle);
+        c.Fisher_(array3[0], array3[1], array3[2], array3[3], array3[4], array3[5], array3[6], Dip_direction, Dip_angle);
     }
     else
     {
@@ -435,7 +435,7 @@ inline Fracture::Fracture(string string_ori,
     ///---------------------a piece of debuging code---
     if (Dip_direction > 360 || Dip_angle > 90 || Dip_direction < 0 || Dip_angle < 0)
     {
-        string AS = "Error!!! The orientation is incorrect!\n";
+        string AS = "Error!!! The orientation is incorrect! fisher\n";
         AS = AS + to_string(Dip_direction) + ", " + to_string(Dip_angle) + "\n";
         throw Error_throw_ignore(AS);
     };
@@ -679,7 +679,7 @@ inline Fracture::Fracture(bool mode2D,
         }
         else if (string_frac_size == "lognormal")
         {
-            Radius = c.lognor(array2[0], array2[1], array2[2], array2[3]); // mean, std_var, min, max
+            Radius = c.lognor_truncated(array2[0], array2[1], array2[2], array2[3]); // mean, std_var, min, max
             min_radius = array2[2];
         }
         else if (string_frac_size == "uniform")
