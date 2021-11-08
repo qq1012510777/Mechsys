@@ -125,6 +125,7 @@ inline FEM_DFN_A::~FEM_DFN_A(){
 
 inline void FEM_DFN_A::Assemble_overall_matrix(DFN::Mesh_DFN_overall DFN_mesh, double *K_overall, DFN::Domain dom)
 {
+    
     size_t Matrix_D = DFN_mesh.NUM_of_NODES;
 
     for (size_t i = 0; i < DFN_mesh.JM_Each_Frac.size(); ++i)

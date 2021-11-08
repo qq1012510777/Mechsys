@@ -34,7 +34,7 @@ OPTION(A_MAKE_CHECK_OVERLAP "Check for maximun overlapping in DEM simulations"  
 OPTION(A_USE_OMP            "Use OpenMP  ?"                                        ON )
 OPTION(A_USE_OCL            "Use OpenCL for GPU computations ?"                    OFF)
 OPTION(A_USE_VTK            "Use VTK ?"                                            OFF)
-OPTION(A_USE_HDF5           "Use HDF5 ?"                                           ON )
+OPTION(A_USE_HDF5           "Use HDF5 ?"                                           OFF)
 
 ADD_DEFINITIONS(-fmessage-length=0) # Each error message will appear on a single line; no line-wrapping will be done.
 #ADD_DEFINITIONS(-std=gnu++11)                   # New C++ standard
@@ -101,28 +101,28 @@ SET (MISSING "")
 SET (Boost_USE_STATIC_LIBS ON)
 ENABLE_LANGUAGE (Fortran)
 
-if(A_USE_VTK)
-INCLUDE      (FindVTK)                                      #  1
-endif(A_USE_VTK)
+#if(A_USE_VTK)
+#INCLUDE      (FindVTK)                                      #  1
+#endif(A_USE_VTK)
 #FIND_PACKAGE (HDF5 COMPONENTS     HL)                       #  2
 #FIND_PACKAGE (HDF5 COMPONENTS CXX HL)                       #  2
-INCLUDE (${MECHSYS_SOURCE_DIR}/Modules/FindHDF5.cmake     ) #  2
+#INCLUDE (${MECHSYS_SOURCE_DIR}/Modules/FindHDF5.cmake     ) #  2
 INCLUDE      (FindBoost)                                    #  3
-INCLUDE      (FindLAPACK)                                   #  4
+# INCLUDE      (FindLAPACK)                                   #  4
 #INCLUDE (${MECHSYS_SOURCE_DIR}/Modules/FindLocLAPACK.cmake) #  4
 #INCLUDE (${MECHSYS_SOURCE_DIR}/Modules/FindBLAZE.cmake    ) #  5
 #INCLUDE (${MECHSYS_SOURCE_DIR}/Modules/FindARMA.cmake     ) #  5
-INCLUDE (${MECHSYS_SOURCE_DIR}/Modules/FindBLITZ.cmake    ) #  5
+#INCLUDE (${MECHSYS_SOURCE_DIR}/Modules/FindBLITZ.cmake    ) #  5
 INCLUDE (${MECHSYS_SOURCE_DIR}/Modules/FindGSL.cmake      ) #  6
-INCLUDE (${MECHSYS_SOURCE_DIR}/Modules/FindVORO.cmake     ) # 7
-INCLUDE (${MECHSYS_SOURCE_DIR}/Modules/FindTETGEN.cmake   ) # 8
-INCLUDE (${MECHSYS_SOURCE_DIR}/Modules/FindTRIANGLE.cmake ) # 9
-INCLUDE (${MECHSYS_SOURCE_DIR}/Modules/FindIGRAPH.cmake   ) # 10
+#INCLUDE (${MECHSYS_SOURCE_DIR}/Modules/FindVORO.cmake     ) # 7
+#INCLUDE (${MECHSYS_SOURCE_DIR}/Modules/FindTETGEN.cmake   ) # 8
+#INCLUDE (${MECHSYS_SOURCE_DIR}/Modules/FindTRIANGLE.cmake ) # 9
+#INCLUDE (${MECHSYS_SOURCE_DIR}/Modules/FindIGRAPH.cmake   ) # 10
 INCLUDE (FindOpenMP )                                       # 11
-if(A_USE_OCL)
-INCLUDE (FindOpenCL )                                       # 12
-endif(A_USE_OCL)
-INCLUDE (${MECHSYS_SOURCE_DIR}/Modules/FindEIGEN.cmake)  # 13   EIGEN / Dense
+#if(A_USE_OCL)
+#INCLUDE (FindOpenCL )                                       # 12
+#endif(A_USE_OCL)
+#INCLUDE (${MECHSYS_SOURCE_DIR}/Modules/FindEIGEN.cmake)  # 13   EIGEN / Dense
 #INCLUDE (${MECHSYS_SOURCE_DIR}/Modules/FindFADE2D.cmake)  # 14  fade2d
 
 # 14
@@ -134,39 +134,39 @@ INCLUDE (${MECHSYS_SOURCE_DIR}/Modules/FindEIGEN.cmake)  # 13   EIGEN / Dense
 #endif(FADE2D_FOUND)
 
 # 1
-if(VTK_FOUND AND A_USE_VTK)
-    ADD_DEFINITIONS (-DUSE_VTK)
-    INCLUDE_DIRECTORIES (${VTK_INCLUDE_DIRS})
-    SET (LIBS  ${LIBS} vtkRendering vtkHybrid)
-    SET (FLAGS "${FLAGS} -DVTK_EXCLUDE_STRSTREAM_HEADERS")
-else(VTK_FOUND AND A_USE_VTK)
-    if(A_USE_VTK)
-        SET (MISSING "${MISSING} VTK")
-    endif(A_USE_VTK)
-endif(VTK_FOUND AND A_USE_VTK)
+#if(VTK_FOUND AND A_USE_VTK)
+#    ADD_DEFINITIONS (-DUSE_VTK)
+#    INCLUDE_DIRECTORIES (${VTK_INCLUDE_DIRS})
+#    SET (LIBS  ${LIBS} vtkRendering vtkHybrid)
+#    SET (FLAGS "${FLAGS} -DVTK_EXCLUDE_STRSTREAM_HEADERS")
+#else(VTK_FOUND AND A_USE_VTK)
+#    if(A_USE_VTK)
+#        SET (MISSING "${MISSING} VTK")
+#    endif(A_USE_VTK)
+#endif(VTK_FOUND AND A_USE_VTK)
 
 # 2
-if(HDF5_FOUND AND A_USE_HDF5)
-    ADD_DEFINITIONS (-DH5_NO_DEPRECATED_SYMBOLS -DH5Gcreate_vers=2 -DH5Gopen_vers=2 -DUSE_HDF5)
-	INCLUDE_DIRECTORIES (${HDF5_INCLUDE_DIR})
-	SET (LIBS ${LIBS} ${HDF5_LIBRARIES})
-else(HDF5_FOUND AND A_USE_HDF5)
-    if(A_USE_HDF5)
-        SET (MISSING "${MISSING} HDF5")
-    endif(A_USE_HDF5)
-endif(HDF5_FOUND AND A_USE_HDF5)
+#if(HDF5_FOUND AND A_USE_HDF5)
+#    ADD_DEFINITIONS (-DH5_NO_DEPRECATED_SYMBOLS -DH5Gcreate_vers=2 -DH5Gopen_vers=2 -DUSE_HDF5)
+#	INCLUDE_DIRECTORIES (${HDF5_INCLUDE_DIR})
+#	SET (LIBS ${LIBS} ${HDF5_LIBRARIES})
+#else(HDF5_FOUND AND A_USE_HDF5)
+#    if(A_USE_HDF5)
+#        SET (MISSING "${MISSING} HDF5")
+#    endif(A_USE_HDF5)
+#endif(HDF5_FOUND AND A_USE_HDF5)
 
 # 4
-if(LAPACK_FOUND)
-    SET (LIBS ${LIBS} ${LAPACK_LIBRARIES})
-else(LAPACK_FOUND)
-    INCLUDE (${MECHSYS_SOURCE_DIR}/Modules/FindLocLAPACK.cmake)
-    if(LocLAPACK_FOUND)
-        SET (LIBS ${LIBS} ${LocLAPACK_LIBRARIES} "gfortran")
-    else(LocLAPACK_FOUND)
-        SET (MISSING "${MISSING} LaPACK")
-    endif(LocLAPACK_FOUND)
-endif(LAPACK_FOUND)
+# if(LAPACK_FOUND)
+#     SET (LIBS ${LIBS} ${LAPACK_LIBRARIES})
+# else(LAPACK_FOUND)
+#     INCLUDE (${MECHSYS_SOURCE_DIR}/Modules/FindLocLAPACK.cmake)
+#     if(LocLAPACK_FOUND)
+#         SET (LIBS ${LIBS} ${LocLAPACK_LIBRARIES} "gfortran")
+#     else(LocLAPACK_FOUND)
+#         SET (MISSING "${MISSING} LaPACK")
+#     endif(LocLAPACK_FOUND)
+# endif(LAPACK_FOUND)
 
 # 5
 #if(BLAZE_FOUND)
@@ -183,11 +183,11 @@ endif(LAPACK_FOUND)
 #endif(ARMA_FOUND)
 
 # 5
-if(BLITZ_FOUND)
-	INCLUDE_DIRECTORIES (${BLITZ_INCLUDE_DIRS})
-else(BLITZ_FOUND)
-    SET (MISSING "${MISSING} blitz++")
-endif(BLITZ_FOUND)
+#if(BLITZ_FOUND)
+#	INCLUDE_DIRECTORIES (${BLITZ_INCLUDE_DIRS})
+#else(BLITZ_FOUND)
+#    SET (MISSING "${MISSING} blitz++")
+#endif(BLITZ_FOUND)
 
 # 6
 if(GSL_FOUND)
@@ -198,37 +198,37 @@ else(GSL_FOUND)
 endif(GSL_FOUND)
 
 # 7
-if(VORO_FOUND)
-	INCLUDE_DIRECTORIES (${VORO_INCLUDE_DIRS})
-    SET (LIBS ${LIBS} ${VORO_LIBRARIES})
-else(VORO_FOUND)
-    SET (MISSING "${MISSING} Voro++")
-endif(VORO_FOUND)
+#if(VORO_FOUND)
+#	INCLUDE_DIRECTORIES (${VORO_INCLUDE_DIRS})
+#    SET (LIBS ${LIBS} ${VORO_LIBRARIES})
+#else(VORO_FOUND)
+#    SET (MISSING "${MISSING} Voro++")
+#endif(VORO_FOUND)
 
 # 8
-if(TETGEN_FOUND)
-	INCLUDE_DIRECTORIES (${TETGEN_INCLUDE_DIRS})
-	SET (LIBS ${LIBS} ${TETGEN_LIBRARIES})
-else(TETGEN_FOUND)
-    SET (MISSING "${MISSING} Tetgen")
-endif(TETGEN_FOUND)
+#if(TETGEN_FOUND)
+#	INCLUDE_DIRECTORIES (${TETGEN_INCLUDE_DIRS})
+#	SET (LIBS ${LIBS} ${TETGEN_LIBRARIES})
+#else(TETGEN_FOUND)
+#    SET (MISSING "${MISSING} Tetgen")
+#endif(TETGEN_FOUND)
 
 # 9
-if(TRIANGLE_FOUND)
-	INCLUDE_DIRECTORIES (${TRIANGLE_INCLUDE_DIRS})
-	SET (LIBS ${LIBS} ${TRIANGLE_LIBRARIES})
-else(TRIANGLE_FOUND)
-    SET (MISSING "${MISSING} Triangle")
-endif(TRIANGLE_FOUND)
+#if(TRIANGLE_FOUND)
+#	INCLUDE_DIRECTORIES (${TRIANGLE_INCLUDE_DIRS})
+#	SET (LIBS ${LIBS} ${TRIANGLE_LIBRARIES})
+#else(TRIANGLE_FOUND)
+#    SET (MISSING "${MISSING} Triangle")
+#endif(TRIANGLE_FOUND)
 
 # 10
-if(IGRAPH_FOUND)
-    INCLUDE_DIRECTORIES (${IGRAPH_INCLUDE_DIRS})
-    SET (LIBS ${LIBS} ${IGRAPH_LIBRARIES})
-	ADD_DEFINITIONS(-DHAS_IGRAPH)
-else(IGRAPH_FOUND)
-    SET (MISSING "${MISSING} IGraph")
-endif(IGRAPH_FOUND)
+#if(IGRAPH_FOUND)
+#    INCLUDE_DIRECTORIES (${IGRAPH_INCLUDE_DIRS})
+#    SET (LIBS ${LIBS} ${IGRAPH_LIBRARIES})
+#	ADD_DEFINITIONS(-DHAS_IGRAPH)
+#else(IGRAPH_FOUND)
+#    SET (MISSING "${MISSING} IGraph")
+#endif(IGRAPH_FOUND)
 
 # 11
 if(OPENMP_FOUND AND A_USE_OMP)
@@ -243,20 +243,20 @@ else(OPENMP_FOUND AND A_USE_OMP)
 endif(OPENMP_FOUND AND A_USE_OMP)
 
 # 12
-if(OpenCL_FOUND AND A_USE_OCL)
-    ADD_DEFINITIONS (-DUSE_OCL)
-    INCLUDE_DIRECTORIES (${OpenCL_INCLUDE_DIR})
-    SET (LIBS ${LIBS} ${OpenCL_LIBRARIES})
-else(OpenCL_FOUND AND A_USE_OCL)
-    if(A_USE_OCL)
-        SET (MISSING "${MISSING} OpenCL")
-    endif(A_USE_OCL)
-endif(OpenCL_FOUND AND A_USE_OCL)
+#if(OpenCL_FOUND AND A_USE_OCL)
+#    ADD_DEFINITIONS (-DUSE_OCL)
+#    INCLUDE_DIRECTORIES (${OpenCL_INCLUDE_DIR})
+#    SET (LIBS ${LIBS} ${OpenCL_LIBRARIES})
+#else(OpenCL_FOUND AND A_USE_OCL)
+#    if(A_USE_OCL)
+#        SET (MISSING "${MISSING} OpenCL")
+#    endif(A_USE_OCL)
+#endif(OpenCL_FOUND AND A_USE_OCL)
 
 #13
-if(EIGEN_FOUND)
-	INCLUDE_DIRECTORIES (${EIGEN_INCLUDE_DIRS})
-else(EIGEN_FOUND)
-    SET (MISSING "${MISSING} Eigen/Dense")
-endif(EIGEN_FOUND)
+#if(EIGEN_FOUND)
+#	INCLUDE_DIRECTORIES (${EIGEN_INCLUDE_DIRS})
+#else(EIGEN_FOUND)
+#    SET (MISSING "${MISSING} Eigen/Dense")
+#endif(EIGEN_FOUND)
 

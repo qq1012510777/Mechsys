@@ -79,6 +79,18 @@ inline Mesh_DFN_overall::Mesh_DFN_overall(){};
 inline Mesh_DFN_overall::Mesh_DFN_overall(DFN::Domain dom, const double min_ele_edge, const double max_ele_edge, size_t dir, size_t Nproc)
 {
     //---------------------------------------
+    if (dom.Percolation_cluster[dir].size() > 1)
+    {
+        string AS = "The DFN has more than one percolating cluster\n";
+        throw Error_throw_ignore(AS);
+    }
+
+    if (dom.Percolation_cluster[dir].size() == 0)
+    {
+        string AS = "The DFN has no one percolating cluster\n";
+        throw Error_throw_ignore(AS);
+    }
+
     try
     {
         size_t VertsPntID = 1;
@@ -94,6 +106,7 @@ inline Mesh_DFN_overall::Mesh_DFN_overall(DFN::Domain dom, const double min_ele_
         gmsh::model::add("t2");
         //cout << "size: " << dom.Percolation_cluster[dir].size() << endl;
         //cout << "status: " << dom.Percolation_status[dir] << endl;
+
         for (size_t i = 0; i < dom.Percolation_cluster[dir].size(); ++i)
         {
             size_t ClusterID = dom.Percolation_cluster[dir][i];
@@ -201,6 +214,7 @@ inline Mesh_DFN_overall::Mesh_DFN_overall(DFN::Domain dom, const double min_ele_
             JM.push_back(A);
         }
         //gmsh::fltk::run();
+        gmsh::model::mesh::clear();
         gmsh::clear();
         gmsh::finalize();
         //cout << "mesh finished\n";
@@ -473,6 +487,11 @@ void Mesh_DFN_overall::Matlab_plot(string FileKey_mat, string FileKey_m, DFN::Do
         matPutVariable(pMatFile, Fracz_s, pMxArray3);
         matPutVariable(pMatFile, JM_each_s, pMxArray7);
 
+        //mxDestroyArray(pMxArray1);
+        //mxDestroyArray(pMxArray2);
+        //mxDestroyArray(pMxArray3);
+        //mxDestroyArray(pMxArray7);
+
         mxFree(pData1);
         mxFree(pData2);
         mxFree(pData3);
@@ -561,6 +580,10 @@ void Mesh_DFN_overall::Matlab_plot(string FileKey_mat, string FileKey_m, DFN::Do
     matPutVariable(pMatFile, FracJXY3D_s, pMxArray4);
     matPutVariable(pMatFile, FracJM_s, pMxArray5);
     matPutVariable(pMatFile, PntAttri_s, pMxArray6);
+
+    //mxDestroyArray(pMxArray4);
+    //mxDestroyArray(pMxArray5);
+    //mxDestroyArray(pMxArray6);
 
     mxFree(pData4);
     mxFree(pData5);

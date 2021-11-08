@@ -46,7 +46,10 @@ inline MATLAB_DATA_API::MATLAB_DATA_API(string FileKey_mat, string mode, size_t 
     pMxArray1 = mxCreateDoubleMatrix(rows, cols, mxREAL);
 
     if (!pMxArray1 || !pData1)
+    {
+        matClose(pMatFile);
         throw Error_throw_pause("cannot create pMxArray or pData\n");
+    }
 
     for (size_t j = 0; j < NUM_eles; ++j)
         pData1[j] = data_[j];
@@ -58,6 +61,8 @@ inline MATLAB_DATA_API::MATLAB_DATA_API(string FileKey_mat, string mode, size_t 
     matPutVariable(pMatFile, field_, pMxArray1);
 
     mxFree(pData1);
+
+    //mxDestroyArray(pMxArray1);
 
     matClose(pMatFile);
 };
@@ -73,7 +78,8 @@ inline void MATLAB_DATA_API::Init(string FileKey_mat, string mode, size_t NUM_el
 
     if (!pMatFile)
     {
-        cout << "cannot create mat file\n" << endl;
+        cout << "cannot create mat file\n"
+             << endl;
         cout << NUM_eles << endl;
         throw Error_throw_pause("cannot create mat file\n");
     }
@@ -86,8 +92,7 @@ inline void MATLAB_DATA_API::Init(string FileKey_mat, string mode, size_t NUM_el
 
     if (!pMxArray1 || !pData1)
     {
-        cout << NUM_eles << endl;
-        cout << rows << ", " << cols << endl;
+        matClose(pMatFile);
         throw Error_throw_pause("cannot create pMxArray or pData\n");
     }
 
@@ -101,6 +106,8 @@ inline void MATLAB_DATA_API::Init(string FileKey_mat, string mode, size_t NUM_el
     matPutVariable(pMatFile, field_, pMxArray1);
 
     mxFree(pData1);
+
+    //mxDestroyArray(pMxArray1);
 
     matClose(pMatFile);
 };

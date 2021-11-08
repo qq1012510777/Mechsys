@@ -2,6 +2,7 @@
 #include "../FEM_H/FEM_DFN_A.h"
 #include "../MATLAB_DATA_API/MATLAB_DATA_API.h"
 #include "../Mesh_H/Mesh_DFN_overall.h"
+#include "../ProgressBar/ProgressBar.h"
 #include "Domain_WL.h"
 #include <omp.h>
 #include <stdio.h>
@@ -68,7 +69,9 @@ public:
                                        const string str_ori,
                                        const string str_frac_size,
                                        const string conductivity_distri,
-                                       const double domain_size);
+                                       const double domain_size,
+                                       const double min_ele_edge,
+                                       const double max_ele_edge);
 
     void Matlab_command(string FileKey_m, string FileKey_mat, size_t np, size_t ny, size_t model_no);
 };
@@ -232,6 +235,8 @@ inline void Loop_DFN::Loop_create_DFNs(gsl_rng *random_seed,
         Q_error_A[1].resize(Nb_flow_sim_MC_times);
         Q_error_A[2].resize(Nb_flow_sim_MC_times);
 
+        DFN::ProgressBar prog_bar;
+        std::cout << "\nThe Model NO." << np << " is creating now! Sizes: " << str_frac_size << "; Ori: " << str_ori << ".\n";
 #pragma omp parallel for schedule(dynamic) num_threads(Nproc)
         for (size_t i = 0; i < nv; i++)
         {
@@ -337,67 +342,6 @@ inline void Loop_DFN::Loop_create_DFNs(gsl_rng *random_seed,
 
                 if (this->Model_flow == 1 && i < Nb_flow_sim_MC_times)
                     Dom_vec[i] = dom;
-
-                if (str_frac_size == "powerlaw")
-                {
-                    if (i == nv / 2 && np % nk == 0)
-                    {
-                        using namespace std;
-                        std::cout << "The Model NO." << np << " has been created! "
-                                  << "Times: " << i << "; Alpha: " << array12[0][0] << "; thread: " << omp_get_thread_num() << std::endl;
-                    }
-                    if (i == nv - 1 && np % nk == 0)
-                    {
-                        using namespace std;
-                        std::cout << "The Model NO." << np << " has been created! "
-                                  << "Times: " << i << "; Alpha: " << array12[0][0] << "; thread: " << omp_get_thread_num() << std::endl;
-                    }
-                }
-                else if (str_frac_size == "lognormal")
-                {
-                    if (i == nv / 2 && np % nk == 0)
-                    {
-                        using namespace std;
-                        std::cout << "The Model NO." << np << " has been created! "
-                                  << "Times: " << i << "; mean: " << array12[0][0] << "; thread: " << omp_get_thread_num() << std::endl;
-                    }
-                    if (i == nv - 1 && np % nk == 0)
-                    {
-                        using namespace std;
-                        std::cout << "The Model NO." << np << " has been created! "
-                                  << "Times: " << i << "; mean: " << array12[0][0] << "; thread: " << omp_get_thread_num() << std::endl;
-                    }
-                }
-                else if (str_frac_size == "uniform")
-                {
-                    if (i == nv / 2 && np % nk == 0)
-                    {
-                        using namespace std;
-                        std::cout << "The Model NO." << np << " has been created! "
-                                  << "Times: " << i << "; lower: " << array12[0][0] << "; thread: " << omp_get_thread_num() << std::endl;
-                    }
-                    if (i == nv - 1 && np % nk == 0)
-                    {
-                        using namespace std;
-                        std::cout << "The Model NO." << np << " has been created! "
-                                  << "Times: " << i << "; lower: " << array12[0][0] << "; thread: " << omp_get_thread_num() << std::endl;
-                    }
-                }
-                else if (str_frac_size == "single")
-                {
-                    if (i == nv / 2 && np % nk == 0)
-                    {
-                        using namespace std;
-                        std::cout << "The Model NO." << np << " has been created! "
-                                  << "Times: " << i << "; single_size: " << array12[0][0] << "; thread: " << omp_get_thread_num() << std::endl;
-                    }
-                    if (i == nv - 1 && np % nk == 0)
-                    {
-                        using namespace std;
-                        std::cout << "The Model NO." << np << " has been created! "
-                                  << "Times: " << i << "; single_size: " << array12[0][0] << "; thread: " << omp_get_thread_num() << std::endl;
-                    }
-                }
             }
             catch (Error_throw_pause e)
             {
@@ -418,11 +362,15 @@ inline void Loop_DFN::Loop_create_DFNs(gsl_rng *random_seed,
                      << e.what() << "\033[0m" << endl;
                 goto Regenerate_dfn;
             }
+
+            prog_bar.Rep_prog_for_paral(nv, 5, "\t\tDFN_MC_modeling ");
         }
+        cout << endl;
         // for-loop for connectivity ends here
 
         if (this->Model_flow == 1)
         {
+            DFN::ProgressBar prog_bar_2;
             auto start_1 = std::chrono::steady_clock::now();
             cout << "\033[33m\tmeshing started!\033[0m" << endl;
             for (size_t i = 0; i < Nb_flow_sim_MC_times; ++i)
@@ -454,8 +402,8 @@ inline void Loop_DFN::Loop_create_DFNs(gsl_rng *random_seed,
                             Mesh_vec[rt][i] = mesh;
                             Mesh_status[rt][i] = 1;
 
-                            if(mesh.mesh_state == false)
-                                Mesh_status[rt][i] = 2;    
+                            if (mesh.mesh_state == false)
+                                Mesh_status[rt][i] = 2;
                         }
                         else
                         {
@@ -473,7 +421,10 @@ inline void Loop_DFN::Loop_create_DFNs(gsl_rng *random_seed,
                         Mesh_status[rt][i] = 2;
                     }
                 }
+
+                prog_bar_2.Rep_prog_serially_for_supercomputer(i, 5, Nb_flow_sim_MC_times, "\t\tMeshing ");
             }
+            cout << endl;
             auto end_1 = std::chrono::steady_clock::now();
             std::chrono::duration<double, std::micro> elapsed_1 = end_1 - start_1; // std::micro time (us)
             cout << "\033[33m\tmeshing finished! runtime: " << (((double)(elapsed_1.count() * 1.0) * (0.000001)) / 60.00) / 60.00 << "h \033[0m" << endl;
@@ -481,6 +432,8 @@ inline void Loop_DFN::Loop_create_DFNs(gsl_rng *random_seed,
 
         if (this->Model_flow == 1)
         {
+            DFN::ProgressBar prog_bar_2;
+
             auto start_2 = std::chrono::steady_clock::now();
             cout << "\033[31m\tFEM started!\033[0m" << endl;
 #pragma omp parallel for schedule(dynamic) num_threads(Nproc)
@@ -542,7 +495,9 @@ inline void Loop_DFN::Loop_create_DFNs(gsl_rng *random_seed,
 
                 if (np == nt && show_flow == false)
                     show_flow = true;
+                prog_bar_2.Rep_prog_for_paral(Nb_flow_sim_MC_times, 5, "\t\tFEM ");
             }
+            cout << endl;
             auto end_2 = std::chrono::steady_clock::now();
             std::chrono::duration<double, std::micro> elapsed_2 = end_2 - start_2; // std::micro time (us)
             cout << "\033[31m\tFEM finished! runtime: " << (((double)(elapsed_2.count() * 1.0) * (0.000001)) / 60.00) / 60.00 << "h \033[0m" << endl;
@@ -567,7 +522,9 @@ inline void Loop_DFN::Loop_create_DFNs(gsl_rng *random_seed,
                                             str_ori,
                                             str_frac_size,
                                             conductivity_distri,
-                                            this->L);
+                                            this->L,
+                                            min_ele_edge,
+                                            max_ele_edge);
         //cout << "\tfinish output data\n\n";
         double P30_total_B_1 = 0;
         for (size_t i = 0; i < P30_A.size(); ++i)
@@ -642,7 +599,9 @@ inline void Loop_DFN::Matlab_Data_output_stepBYstep(const size_t np,
                                                     const string str_ori,
                                                     const string str_frac_size,
                                                     const string conductivity_distri,
-                                                    const double domain_size)
+                                                    const double domain_size,
+                                                    const double min_ele_edge,
+                                                    const double max_ele_edge)
 
 {
 
@@ -740,10 +699,16 @@ inline void Loop_DFN::Matlab_Data_output_stepBYstep(const size_t np,
         matPutVariable(pMatFile, char_conductivity_distri, pMxArray221);
         matPutVariable(pMatFile, char_domain_size, pMxArray222);
 
+        //mxDestroyArray(pMxArray219);
+        //mxDestroyArray(pMxArray220);
+        //mxDestroyArray(pMxArray221);
+        //mxDestroyArray(pMxArray222);
+
         mxFree(pData219);
         mxFree(pData220);
         mxFree(pData221);
         mxFree(pData222);
+
         matClose(pMatFile);
     }
 
@@ -782,7 +747,15 @@ inline void Loop_DFN::Matlab_Data_output_stepBYstep(const size_t np,
     vector<double> Looptimes(1);
     Looptimes[0] = np;
 
+    vector<double> Min_ele_edge(1);
+    Min_ele_edge[0] = min_ele_edge;
+
+    vector<double> Max_ele_edge(1);
+    Max_ele_edge[0] = max_ele_edge;
+
     M1_.Init(filename, "u", 1, 1, 1, Looptimes, "Loop_times");
+    M1_.Init(filename, "u", 1, 1, 1, Min_ele_edge, "Min_ele_edge");
+    M1_.Init(filename, "u", 1, 1, 1, Max_ele_edge, "Max_ele_edge");
 
     M1_.Init(filename, "u", P32_total_A.size(), P32_total_A.size(), 1, P32_total_A, string_P32_total);
 

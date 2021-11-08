@@ -28,13 +28,19 @@ public:
     Graph(const size_t NumOfFractures_1,
           const std::vector<size_t> Connections);
 
-    void DFS(std::vector<std::vector<size_t>> & ListOfClusters);
+    void DFS(std::vector<std::vector<size_t>> &ListOfClusters);
 
     void DFSUtil(int s, vector<bool> &visited, vector<size_t> &onecluster);
 
     void addEdge(int v, int w);
 
     void CreateGraph_i(std::vector<std::vector<size_t>> &S);
+
+    ~Graph()
+    {
+        delete[] this->Adj;
+        this->Adj = NULL;
+    };
 };
 
 inline Graph::Graph(const size_t NumOfFractures_1, const std::vector<size_t> Connections)
@@ -57,7 +63,7 @@ inline void Graph::addEdge(int v, int w)
     Adj[v].push_back(w); // Add w to v’s list.
 }
 
-inline void Graph::DFS(std::vector<std::vector<size_t>> & ListOfClusters)
+inline void Graph::DFS(std::vector<std::vector<size_t>> &ListOfClusters)
 {
     // Mark all the vertices as not visited
     vector<bool> visited(V, false);
@@ -72,7 +78,7 @@ inline void Graph::DFS(std::vector<std::vector<size_t>> & ListOfClusters)
 
         if (onecluster.size() > 0)
         {
-            ListOfClusters.push_back(onecluster);   
+            ListOfClusters.push_back(onecluster);
         }
     }
 }
@@ -116,5 +122,5 @@ inline void Graph::DFSUtil(int s, vector<bool> &visited, vector<size_t> &oneclus
 
 inline void Graph::CreateGraph_i(std::vector<std::vector<size_t>> &S)
 {
-    DFS(S);   
+    DFS(S);
 }
