@@ -46,7 +46,7 @@ inline void ProgressBar::Rep_prog_serially_for_supercomputer(size_t i /*step*/, 
 {
     double prog = i * 1.0 / (Total_num * 1.0);
 
-    if (abs(prog - Spacing_counter[Lo_counter]) < 1e-1)
+    if (prog >= Spacing_counter[Lo_counter])
     {
         Lo_counter++;
         Spacing_counter.push_back(Spacing_counter[Lo_counter - 1] + (1.0 / spacing));
@@ -57,6 +57,7 @@ inline void ProgressBar::Rep_prog_serially_for_supercomputer(size_t i /*step*/, 
 
         for (int j = 1; j <= show_num; j++)
             cout << "█";
+        //cout << Spacing_counter[Lo_counter - 1];
         cout << endl;
     }
 };

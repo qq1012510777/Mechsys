@@ -34,7 +34,7 @@ OPTION(A_MAKE_CHECK_OVERLAP "Check for maximun overlapping in DEM simulations"  
 OPTION(A_USE_OMP            "Use OpenMP  ?"                                        ON )
 OPTION(A_USE_OCL            "Use OpenCL for GPU computations ?"                    OFF)
 OPTION(A_USE_VTK            "Use VTK ?"                                            OFF)
-OPTION(A_USE_HDF5           "Use HDF5 ?"                                           OFF)
+OPTION(A_USE_HDF5           "Use HDF5 ?"                                           ON)
 
 ADD_DEFINITIONS(-fmessage-length=0) # Each error message will appear on a single line; no line-wrapping will be done.
 #ADD_DEFINITIONS(-std=gnu++11)                   # New C++ standard
@@ -104,8 +104,8 @@ ENABLE_LANGUAGE (Fortran)
 #if(A_USE_VTK)
 #INCLUDE      (FindVTK)                                      #  1
 #endif(A_USE_VTK)
-#FIND_PACKAGE (HDF5 COMPONENTS     HL)                       #  2
-#FIND_PACKAGE (HDF5 COMPONENTS CXX HL)                       #  2
+FIND_PACKAGE (HDF5 COMPONENTS     HL)                       #  2
+FIND_PACKAGE (HDF5 COMPONENTS CXX HL)                       #  2
 #INCLUDE (${MECHSYS_SOURCE_DIR}/Modules/FindHDF5.cmake     ) #  2
 INCLUDE      (FindBoost)                                    #  3
 # INCLUDE      (FindLAPACK)                                   #  4
@@ -146,15 +146,15 @@ INCLUDE (FindOpenMP )                                       # 11
 #endif(VTK_FOUND AND A_USE_VTK)
 
 # 2
-#if(HDF5_FOUND AND A_USE_HDF5)
-#    ADD_DEFINITIONS (-DH5_NO_DEPRECATED_SYMBOLS -DH5Gcreate_vers=2 -DH5Gopen_vers=2 -DUSE_HDF5)
-#	INCLUDE_DIRECTORIES (${HDF5_INCLUDE_DIR})
-#	SET (LIBS ${LIBS} ${HDF5_LIBRARIES})
-#else(HDF5_FOUND AND A_USE_HDF5)
-#    if(A_USE_HDF5)
-#        SET (MISSING "${MISSING} HDF5")
-#    endif(A_USE_HDF5)
-#endif(HDF5_FOUND AND A_USE_HDF5)
+if(HDF5_FOUND AND A_USE_HDF5)
+    ADD_DEFINITIONS (-DH5_NO_DEPRECATED_SYMBOLS -DH5Gcreate_vers=2 -DH5Gopen_vers=2 -DUSE_HDF5)
+	INCLUDE_DIRECTORIES (${HDF5_INCLUDE_DIR})
+	SET (LIBS ${LIBS} ${HDF5_LIBRARIES})
+else(HDF5_FOUND AND A_USE_HDF5)
+    if(A_USE_HDF5)
+        SET (MISSING "${MISSING} HDF5")
+    endif(A_USE_HDF5)
+endif(HDF5_FOUND AND A_USE_HDF5)
 
 # 4
 # if(LAPACK_FOUND)

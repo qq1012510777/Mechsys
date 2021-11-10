@@ -21,6 +21,7 @@ public:
 
     void Init(string FileKey_mat, string mode, size_t NUM_eles, size_t rows, size_t cols, vector<double> data_, /*column major data*/
               string field_name);                                                                               // only for at most 2D matrix
+
 };
 
 inline MATLAB_DATA_API::MATLAB_DATA_API(){

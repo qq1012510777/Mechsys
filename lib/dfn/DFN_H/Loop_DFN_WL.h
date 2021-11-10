@@ -1,9 +1,11 @@
 #pragma once
 #include "../FEM_H/FEM_DFN_A.h"
+#include "../HDF5_DFN/HDF5_DFN.h"
 #include "../MATLAB_DATA_API/MATLAB_DATA_API.h"
 #include "../Mesh_H/Mesh_DFN_overall.h"
 #include "../ProgressBar/ProgressBar.h"
 #include "Domain_WL.h"
+#include <cstdio>
 #include <omp.h>
 #include <stdio.h>
 #include <unistd.h>
@@ -16,7 +18,8 @@ public:
     double times;                  ///< loop times, each time DFN modeling, the density will be increased compared to last time DFN modeling
     std::vector<Vector4d> array12; ///< alpha (power law), min_radius, max_radius,
     double L;                      ///< model size
-    size_t Nproc;                  ///< num of threads
+    size_t Nproc;                  ///< num of threads for DFN modeling
+    size_t Nproc_flow;             ///< num of threads for flow modeling
     size_t nt;                     ///< should not larger than times! which model is the model shown to us
     size_t nk;                     ///< when nk DFN models are finished, output one time
     size_t nv_MC_TIMES;            ///< each density, the MC times
@@ -33,7 +36,7 @@ public:
     //inputs are mean dip direction, mean dip angle, Fisher constant, min dip direction, max dip direction, min dip angle, max dip angle
 
     string Data_CommandFile = "Data_Command.m";
-    string Data_MatFile = "Data_Mat.mat";
+    string Data_MatFile = "DFN_file.h5";
 
     size_t switch_2D = 0;
 
@@ -156,6 +159,8 @@ inline void Loop_DFN::Loop_create_DFNs(gsl_rng *random_seed,
 
     size_t np = 0;
     size_t njk = 0;
+
+    string DFN_h5_file = "DFN_" + To_string_with_width(modelno, 3) + ".h5";
 
     while (np < times)
     {
@@ -340,7 +345,7 @@ inline void Loop_DFN::Loop_create_DFNs(gsl_rng *random_seed,
                     dom.Matlab_Out_Frac_matfile("Fractures.mat");
                 }
 
-                if (this->Model_flow == 1 && i < Nb_flow_sim_MC_times)
+                if (i < Nb_flow_sim_MC_times && this->Model_flow == 1)
                     Dom_vec[i] = dom;
             }
             catch (Error_throw_pause e)
@@ -422,7 +427,7 @@ inline void Loop_DFN::Loop_create_DFNs(gsl_rng *random_seed,
                     }
                 }
 
-                prog_bar_2.Rep_prog_serially_for_supercomputer(i, 5, Nb_flow_sim_MC_times, "\t\tMeshing ");
+                prog_bar_2.Rep_prog_serially_for_supercomputer(i + 1, 5, Nb_flow_sim_MC_times, "\t\tMeshing ");
             }
             cout << endl;
             auto end_1 = std::chrono::steady_clock::now();
@@ -436,7 +441,8 @@ inline void Loop_DFN::Loop_create_DFNs(gsl_rng *random_seed,
 
             auto start_2 = std::chrono::steady_clock::now();
             cout << "\033[31m\tFEM started!\033[0m" << endl;
-#pragma omp parallel for schedule(dynamic) num_threads(Nproc)
+
+#pragma omp parallel for schedule(dynamic) num_threads(Nproc_flow)
             for (size_t i = 0; i < Nb_flow_sim_MC_times; ++i)
             {
                 DFN::Domain dom;
@@ -558,7 +564,9 @@ inline void Loop_DFN::Loop_create_DFNs(gsl_rng *random_seed,
         {
             njk++;
             Density_c = P30_total_B_1 / P30_A.size();
-            std::cout << "\n**********Found P30_c**********\n\n";
+            std::cout << "\n****************************************Found P30_c****************************************\n\n";
+            std::cout << "\n****************************************Found P30_c****************************************\n\n";
+            std::cout << "\n****************************************Found P30_c****************************************\n\n";
             cout << "reduce MC times!\n";
             if_probability_1 = true;
             Sign_of_finding_pc("P30_c_Found.txt");
@@ -566,19 +574,23 @@ inline void Loop_DFN::Loop_create_DFNs(gsl_rng *random_seed,
 
         if (njk == 1 && P30_total_B_1 / P30_A.size() > 1.5 * Density_c && if_probability_1 == true)
         {
-            cout << "reduce MC times again!\n";
+            cout << "****************************************reduce MC times again!****************************************\n";
+            cout << "****************************************reduce MC times again!****************************************\n";
+            cout << "****************************************reduce MC times again!****************************************\n";
             if_probability_2 = true;
             njk++;
         }
 
         if (njk != 0 && P30_total_B_1 / P30_A.size() > 2 * Density_c)
         {
-            std::cout << "\n**********Found two times P30_c**********\n\n";
+            std::cout << "\n****************************************Found two times P30_c****************************************\n\n";
+            std::cout << "\n****************************************Found two times P30_c****************************************\n\n";
+            std::cout << "\n****************************************Found two times P30_c****************************************\n\n";
             break;
         }
     };
 
-    this->Matlab_command(Data_CommandFile, Data_MatFile, np, np, modelno);
+    //this->Matlab_command(Data_CommandFile, Data_MatFile, np, np, modelno);
     std::cout << "Loop finished!\n";
 };
 
@@ -605,6 +617,119 @@ inline void Loop_DFN::Matlab_Data_output_stepBYstep(const size_t np,
 
 {
 
+    if (np == 1)
+    {
+        const char *CS = FileKey_mat.c_str();
+        std::remove(CS);
+
+        DFN::HDF5_DFN H5file_1(FileKey_mat); //create the file;
+
+        H5file_1.Write_H5(FileKey_mat, "Ori_distr", str_ori);
+        H5file_1.Write_H5(FileKey_mat, "FracSize_distr", str_frac_size);
+        H5file_1.Write_H5(FileKey_mat, "Conduc_distr", conductivity_distri);
+        H5file_1.Write_H5(FileKey_mat, "Domain_size", domain_size);
+        H5file_1.Write_H5(FileKey_mat, "Min_ele_edge", min_ele_edge);
+        H5file_1.Write_H5(FileKey_mat, "Max_ele_edge", max_ele_edge);
+
+        H5file_1.Write_H5(FileKey_mat, "Frac_sets", (double)this->array12.size());
+
+        for (size_t i = 0; i < this->array12.size(); ++i)
+        {
+            //cout << this->array12[i].rows() << endl;
+            vector<double> tmp_1(this->array12[i].rows());
+
+            for (size_t j = 0; j < (size_t)this->array12[i].rows(); ++j)
+                tmp_1[j] = this->array12[i][j];
+
+            string datasetname = "Frac_set_" + To_string_with_width(i + 1, 3) + "_sizes";
+
+            if (i == 0)
+                H5file_1.Write_H5(FileKey_mat, "Frac_sizes_oris", datasetname, tmp_1);
+            else
+                H5file_1.Append_dataset_to_group(FileKey_mat, "Frac_sizes_oris", datasetname, tmp_1);
+        }
+
+
+        if (str_ori == "fisher")
+        {
+            for (size_t i = 0; i < this->array13.size(); ++i)
+            {
+                //cout << this->array12[i].rows() << endl;
+                vector<double> tmp_1(this->array13[i].cols());
+
+                for (size_t j = 0; j < (size_t)this->array13[i].cols(); ++j)
+                    tmp_1[j] = this->array13[i][j];
+
+                string datasetname = "Frac_set_" + To_string_with_width(i + 1, 3) + "_oris";
+                
+                H5file_1.Append_dataset_to_group(FileKey_mat, "Frac_sizes_oris", datasetname, tmp_1);
+            }
+        }
+    }
+
+    DFN::HDF5_DFN H5file;
+
+    string groupname = "group_" + To_string_with_width(np, 3);
+
+    H5file.Overwrite(FileKey_mat, "Loop_times", np);
+
+    string string_P32_total = "P32_total";
+    string string_P32_connected_x = "P32_connected_x";
+    string string_P32_connected_y = "P32_connected_y";
+    string string_P32_connected_z = "P32_connected_z";
+    string string_P30 = "P30";
+    string string_Ratio_of_P32_x = "Ratio_of_P32_x";
+    string string_Ratio_of_P32_y = "Ratio_of_P32_y";
+    string string_Ratio_of_P32_z = "Ratio_of_P32_z";
+    string string_Percolation_probability_x = "Percolation_probability_x";
+    string string_Percolation_probability_y = "Percolation_probability_y";
+    string string_Percolation_probability_z = "Percolation_probability_z";
+    string string_n_I = "n_I";
+    string string_P30_largest_cluster = "P30_largest_cluster";
+    string string_P32_largest_cluster = "P32_largest_cluster";
+    string string_P30_connected_x = "P30_connected_x";
+    string string_P30_connected_y = "P30_connected_y";
+    string string_P30_connected_z = "P30_connected_z";
+    string string_Ratio_of_P30_x = "Ratio_of_P30_x";
+    string string_Ratio_of_P30_y = "Ratio_of_P30_y";
+    string string_Ratio_of_P30_z = "Ratio_of_P30_z";
+    string string_Permeability_x = "Permeability_x";
+    string string_Permeability_y = "Permeability_y";
+    string string_Permeability_z = "Permeability_z";
+    string string_Q_error_x = "Q_error_x";
+    string string_Q_error_y = "Q_error_y";
+    string string_Q_error_z = "Q_error_z";
+
+    H5file.Write_H5(FileKey_mat, groupname, string_P32_total, P32_total_A); // created a group already
+
+    H5file.Append_dataset_to_group(FileKey_mat, groupname, string_P32_connected_x, P32_connected_A[0]);
+    H5file.Append_dataset_to_group(FileKey_mat, groupname, string_P32_connected_y, P32_connected_A[1]);
+    H5file.Append_dataset_to_group(FileKey_mat, groupname, string_P32_connected_z, P32_connected_A[2]);
+    H5file.Append_dataset_to_group(FileKey_mat, groupname, string_P30, P30_A);
+    H5file.Append_dataset_to_group(FileKey_mat, groupname, string_Ratio_of_P32_x, Ratio_of_P32_A[0]);
+    H5file.Append_dataset_to_group(FileKey_mat, groupname, string_Ratio_of_P32_y, Ratio_of_P32_A[1]);
+    H5file.Append_dataset_to_group(FileKey_mat, groupname, string_Ratio_of_P32_z, Ratio_of_P32_A[2]);
+    H5file.Append_dataset_to_group(FileKey_mat, groupname, string_Percolation_probability_x, Percolation_probability_A[0]);
+    H5file.Append_dataset_to_group(FileKey_mat, groupname, string_Percolation_probability_y, Percolation_probability_A[1]);
+    H5file.Append_dataset_to_group(FileKey_mat, groupname, string_Percolation_probability_z, Percolation_probability_A[2]);
+    H5file.Append_dataset_to_group(FileKey_mat, groupname, string_n_I, n_I_A);
+    H5file.Append_dataset_to_group(FileKey_mat, groupname, string_P30_largest_cluster, P30_largest_cluster_A);
+    H5file.Append_dataset_to_group(FileKey_mat, groupname, string_P32_largest_cluster, P32_largest_cluster_A);
+    H5file.Append_dataset_to_group(FileKey_mat, groupname, string_P30_connected_x, P30_connected_A[0]);
+    H5file.Append_dataset_to_group(FileKey_mat, groupname, string_P30_connected_y, P30_connected_A[1]);
+    H5file.Append_dataset_to_group(FileKey_mat, groupname, string_P30_connected_z, P30_connected_A[2]);
+    H5file.Append_dataset_to_group(FileKey_mat, groupname, string_Ratio_of_P30_x, Ratio_of_P30_A[0]);
+    H5file.Append_dataset_to_group(FileKey_mat, groupname, string_Ratio_of_P30_y, Ratio_of_P30_A[1]);
+    H5file.Append_dataset_to_group(FileKey_mat, groupname, string_Ratio_of_P30_z, Ratio_of_P30_A[2]);
+    H5file.Append_dataset_to_group(FileKey_mat, groupname, string_Permeability_x, Permeability_A[0]);
+    H5file.Append_dataset_to_group(FileKey_mat, groupname, string_Permeability_y, Permeability_A[1]);
+    H5file.Append_dataset_to_group(FileKey_mat, groupname, string_Permeability_z, Permeability_A[2]);
+    H5file.Append_dataset_to_group(FileKey_mat, groupname, string_Q_error_x, Q_error_A[0]);
+    H5file.Append_dataset_to_group(FileKey_mat, groupname, string_Q_error_y, Q_error_A[1]);
+    H5file.Append_dataset_to_group(FileKey_mat, groupname, string_Q_error_z, Q_error_A[2]);
+
+    //-------------------------------------------------------------------------------------
+    /*
     const char *filename = FileKey_mat.c_str();
 
     if (np == 1)
@@ -793,6 +918,7 @@ inline void Loop_DFN::Matlab_Data_output_stepBYstep(const size_t np,
     M1_.Init(filename, "u", Q_error_A[0].size(), Q_error_A[0].size(), 1, Q_error_A[0], string_Q_error_x);
     M1_.Init(filename, "u", Q_error_A[1].size(), Q_error_A[1].size(), 1, Q_error_A[1], string_Q_error_y);
     M1_.Init(filename, "u", Q_error_A[2].size(), Q_error_A[2].size(), 1, Q_error_A[2], string_Q_error_z);
+    */
 };
 
 inline void Loop_DFN::Matlab_command(string FileKey_m, string FileKey_mat, size_t np, size_t ny, size_t model_no)

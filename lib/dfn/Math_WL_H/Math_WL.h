@@ -6,6 +6,8 @@
 #include <ctime>
 #include <iostream>
 #include <vector>
+#include <sstream>
+#include <string>
 using namespace std;
 using namespace Eigen;
 
@@ -14,6 +16,16 @@ typedef Matrix<double, 1, 6> Vector6d;
 typedef Matrix<double, 1, 7> Vector7d;
 
 typedef Matrix<double, 6, 1> RowVector6d;
+
+string To_string_with_width(size_t val, size_t width)
+{
+    std::ostringstream oss;
+    oss.width(width); 
+    oss.fill('0');
+    oss << val;
+    return oss.str();
+}
+
 
 // LAPACK
 extern "C"
