@@ -12,19 +12,32 @@ namespace DFN
 class Using_UMFPACK
 {
 public:
-    Using_UMFPACK(const double *K_a,
-                  const size_t Dim /*dimension of the square matrix*/,
-                  double *B);
-};
-
-inline Using_UMFPACK::Using_UMFPACK(const double *K_a, const size_t Dim, double *B)
-{
     std::vector<double> Ax_xx;
 
     std::vector<int> Ai_xx;
 
     std::vector<int> Ap_xx;
 
+public:
+    Using_UMFPACK();
+
+    void Prepare(const double *K_a,
+                 const size_t Dim);
+
+    void Solve(const size_t Dim /*dimension of the square matrix*/,
+               double *B);
+};
+
+inline Using_UMFPACK::Using_UMFPACK()
+{
+    Ax_xx.resize(0);
+    Ai_xx.resize(0);
+    Ap_xx.resize(0);
+};
+
+inline void Using_UMFPACK::Prepare(const double *K_a,
+                                   const size_t Dim)
+{
     for (size_t is = 0; is < Dim; ++is)
     {
         if (is == 0)
@@ -44,6 +57,10 @@ inline Using_UMFPACK::Using_UMFPACK(const double *K_a, const size_t Dim, double 
     }
 
     Ap_xx.push_back(Ai_xx.size());
+}
+
+inline void Using_UMFPACK::Solve(const size_t Dim, double *B)
+{
 
     //cout << "umfpack mat init start_\n";
     int *Ai = (int *)malloc(Ai_xx.size() * sizeof(int));
@@ -58,9 +75,9 @@ inline Using_UMFPACK::Using_UMFPACK(const double *K_a, const size_t Dim, double 
     std::copy(Ap_xx.begin(), Ap_xx.end(), Ap);
     std::copy(Ax_xx.begin(), Ax_xx.end(), Ax);
 
-    Ai_xx.clear();
-    Ap_xx.clear();
-    Ax_xx.clear();
+    this->Ai_xx.clear();
+    this->Ap_xx.clear();
+    this->Ax_xx.clear();
 
     int n = Dim;
     double *null = (double *)NULL;

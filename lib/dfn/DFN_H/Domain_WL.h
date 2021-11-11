@@ -3,6 +3,7 @@
 #include "../Geometry_H/Intersection_Frac_boost.h"
 #include "../Geometry_H/Intersection_between_polygon_and_3D_box.h"
 #include "../Graph_WL_H/Graph_WL.h"
+#include "../MATLAB_DATA_API/MATLAB_DATA_API.h"
 #include "Fracture_WL.h"
 #include "mat.h"
 #include <fstream>
@@ -1780,45 +1781,11 @@ inline void Domain::Create_whole_model_II(const Vector6d model_size, std::vector
 
 inline void Domain::Matlab_Out_Frac_matfile(string FileKey_mat)
 {
-    const char *filename = FileKey_mat.c_str();
-    MATFile *pMatFile;
-    pMatFile = matOpen(filename, "w");
-
-    if (!pMatFile)
-    {
-        throw Error_throw_ignore("cannot create mat file in class Domain\n");
-    }
-
     for (size_t i = 0; i < this->Fractures.size(); ++i)
     {
-        //cout << "i: " << i << endl;
-        size_t len = Fractures[i].Verts.size(); // number of verts
+        size_t len = Fractures[i].Verts.size();
 
-        double *pData1;
-        double *pData2;
-        double *pData3;
-
-        pData1 = (double *)mxCalloc(len, sizeof(double));
-        pData2 = (double *)mxCalloc(len, sizeof(double));
-        pData3 = (double *)mxCalloc(len, sizeof(double));
-
-        mxArray *pMxArray1;
-        mxArray *pMxArray2;
-        mxArray *pMxArray3;
-
-        pMxArray1 = mxCreateDoubleMatrix(len, 1, mxREAL);
-        pMxArray2 = mxCreateDoubleMatrix(len, 1, mxREAL);
-        pMxArray3 = mxCreateDoubleMatrix(len, 1, mxREAL);
-
-        if (!pMxArray1 || !pMxArray2 || !pMxArray3)
-        {
-            throw Error_throw_ignore("cannot create pMxArray in class Domain\n");
-        }
-
-        if (!pData1 || !pData2 || !pData3)
-        {
-            throw Error_throw_ignore("cannot create pData in class Domain\n");
-        }
+        vector<double> pData1(len), pData2(len), pData3(len);
 
         for (size_t j = 0; j < len; j++)
         {
@@ -1827,54 +1794,23 @@ inline void Domain::Matlab_Out_Frac_matfile(string FileKey_mat)
             pData3[j] = Fractures[i].Verts[j](2);
         }
 
-        mxSetData(pMxArray1, pData1);
-        mxSetData(pMxArray2, pData2);
-        mxSetData(pMxArray3, pData3);
-
         string ft = to_string(i + 1);
 
         string Fracx = "Frac_" + ft + "_x";
         string Fracy = "Frac_" + ft + "_y";
         string Fracz = "Frac_" + ft + "_z";
 
-        const char *Fracx_s = Fracx.c_str();
-        const char *Fracy_s = Fracy.c_str();
-        const char *Fracz_s = Fracz.c_str();
+        DFN::MATLAB_DATA_API M_1;
 
-        matPutVariable(pMatFile, Fracx_s, pMxArray1);
-        matPutVariable(pMatFile, Fracy_s, pMxArray2);
-        matPutVariable(pMatFile, Fracz_s, pMxArray3);
-
-        mxFree(pData1);
-        mxFree(pData2);
-        mxFree(pData3);
+        if (i == 0)
+            M_1.Write_mat(FileKey_mat, "w", len, len, 1, pData1, Fracx);
+        else
+            M_1.Write_mat(FileKey_mat, "u", len, len, 1, pData1, Fracx);
+        M_1.Write_mat(FileKey_mat, "u", len, len, 1, pData2, Fracy);
+        M_1.Write_mat(FileKey_mat, "u", len, len, 1, pData3, Fracz);
     }
 
-    double *pData4;
-
-    pData4 = (double *)mxCalloc(1, sizeof(double));
-    mxArray *pMxArray4;
-    pMxArray4 = mxCreateDoubleMatrix(1, 1, mxREAL);
-
-    if (!pMxArray4)
-    {
-        throw Error_throw_ignore("cannot create pMxArray in class Domain\n");
-    }
-
-    if (!pData4)
-    {
-        throw Error_throw_ignore("cannot create pData in class Domain\n");
-    }
-
-    pData4[0] = this->Fractures.size();
-
-    mxSetData(pMxArray4, pData4);
-
-    const char *NUM_FRACS = "Num_fracs";
-    matPutVariable(pMatFile, NUM_FRACS, pMxArray4);
-
-    mxFree(pData4);
-
-    matClose(pMatFile);
+    DFN::MATLAB_DATA_API M_1;
+    M_1.Write_mat(FileKey_mat, "u", 1, 1, 1, vector<double>{(double)this->Fractures.size()}, "Num_fracs");
 };
 }; // namespace DFN

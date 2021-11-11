@@ -407,6 +407,9 @@ inline void Loop_DFN::Loop_create_DFNs(gsl_rng *random_seed,
                             Mesh_vec[rt][i] = mesh;
                             Mesh_status[rt][i] = 1;
 
+                            if(rt == 0 && np == 2)
+                                mesh.Matlab_plot("mesh.m", "mesh.mat", dom);
+
                             if (mesh.mesh_state == false)
                                 Mesh_status[rt][i] = 2;
                         }
@@ -469,6 +472,9 @@ inline void Loop_DFN::Loop_create_DFNs(gsl_rng *random_seed,
                             Permeability_A[rt][i] = CC.Permeability;
                             Q_error_A[rt][i] = CC.Q_error;
                             //Permeability_A[rt][i] = 0;
+
+                            if(rt == 0 && np == 2)
+                                CC.matlab_plot("fem.m", "fem.mat", dom, mesh);
                         }
                         else if (Mesh_status[rt][i] == 2)
                         {

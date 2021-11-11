@@ -406,49 +406,17 @@ inline void Mesh_DFN_overall::Identify_point_attribute_and_2D_meshes(DFN::Domain
 void Mesh_DFN_overall::Matlab_plot(string FileKey_mat, string FileKey_m, DFN::Domain dom)
 {
     const char *filename = FileKey_mat.c_str();
-    MATFile *pMatFile;
-    pMatFile = matOpen(filename, "w");
-
-    if (!pMatFile)
-    {
-        throw Error_throw_ignore("cannot create mat file in class Mesh_DFN_overall\n");
-    }
-
     for (size_t i = 0; i < Frac_Tag.size(); ++i)
     {
-        //cout << "i: " << i << endl;
-        size_t len = dom.Fractures[Frac_Tag[i]].Verts_trim.size(); // number of verts
+        size_t len = dom.Fractures[Frac_Tag[i]].Verts_trim.size();
+        string ft = to_string(i);
 
-        double *pData1;
-        double *pData2;
-        double *pData3;
-        double *pData7;
+        string Fracx = "Frac_" + ft + "_x";
+        string Fracy = "Frac_" + ft + "_y";
+        string Fracz = "Frac_" + ft + "_z";
+        string JM_each = "JM_each_" + ft;
 
-        pData1 = (double *)mxCalloc(len, sizeof(double));
-        pData2 = (double *)mxCalloc(len, sizeof(double));
-        pData3 = (double *)mxCalloc(len, sizeof(double));
-        pData7 = (double *)mxCalloc(this->JM_Each_Frac[i].size() * 6, sizeof(double));
-
-        mxArray *pMxArray1;
-        mxArray *pMxArray2;
-        mxArray *pMxArray3;
-        mxArray *pMxArray7;
-
-        pMxArray1 = mxCreateDoubleMatrix(len, 1, mxREAL);
-        pMxArray2 = mxCreateDoubleMatrix(len, 1, mxREAL);
-        pMxArray3 = mxCreateDoubleMatrix(len, 1, mxREAL);
-        pMxArray7 = mxCreateDoubleMatrix(this->JM_Each_Frac[i].size(), 6, mxREAL);
-
-        if (!pMxArray1 || !pMxArray2 || !pMxArray3 || !pMxArray7)
-        {
-            throw Error_throw_ignore("cannot create pMxArray in class Mesh_DFN\n");
-        }
-
-        if (!pData1 || !pData2 || !pData3 || !pData7)
-        {
-            throw Error_throw_ignore("cannot create pData in class Mesh_DFN\n");
-        }
-
+        vector<double> pData1(len), pData2(len), pData3(len), pData7(this->JM_Each_Frac[i].size() * 6);
         for (size_t j = 0; j < len; j++)
         {
             pData1[j] = dom.Fractures[Frac_Tag[i]].Verts_trim[j](0);
@@ -465,63 +433,23 @@ void Mesh_DFN_overall::Matlab_plot(string FileKey_mat, string FileKey_m, DFN::Do
             pData7[j] = this->JM_Each_Frac[i][l](k) + 1;
         }
 
-        mxSetData(pMxArray1, pData1);
-        mxSetData(pMxArray2, pData2);
-        mxSetData(pMxArray3, pData3);
-        mxSetData(pMxArray7, pData7);
+        DFN::MATLAB_DATA_API M1_;
 
-        string ft = to_string(i);
+        if (i == 0)
+            M1_.Write_mat(filename, "w", len, len, 1, pData1, Fracx);
+        else
+            M1_.Write_mat(filename, "u", len, len, 1, pData1, Fracx);
 
-        string Fracx = "Frac_" + ft + "_x";
-        string Fracy = "Frac_" + ft + "_y";
-        string Fracz = "Frac_" + ft + "_z";
-        string JM_each = "JM_each_" + ft;
-
-        const char *Fracx_s = Fracx.c_str();
-        const char *Fracy_s = Fracy.c_str();
-        const char *Fracz_s = Fracz.c_str();
-        const char *JM_each_s = JM_each.c_str();
-
-        matPutVariable(pMatFile, Fracx_s, pMxArray1);
-        matPutVariable(pMatFile, Fracy_s, pMxArray2);
-        matPutVariable(pMatFile, Fracz_s, pMxArray3);
-        matPutVariable(pMatFile, JM_each_s, pMxArray7);
-
-        //mxDestroyArray(pMxArray1);
-        //mxDestroyArray(pMxArray2);
-        //mxDestroyArray(pMxArray3);
-        //mxDestroyArray(pMxArray7);
-
-        mxFree(pData1);
-        mxFree(pData2);
-        mxFree(pData3);
-        mxFree(pData7);
+        M1_.Write_mat(filename, "u", len, len, 1, pData2, Fracy);
+        M1_.Write_mat(filename, "u", len, len, 1, pData3, Fracz);
+        M1_.Write_mat(filename, "u", this->JM_Each_Frac[i].size() * 6, this->JM_Each_Frac[i].size(), 6, pData3, JM_each);
     }
 
-    double *pData4;
-    double *pData5;
-    double *pData6;
-    pData4 = (double *)mxCalloc(this->JXY_3D.size() * 3, sizeof(double));
-    pData5 = (double *)mxCalloc(this->JM.size() * 6, sizeof(double));
-    pData6 = (double *)mxCalloc(this->JXY_3D.size() * 9, sizeof(double));
+    DFN::MATLAB_DATA_API M1_;
 
-    mxArray *pMxArray4;
-    mxArray *pMxArray5;
-    mxArray *pMxArray6;
-
-    pMxArray4 = mxCreateDoubleMatrix(this->JXY_3D.size(), 3, mxREAL);
-    pMxArray5 = mxCreateDoubleMatrix(this->JM.size(), 6, mxREAL);
-    pMxArray6 = mxCreateDoubleMatrix(this->JXY_3D.size(), 9, mxREAL);
-
-    if (!pMxArray4 || !pMxArray5 || !pMxArray6)
-    {
-        throw Error_throw_ignore("cannot create pMxArray in class Mesh_DFN\n");
-    }
-
-    if (!pData4 || !pData5 || !pData6)
-    {
-        throw Error_throw_ignore("cannot create pData in class Mesh_DFN\n");
-    }
+    vector<double> pData4(this->JXY_3D.size() * 3);
+    vector<double> pData5(this->JM.size() * 6);
+    vector<double> pData6(this->JXY_3D.size() * 9);
 
     for (size_t j = 0; j < this->JXY_3D.size() * 3; ++j)
     {
@@ -568,28 +496,13 @@ void Mesh_DFN_overall::Matlab_plot(string FileKey_mat, string FileKey_m, DFN::Do
             pData6[j] = (int)this->Pnt_attri[l].If_corner;
         //cout << pData4[j] << endl;
     }
+    string FracJXY3D_s = "Frac_JXY3D";
+    string FracJM_s = "Frac_JM";
+    string PntAttri_s = "PntAttri_s";
 
-    mxSetData(pMxArray4, pData4);
-    mxSetData(pMxArray5, pData5);
-    mxSetData(pMxArray6, pData6);
-
-    const char *FracJXY3D_s = "Frac_JXY3D";
-    const char *FracJM_s = "Frac_JM";
-    const char *PntAttri_s = "PntAttri_s";
-
-    matPutVariable(pMatFile, FracJXY3D_s, pMxArray4);
-    matPutVariable(pMatFile, FracJM_s, pMxArray5);
-    matPutVariable(pMatFile, PntAttri_s, pMxArray6);
-
-    //mxDestroyArray(pMxArray4);
-    //mxDestroyArray(pMxArray5);
-    //mxDestroyArray(pMxArray6);
-
-    mxFree(pData4);
-    mxFree(pData5);
-    mxFree(pData6);
-
-    matClose(pMatFile);
+    M1_.Write_mat(filename, "u", this->JXY_3D.size() * 3, this->JXY_3D.size(), 3, pData4, FracJXY3D_s);
+    M1_.Write_mat(filename, "u", this->JM.size() * 6, this->JM.size(), 6, pData5, FracJM_s);
+    M1_.Write_mat(filename, "u", this->JXY_3D.size() * 9, this->JXY_3D.size(), 9, pData6, PntAttri_s);
 
     // m file
     std::ofstream oss(FileKey_m, ios::out);

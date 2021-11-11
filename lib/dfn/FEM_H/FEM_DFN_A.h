@@ -102,17 +102,19 @@ inline FEM_DFN_A::FEM_DFN_A(DFN::Mesh_DFN_overall DFN_mesh, DFN::Domain dom, siz
     //cout << "\t\t\tapply BC finish" << endl;
 
     //cout << "\t\t\tumfpack start" << endl;
-    DFN::Using_UMFPACK U{K_overall, Matrix_D, F_overall};
+    DFN::Using_UMFPACK U;
+    U.Prepare(K_overall, Matrix_D, F_overall);
+    free(K_overall);
+
+    U.Solve(Matrix_D, F_overall);
     //cout << "\t\t\tumfpack finished" << endl;
 
     X_overall = vector<double>{F_overall, F_overall + Matrix_D};
-
+    free(F_overall);
     //delete[] K_overall;
     //K_overall = NULL;
     //delete[] F_overall;
     //F_overall = NULL;
-    free(K_overall);
-    free(F_overall);
 
     this->Identify_In_and_Out_element(DFN_mesh, i);
     this->FEM_results(DFN_mesh, dom);
@@ -125,7 +127,7 @@ inline FEM_DFN_A::~FEM_DFN_A(){
 
 inline void FEM_DFN_A::Assemble_overall_matrix(DFN::Mesh_DFN_overall DFN_mesh, double *K_overall, DFN::Domain dom)
 {
-    
+
     size_t Matrix_D = DFN_mesh.NUM_of_NODES;
 
     for (size_t i = 0; i < DFN_mesh.JM_Each_Frac.size(); ++i)
@@ -472,10 +474,12 @@ inline void FEM_DFN_A::matlab_plot(string FileKey_mat, string FileKey_m, DFN::Do
     string Head = "Head";
     string V_3D = "V_3D";
 
-    DFN::MATLAB_DATA_API M1_{FileKey_mat, "w", DFN_mesh.JXY_3D.size() * 3, DFN_mesh.JXY_3D.size(), 3, JXY_3D_, Frac_JXY_3D};
-    DFN::MATLAB_DATA_API M2_{FileKey_mat, "u", DFN_mesh.JM.size() * 6, DFN_mesh.JM.size(), 6, JM_, Topo_3D};
-    DFN::MATLAB_DATA_API M3_{FileKey_mat, "u", DFN_mesh.NUM_of_NODES, DFN_mesh.NUM_of_NODES, 1, HEAD_, Head};
-    DFN::MATLAB_DATA_API M4_{FileKey_mat, "u", DFN_mesh.JM.size() * 3, DFN_mesh.JM.size(), 3, VELOCITY_, V_3D};
+    DFN::MATLAB_DATA_API M1_;
+
+    M1_.Write_mat(FileKey_mat, "w", DFN_mesh.JXY_3D.size() * 3, DFN_mesh.JXY_3D.size(), 3, JXY_3D_, Frac_JXY_3D);
+    M1_.Write_mat(FileKey_mat, "u", DFN_mesh.JM.size() * 6, DFN_mesh.JM.size(), 6, JM_, Topo_3D);
+    M1_.Write_mat(FileKey_mat, "u", DFN_mesh.NUM_of_NODES, DFN_mesh.NUM_of_NODES, 1, HEAD_, Head);
+    M1_.Write_mat(FileKey_mat, "u", DFN_mesh.JM.size() * 3, DFN_mesh.JM.size(), 3, VELOCITY_, V_3D);
 
     std::ofstream oss(FileKey_m, ios::out);
     oss << "clc;\nclose all;\nclear all;";

@@ -23,6 +23,8 @@ public:
     void Write_H5(string filename, string groupname, vector<string> datasetname, vector<vector<double>> data);
     void Overwrite(string filename, string datasetname, double data);
     vector<double> Read_H5(string filename, string groupname, string datasetname);
+    vector<double> Read_H5(string filename, string datasetname);
+    string Read_H5_text(string filename, string datasetname);
     void Append_dataset_to_group(string filename, string groupname, string datasetname, vector<double> data);
 };
 
@@ -185,6 +187,62 @@ inline vector<double> HDF5_DFN::Read_H5(string filename, string groupname, strin
     file.close();
 
     return AY;
+};
+
+inline vector<double> HDF5_DFN::Read_H5(string filename, string datasetname)
+{
+    H5File file(filename, H5F_ACC_RDWR);
+
+    DataSet dataset = file.openDataSet(datasetname);
+
+    DataSpace filespace = dataset.getSpace();
+
+    int rank = filespace.getSimpleExtentNdims();
+
+    if (rank != 1)
+    {
+        string AS = "Sorry, this function is only for 1D data!\n";
+        throw Error_throw_pause(AS);
+    }
+
+    hsize_t dims[rank];
+
+    rank = filespace.getSimpleExtentDims(dims);
+
+    DataSpace myspace(rank, dims);
+
+    double *buffer = new double[dims[0]]();
+
+    dataset.read(buffer, PredType::NATIVE_DOUBLE, myspace, filespace);
+
+    vector<double> AY(dims[0]);
+
+    for (size_t i = 0; i < dims[0]; ++i)
+        AY[i] = buffer[i];
+
+    delete[] buffer;
+    buffer = NULL;
+    file.close();
+
+    return AY;
+};
+
+inline string HDF5_DFN::Read_H5_text(string filename, string datasetname)
+{
+    H5File file(filename, H5F_ACC_RDWR);
+
+    // open dataset, get data-type
+    DataSet dataset = file.openDataSet(datasetname);
+    DataSpace dataspace = dataset.getSpace();
+    StrType datatype = dataset.getStrType();
+
+    // allocate output
+    string data;
+
+    // read output
+    dataset.read(data, datatype, dataspace);
+
+    return data;
 };
 
 inline void HDF5_DFN::Append_dataset_to_group(string filename, string groupname, string datasetname, vector<double> data)
