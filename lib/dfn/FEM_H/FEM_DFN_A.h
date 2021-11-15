@@ -103,7 +103,7 @@ inline FEM_DFN_A::FEM_DFN_A(DFN::Mesh_DFN_overall DFN_mesh, DFN::Domain dom, siz
 
     //cout << "\t\t\tumfpack start" << endl;
     DFN::Using_UMFPACK U;
-    U.Prepare(K_overall, Matrix_D, F_overall);
+    U.Prepare(K_overall, Matrix_D);
     free(K_overall);
 
     U.Solve(Matrix_D, F_overall);

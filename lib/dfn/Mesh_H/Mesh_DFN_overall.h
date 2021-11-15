@@ -62,7 +62,7 @@ public:
     size_t NUM_trace_ele_sets;
 
     bool mesh_state = true;
-
+    
 public:
     Mesh_DFN_overall();
     Mesh_DFN_overall(DFN::Domain dom, const double min_ele_edge, const double max_ele_edge, size_t dir, size_t Nproc);
@@ -204,15 +204,16 @@ inline Mesh_DFN_overall::Mesh_DFN_overall(DFN::Domain dom, const double min_ele_
         for (size_t i = 0; i < elemNodeTags[0].size(); i += 6)
         {
             RowVector6i A;
-            A << elemNodeTags[0][i] - 1,
+            A << elemNodeTags[0][i] - 1, // 0
                 elemNodeTags[0][i + 3] - 1,
-                elemNodeTags[0][i + 1] - 1,
+                elemNodeTags[0][i + 1] - 1, // 1
                 elemNodeTags[0][i + 4] - 1,
-                elemNodeTags[0][i + 2] - 1,
+                elemNodeTags[0][i + 2] - 1, // 2
                 elemNodeTags[0][i + 5] - 1;
             //cout << A << endl;
             JM.push_back(A);
         }
+
         //gmsh::fltk::run();
         gmsh::model::mesh::clear();
         gmsh::clear();
@@ -640,12 +641,12 @@ void Mesh_DFN_overall::Matlab_plot(string FileKey_mat, string FileKey_m, DFN::Do
     }
     oss << "end;\n";
 
-    oss << "\n\n\nfigure(1)\n"
+    oss << "\n\n\n%figure(1)\n"
         << endl;
-    oss << "[m, ~] = size(Frac_JXY3D);\n";
-    oss << "for i = 1:m\n";
-    oss << "\ttext(Frac_JXY3D(i, 1), Frac_JXY3D(i, 2), Frac_JXY3D(i, 3), num2str(i), 'FontSize', 11);\n";
-    oss << "end\n";
+    oss << "%[m, ~] = size(Frac_JXY3D);\n";
+    oss << "%for i = 1:m\n";
+    oss << "\t%text(Frac_JXY3D(i, 1), Frac_JXY3D(i, 2), Frac_JXY3D(i, 3), num2str(i), 'FontSize', 11);\n";
+    oss << "%end\n";
 
     //oss << "\n\n\nfigure(3)\n"
     //  << endl;
