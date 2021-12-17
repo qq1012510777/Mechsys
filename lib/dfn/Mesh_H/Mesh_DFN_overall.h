@@ -62,7 +62,7 @@ public:
     size_t NUM_trace_ele_sets;
 
     bool mesh_state = true;
-    
+
 public:
     Mesh_DFN_overall();
     Mesh_DFN_overall(DFN::Domain dom, const double min_ele_edge, const double max_ele_edge, size_t dir, size_t Nproc);

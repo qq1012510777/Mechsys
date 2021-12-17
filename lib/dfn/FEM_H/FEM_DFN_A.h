@@ -24,8 +24,8 @@ public:
 
 public:
     FEM_DFN_A(DFN::Mesh_DFN_overall DFN_mesh, DFN::Domain dom, size_t i /*direction*/);
-    void Assemble_overall_matrix(DFN::Mesh_DFN_overall DFN_mesh, double *K_overall, DFN::Domain dom);
-    void Apply_boundary_condition(DFN::Mesh_DFN_overall DFN_mesh, double *K_overall, double *F_overall, size_t direction, Vector2d BC_head);
+    void Assemble_overall_matrix(DFN::Mesh_DFN_overall DFN_mesh, float *K_overall, DFN::Domain dom);
+    void Apply_boundary_condition(DFN::Mesh_DFN_overall DFN_mesh, float *K_overall, double *F_overall, size_t direction, Vector2d BC_head);
     void FEM_results(DFN::Mesh_DFN_overall DFN_mesh, DFN::Domain dom);
     void Identify_In_and_Out_element(DFN::Mesh_DFN_overall DFN_mesh, size_t dir);
     void In_and_Out_flux(DFN::Mesh_DFN_overall DFN_mesh, DFN::Domain dom, size_t dir);
@@ -70,27 +70,32 @@ inline FEM_DFN_A::FEM_DFN_A(DFN::Mesh_DFN_overall DFN_mesh, DFN::Domain dom, siz
     BC_head << 100, 20;
 
     //cout << "\t\t\tMatrix_D = " << Matrix_D << endl;
-    //double *K_overall = new double[Matrix_D * Matrix_D]();
-    //double *F_overall = new double[Matrix_D]();
     //double K_overall[Matrix_D * Matrix_D] = {};
     //double F_overall[Matrix_D] = {};
-    double *K_overall = (double *)malloc(Matrix_D * Matrix_D * sizeof(double));
-    double *F_overall = (double *)malloc(Matrix_D * sizeof(double));
-    memset(K_overall, 0, Matrix_D * Matrix_D * sizeof(double));
-    memset(F_overall, 0, Matrix_D * sizeof(double));
+    //double *K_overall = (double *)malloc(Matrix_D * Matrix_D * sizeof(double));
+    //double *F_overall = (double *)malloc(Matrix_D * sizeof(double));
+    //memset(K_overall, 0, Matrix_D * Matrix_D * sizeof(double));
+    //memset(F_overall, 0, Matrix_D * sizeof(double));
     //cout << "\t\t\tMatrix initialization finished!\n";
 
-    if (K_overall == NULL || F_overall == NULL)
+    float *K_overall = new float[Matrix_D * Matrix_D]();
+    if (K_overall == NULL)
     {
-        //delete[] K_overall;
-        //K_overall = NULL;
-        //delete[] F_overall;
-        //F_overall = NULL;
-        free(K_overall);
-        free(F_overall);
         //cout << "Matrix_D = " << Matrix_D << endl;
         //cout << "Error! Cannot alloc to matrix 'K_overall' or 'F_overall'!\n";
-        throw Error_throw_ignore("Error! Cannot alloc to matrix 'K_overall' or 'F_overall'!\n");
+        cout << "\t\tNUll K_overall\n";
+        throw Error_throw_ignore("Error! Cannot alloc to matrix 'K_overall'!\n");
+    }
+
+    double *F_overall = new double[Matrix_D]();
+    if (F_overall == NULL)
+    {
+        //cout << "Matrix_D = " << Matrix_D << endl;
+        //cout << "Error! Cannot alloc to matrix 'K_overall' or 'F_overall'!\n";
+        delete[] K_overall;
+        K_overall = NULL;
+        cout << "\t\tNUll F_overall\n";
+        throw Error_throw_ignore("Error! Cannot alloc to matrix 'F_overall'!\n");
     }
 
     //cout << "\t\t\tassemble matrix start" << endl;
@@ -104,17 +109,18 @@ inline FEM_DFN_A::FEM_DFN_A(DFN::Mesh_DFN_overall DFN_mesh, DFN::Domain dom, siz
     //cout << "\t\t\tumfpack start" << endl;
     DFN::Using_UMFPACK U;
     U.Prepare(K_overall, Matrix_D);
-    free(K_overall);
+
+    delete[] K_overall;
+    K_overall = NULL;
 
     U.Solve(Matrix_D, F_overall);
     //cout << "\t\t\tumfpack finished" << endl;
 
     X_overall = vector<double>{F_overall, F_overall + Matrix_D};
-    free(F_overall);
-    //delete[] K_overall;
-    //K_overall = NULL;
-    //delete[] F_overall;
-    //F_overall = NULL;
+    //free(F_overall);
+
+    delete[] F_overall;
+    F_overall = NULL;
 
     this->Identify_In_and_Out_element(DFN_mesh, i);
     this->FEM_results(DFN_mesh, dom);
@@ -125,7 +131,7 @@ inline FEM_DFN_A::~FEM_DFN_A(){
 
 };
 
-inline void FEM_DFN_A::Assemble_overall_matrix(DFN::Mesh_DFN_overall DFN_mesh, double *K_overall, DFN::Domain dom)
+inline void FEM_DFN_A::Assemble_overall_matrix(DFN::Mesh_DFN_overall DFN_mesh, float *K_overall, DFN::Domain dom)
 {
 
     size_t Matrix_D = DFN_mesh.NUM_of_NODES;
@@ -212,7 +218,7 @@ inline void FEM_DFN_A::Assemble_overall_matrix(DFN::Mesh_DFN_overall DFN_mesh, d
     }
 };
 
-inline void FEM_DFN_A::Apply_boundary_condition(DFN::Mesh_DFN_overall DFN_mesh, double *K_overall, double *F_overall, size_t direction, Vector2d BC_head)
+inline void FEM_DFN_A::Apply_boundary_condition(DFN::Mesh_DFN_overall DFN_mesh, float *K_overall, double *F_overall, size_t direction, Vector2d BC_head)
 {
     size_t Matrix_D = DFN_mesh.NUM_of_NODES;
     //---------------------BC
@@ -783,7 +789,7 @@ inline void FEM_DFN_A::In_and_Out_flux(DFN::Mesh_DFN_overall DFN_mesh, DFN::Doma
         l = 1;
         m = 0;
     }
-
+    
     this->Permeability = 0.5 * (Q_out + Q_in) / abs(dom.Model_domain[l] - dom.Model_domain[m]);
 }
 }; // namespace DFN

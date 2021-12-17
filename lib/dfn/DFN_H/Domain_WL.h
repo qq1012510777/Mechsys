@@ -3,6 +3,7 @@
 #include "../Geometry_H/Intersection_Frac_boost.h"
 #include "../Geometry_H/Intersection_between_polygon_and_3D_box.h"
 #include "../Graph_WL_H/Graph_WL.h"
+#include "../HDF5_DFN/HDF5_DFN.h"
 #include "../MATLAB_DATA_API/MATLAB_DATA_API.h"
 #include "Fracture_WL.h"
 #include "mat.h"
@@ -137,6 +138,8 @@ public:
     void Create_whole_model_II(const Vector6d model_size, std::vector<std::vector<Vector3d>> Frac_verts);
 
     void Matlab_Out_Frac_matfile(string FileKey_mat);
+
+    void Output_all_fractures_HDF5(string filename, string groupname, size_t field_width);
 };
 
 inline void Domain::Create_whole_model(const size_t n,
@@ -1812,5 +1815,99 @@ inline void Domain::Matlab_Out_Frac_matfile(string FileKey_mat)
 
     DFN::MATLAB_DATA_API M_1;
     M_1.Write_mat(FileKey_mat, "u", 1, 1, 1, vector<double>{(double)this->Fractures.size()}, "Num_fracs");
+};
+
+inline void Domain::Output_all_fractures_HDF5(string filename, string groupname, size_t field_width)
+{
+    DFN::HDF5_DFN h5file;
+    vector<string> string_field_overall;
+    vector<vector<double>> data_set_overall;
+
+    for (size_t i = 0; i < Fractures.size(); ++i)
+    {
+        string Frac_name = "Frac_" + To_string_with_width(i + 1, field_width) + "_";
+
+        vector<double> Verts_x(Fractures[i].Verts.size()),
+            Verts_y(Fractures[i].Verts.size()),
+            Verts_z(Fractures[i].Verts.size());
+        for (size_t j = 0; j < Fractures[i].Verts.size(); ++j)
+        {
+            Verts_x[j] = Fractures[i].Verts[j][0];
+            Verts_y[j] = Fractures[i].Verts[j][1];
+            Verts_z[j] = Fractures[i].Verts[j][2];
+        }
+
+        vector<double> Verts_trim_x(Fractures[i].Verts_trim.size()),
+            Verts_trim_y(Fractures[i].Verts_trim.size()),
+            Verts_trim_z(Fractures[i].Verts_trim.size());
+        for (size_t j = 0; j < Fractures[i].Verts_trim.size(); ++j)
+        {
+            Verts_trim_x[j] = Fractures[i].Verts_trim[j][0];
+            Verts_trim_y[j] = Fractures[i].Verts_trim[j][1];
+            Verts_trim_z[j] = Fractures[i].Verts_trim[j][2];
+        }
+
+        vector<double> Center = {Fractures[i].Center[0],
+                                 Fractures[i].Center[1],
+                                 Fractures[i].Center[2]};
+
+        vector<double> Normal_vector = {Fractures[i].Normal_vector[0],
+                                        Fractures[i].Normal_vector[1],
+                                        Fractures[i].Normal_vector[2]};
+
+        vector<double> Plane_parameter = {Fractures[i].Plane_parameter[0],
+                                          Fractures[i].Plane_parameter[1],
+                                          Fractures[i].Plane_parameter[2],
+                                          Fractures[i].Plane_parameter[3]};
+
+        //-----------------------------------
+        vector<string> string_field = {Frac_name + "Tag",
+                                       Frac_name + "Clus",
+                                       Frac_name + "Nvertices",
+                                       Frac_name + "Nvertices_trim",
+                                       Frac_name + "Radius",
+                                       Frac_name + "Dip_direction",
+                                       Frac_name + "Dip_angle",
+                                       Frac_name + "Area",
+                                       Frac_name + "Perimeter",
+                                       Frac_name + "Area_trim",
+                                       Frac_name + "Perimeter_trim",
+                                       Frac_name + "Conductivity",
+                                       Frac_name + "Verts_x",
+                                       Frac_name + "Verts_y",
+                                       Frac_name + "Verts_z",
+                                       Frac_name + "Verts_trim_x",
+                                       Frac_name + "Verts_trim_y",
+                                       Frac_name + "Verts_trim_z",
+                                       Frac_name + "Center",
+                                       Frac_name + "Normal_vector",
+                                       Frac_name + "Plane_parameter"};
+
+        vector<vector<double>> data_set = { vector<double>{(double)Fractures[i].Tag},
+                                            vector<double>{(double)Fractures[i].Clus},
+                                            vector<double>{(double)Fractures[i].Nvertices},
+                                            vector<double>{(double)Fractures[i].Nvertices_trim},
+                                            vector<double>{(double)Fractures[i].Radius},
+                                            vector<double>{(double)Fractures[i].Dip_direction},
+                                            vector<double>{(double)Fractures[i].Dip_angle},
+                                            vector<double>{(double)Fractures[i].Area},
+                                            vector<double>{(double)Fractures[i].Perimeter},
+                                            vector<double>{(double)Fractures[i].Area_trim},
+                                            vector<double>{(double)Fractures[i].Perimeter_trim},
+                                            vector<double>{(double)Fractures[i].Conductivity},
+                                            Verts_x,
+                                            Verts_y,
+                                            Verts_z,
+                                            Verts_trim_x,
+                                            Verts_trim_y,
+                                            Verts_trim_z,
+                                            Center,
+                                            Normal_vector,
+                                            Plane_parameter };
+        string_field_overall.insert(string_field_overall.end(), string_field.begin(), string_field.end());
+        data_set_overall.insert(data_set_overall.end(), data_set.begin(), data_set.end());
+    }
+    h5file.Write_H5(filename, groupname, string_field_overall, data_set_overall);
+    h5file.Append_dataset_to_group(filename, groupname, "Frac_Num", vector<double>{(double)Fractures.size()});
 };
 }; // namespace DFN

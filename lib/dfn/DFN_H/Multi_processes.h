@@ -12,7 +12,7 @@
 
 namespace DFN
 {
-class Loop_DFN
+class Multi_processes
 {
 public:
     double times;                  ///< loop times, each time DFN modeling, the density will be increased compared to last time DFN modeling
@@ -80,23 +80,23 @@ public:
 };
 
 //****************************
-inline void Loop_DFN::Loop_create_DFNs(gsl_rng *random_seed,
-                                       string str_ori,
-                                       string str_frac_size,
-                                       string percolation_direction,
-                                       const double min_ele_edge,
-                                       const double max_ele_edge,
-                                       const string conductivity_distri,
-                                       size_t modelno)
+inline void Multi_processes::Loop_create_DFNs(gsl_rng *random_seed,
+                                              string str_ori,
+                                              string str_frac_size,
+                                              string percolation_direction,
+                                              const double min_ele_edge,
+                                              const double max_ele_edge,
+                                              const string conductivity_distri,
+                                              size_t modelno)
 {
     if (this->Model_flow == 1)
     {
         cout << "\033[31m------ switch the flow modeling on ------";
         cout << "\033[0m" << endl;
     }
-    bool if_probability_1 = false;
-    bool if_probability_2 = false;
-    bool show_flow = false;
+    //bool if_probability_1 = false;
+    //bool if_probability_2 = false;
+    //bool show_flow = false;
 
     size_t nv = nv_MC_TIMES;
     //each density, the MC times
@@ -158,27 +158,14 @@ inline void Loop_DFN::Loop_create_DFNs(gsl_rng *random_seed,
         L * 0.5; // MODEL size, not DOMAIN
 
     size_t np = 0;
-    size_t njk = 0;
 
-    string DFN_h5_file = "DFN_geom_" + To_string_with_width(modelno, 3) + ".h5";
-    const char *CS = DFN_h5_file.c_str();
-    std::remove(CS);
-    DFN::HDF5_DFN DFN_geome(DFN_h5_file);
+    //string DFN_h5_file = "DFN_geom_" + To_string_with_width(modelno, 3) + ".h5";
+    //const char *CS = DFN_h5_file.c_str();
+    //std::remove(CS);
+    //DFN::HDF5_DFN DFN_geome(DFN_h5_file);
 
     while (np < times)
     {
-        if (if_probability_1 == true && if_probability_2 == false)
-        {
-            nv = ceil(0.5 * nv_MC_TIMES);
-            Nb_flow_sim_MC_times = ceil(Nb_flow_sim_MC_times * 0.5);
-        }
-
-        if (if_probability_1 == true && if_probability_2 == true)
-        {
-            nv = ceil(0.25 * nv_MC_TIMES);
-            Nb_flow_sim_MC_times = ceil(Nb_flow_sim_MC_times * 0.5);
-        }
-
         np++;
         size_t n = np * nx;
 
@@ -246,9 +233,9 @@ inline void Loop_DFN::Loop_create_DFNs(gsl_rng *random_seed,
         Q_error_A[1].resize(Nb_flow_sim_MC_times);
         Q_error_A[2].resize(Nb_flow_sim_MC_times);
 
-        DFN::ProgressBar prog_bar;
+        //DFN::ProgressBar prog_bar;
         std::cout << "\nThe Model NO." << np << " is creating now! Sizes: " << str_frac_size << "; Ori: " << str_ori << ".\n";
-#pragma omp parallel for schedule(dynamic) num_threads(Nproc)
+
         for (size_t i = 0; i < nv; i++)
         {
 
@@ -374,9 +361,9 @@ inline void Loop_DFN::Loop_create_DFNs(gsl_rng *random_seed,
                 goto Regenerate_dfn;
             }
 
-            prog_bar.Rep_prog_for_paral(nv, 5, "\t\tDFN_MC_modeling ");
+            //prog_bar.Rep_prog_for_paral(nv, 5, "\t\tDFN_MC_modeling ");
         }
-        cout << endl;
+        //cout << endl;
         // for-loop for connectivity ends here
 
         /*
@@ -394,7 +381,7 @@ inline void Loop_DFN::Loop_create_DFNs(gsl_rng *random_seed,
 
         if (this->Model_flow == 1)
         {
-            DFN::ProgressBar prog_bar_2;
+            //DFN::ProgressBar prog_bar_2;
             auto start_1 = std::chrono::steady_clock::now();
             cout << "\033[33m\tmeshing started!\033[0m" << endl;
             for (size_t i = 0; i < Nb_flow_sim_MC_times; ++i)
@@ -445,9 +432,9 @@ inline void Loop_DFN::Loop_create_DFNs(gsl_rng *random_seed,
                     }
                 }
 
-                prog_bar_2.Rep_prog_serially_for_supercomputer(i + 1, 5, Nb_flow_sim_MC_times, "\t\tMeshing ");
+                //_2.Rep_prog_serially_for_supercomputer(i + 1, 5, Nb_flow_sim_MC_times, "\t\tMeshing ");
             }
-            cout << endl;
+            //cout << endl;
             auto end_1 = std::chrono::steady_clock::now();
             std::chrono::duration<double, std::micro> elapsed_1 = end_1 - start_1; // std::micro time (us)
             cout << "\033[33m\tmeshing finished! runtime: " << (((double)(elapsed_1.count() * 1.0) * (0.000001)) / 60.00) / 60.00 << "h \033[0m" << endl;
@@ -455,13 +442,11 @@ inline void Loop_DFN::Loop_create_DFNs(gsl_rng *random_seed,
 
         if (this->Model_flow == 1)
         {
-            bool have_showed_FEM = false;
-            DFN::ProgressBar prog_bar_2;
+            //DFN::ProgressBar prog_bar_2;
 
             auto start_2 = std::chrono::steady_clock::now();
             cout << "\033[31m\tFEM started!\033[0m" << endl;
 
-#pragma omp parallel for schedule(dynamic) num_threads(Nproc_flow)
             for (size_t i = 0; i < Nb_flow_sim_MC_times; ++i)
             {
                 DFN::Domain dom;
@@ -478,9 +463,8 @@ inline void Loop_DFN::Loop_create_DFNs(gsl_rng *random_seed,
                             //cout << "\t\tFEM start" << endl;
                             DFN::FEM_DFN_A CC(mesh, dom, rt);
                             //cout << "\t\tFEM finish" << endl;
-                            if (np == nt && show_flow == false)
+                            if (np == nt)
                             {
-                                have_showed_FEM = true;
                                 string mesh_ = "mesh_DFN_" + to_string(rt);
                                 string FEM_ = "FEM_DFN_" + to_string(rt);
                                 mesh.Matlab_plot(mesh_ + ".mat", mesh_ + ".m", dom);
@@ -519,12 +503,9 @@ inline void Loop_DFN::Loop_create_DFNs(gsl_rng *random_seed,
                     }
                 }
 
-                if (have_showed_FEM == true)
-                    show_flow = true;
-
-                prog_bar_2.Rep_prog_for_paral(Nb_flow_sim_MC_times, 5, "\t\tFEM ");
+                //_2.Rep_prog_for_paral(Nb_flow_sim_MC_times, 5, "\t\tFEM ");
             }
-            cout << endl;
+            //cout << endl;
             auto end_2 = std::chrono::steady_clock::now();
             std::chrono::duration<double, std::micro> elapsed_2 = end_2 - start_2; // std::micro time (us)
             cout << "\033[31m\tFEM finished! runtime: " << (((double)(elapsed_2.count() * 1.0) * (0.000001)) / 60.00) / 60.00 << "h \033[0m" << endl;
@@ -553,88 +534,32 @@ inline void Loop_DFN::Loop_create_DFNs(gsl_rng *random_seed,
                                             min_ele_edge,
                                             max_ele_edge);
         //cout << "\tfinish output data\n\n";
-        double P30_total_B_1 = 0;
-        for (size_t i = 0; i < P30_A.size(); ++i)
-        {
-            P30_total_B_1 += P30_A[i];
-        }
-
-        size_t nf = 0;
-
-        if (njk == 0)
-        {
-            size_t nf1 = 0, nf2 = 0, nf3 = 0;
-
-            for (size_t i = 0; i < Percolation_probability_A[0].size(); ++i)
-                if (Percolation_probability_A[0][i] == 1)
-                    nf1++;
-
-            for (size_t i = 0; i < Percolation_probability_A[1].size(); ++i)
-                if (Percolation_probability_A[1][i] == 1)
-                    nf2++;
-
-            for (size_t i = 0; i < Percolation_probability_A[2].size(); ++i)
-                if (Percolation_probability_A[2][i] == 1)
-                    nf3++;
-
-            nf = nf1 < nf2 ? nf1 : nf2;
-            nf = nf < nf3 ? nf : nf3;
-        }
-
-        if (njk == 0 && (double)nf / nv > 0.49999 && if_probability_1 == false)
-        {
-            njk++;
-            Density_c = P30_total_B_1 / P30_A.size();
-            std::cout << "\n****************************************Found P30_c****************************************\n\n";
-            std::cout << "\n****************************************Found P30_c****************************************\n\n";
-            std::cout << "\n****************************************Found P30_c****************************************\n\n";
-            cout << "reduce MC times!\n";
-            if_probability_1 = true;
-            Sign_of_finding_pc("P30_c_Found.txt");
-        }
-
-        if (njk == 1 && P30_total_B_1 / P30_A.size() > 1.5 * Density_c && if_probability_1 == true)
-        {
-            cout << "****************************************reduce MC times again!****************************************\n";
-            cout << "****************************************reduce MC times again!****************************************\n";
-            cout << "****************************************reduce MC times again!****************************************\n";
-            if_probability_2 = true;
-            njk++;
-        }
-
-        if (njk != 0 && P30_total_B_1 / P30_A.size() > 2 * Density_c)
-        {
-            std::cout << "\n****************************************Found two times P30_c****************************************\n\n";
-            std::cout << "\n****************************************Found two times P30_c****************************************\n\n";
-            std::cout << "\n****************************************Found two times P30_c****************************************\n\n";
-            break;
-        }
     };
 
     //this->Matlab_command(Data_CommandFile, Data_MatFile, np, np, modelno);
     std::cout << "Loop finished!\n";
 };
 
-inline void Loop_DFN::Matlab_Data_output_stepBYstep(const size_t np,
-                                                    string FileKey_mat,
-                                                    std::vector<double> P32_total_A,
-                                                    std::vector<std::vector<double>> P32_connected_A,
-                                                    std::vector<double> P30_A,
-                                                    std::vector<std::vector<double>> Ratio_of_P32_A,
-                                                    std::vector<std::vector<double>> Percolation_probability_A,
-                                                    std::vector<double> n_I_A,
-                                                    std::vector<double> P30_largest_cluster_A,
-                                                    std::vector<double> P32_largest_cluster_A,
-                                                    std::vector<std::vector<double>> P30_connected_A,
-                                                    std::vector<std::vector<double>> Ratio_of_P30_A,
-                                                    std::vector<std::vector<double>> Permeability_A,
-                                                    std::vector<std::vector<double>> Q_error_A,
-                                                    const string str_ori,
-                                                    const string str_frac_size,
-                                                    const string conductivity_distri,
-                                                    const double domain_size,
-                                                    const double min_ele_edge,
-                                                    const double max_ele_edge)
+inline void Multi_processes::Matlab_Data_output_stepBYstep(const size_t np,
+                                                           string FileKey_mat,
+                                                           std::vector<double> P32_total_A,
+                                                           std::vector<std::vector<double>> P32_connected_A,
+                                                           std::vector<double> P30_A,
+                                                           std::vector<std::vector<double>> Ratio_of_P32_A,
+                                                           std::vector<std::vector<double>> Percolation_probability_A,
+                                                           std::vector<double> n_I_A,
+                                                           std::vector<double> P30_largest_cluster_A,
+                                                           std::vector<double> P32_largest_cluster_A,
+                                                           std::vector<std::vector<double>> P30_connected_A,
+                                                           std::vector<std::vector<double>> Ratio_of_P30_A,
+                                                           std::vector<std::vector<double>> Permeability_A,
+                                                           std::vector<std::vector<double>> Q_error_A,
+                                                           const string str_ori,
+                                                           const string str_frac_size,
+                                                           const string conductivity_distri,
+                                                           const double domain_size,
+                                                           const double min_ele_edge,
+                                                           const double max_ele_edge)
 
 {
 
@@ -749,7 +674,7 @@ inline void Loop_DFN::Matlab_Data_output_stepBYstep(const size_t np,
     H5file.Append_dataset_to_group(FileKey_mat, groupname, string_Q_error_z, Q_error_A[2]);
 };
 
-inline void Loop_DFN::Matlab_command(string FileKey_m, string FileKey_mat, size_t np, size_t ny, size_t model_no)
+inline void Multi_processes::Matlab_command(string FileKey_m, string FileKey_mat, size_t np, size_t ny, size_t model_no)
 {
     std::ofstream oss(FileKey_m, ios::out);
     oss << "clc;\nclose all;\nclear all;\n";
@@ -937,7 +862,7 @@ inline void Loop_DFN::Matlab_command(string FileKey_m, string FileKey_mat, size_
     oss.close();
 };
 
-inline void Loop_DFN::Sign_of_finding_pc(string FileKey)
+inline void Multi_processes::Sign_of_finding_pc(string FileKey)
 {
     //Writing data
     std::ofstream oss(FileKey, ios::out);

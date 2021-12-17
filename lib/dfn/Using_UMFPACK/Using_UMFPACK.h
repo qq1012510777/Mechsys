@@ -1,4 +1,5 @@
 #pragma once
+#include "../Error_throw/Error_throw.h"
 #include "amd.h"
 #include "umfpack.h"
 #include <cmath>
@@ -12,81 +13,120 @@ namespace DFN
 class Using_UMFPACK
 {
 public:
-    std::vector<double> Ax_xx;
-
-    std::vector<int> Ai_xx;
-
-    std::vector<int> Ap_xx;
+    int *Ai;
+    int *Ap;
+    double *Ax;
 
 public:
     Using_UMFPACK();
 
-    void Prepare(const double *K_a,
-                 const size_t Dim);
+    void Prepare(const float *K_a, const size_t Dim);
 
-    void Solve(const size_t Dim /*dimension of the square matrix*/,
+    void Solve(/*dimension of the square matrix*/
+               const size_t Dim,
                double *B);
 };
 
-inline Using_UMFPACK::Using_UMFPACK()
-{
-    Ax_xx.resize(0);
-    Ai_xx.resize(0);
-    Ap_xx.resize(0);
+inline Using_UMFPACK::Using_UMFPACK(){
+
 };
 
-inline void Using_UMFPACK::Prepare(const double *K_a,
-                                   const size_t Dim)
+inline void Using_UMFPACK::Prepare(const float *K_a, const size_t Dim)
 {
+    size_t Size_AP = 0, Size_Ax = 0, Size_Ai = 0;
+
+    Size_AP = Dim + 1;
+
+    for (size_t is = 0; is < Dim; ++is)
+    {
+        for (size_t js = 0; js < Dim; ++js)
+        {
+            size_t k = js * Dim + is;
+
+            if (abs(K_a[k]) > 1e-6)
+            {
+                Size_Ax++;
+                Size_Ai++;
+            }
+        }
+    }
+
+    //cout << "umfpack mat init start_\n";
+    Ai = new int[Size_Ai]();
+
+    if (Ai == NULL)
+    {
+        cout << "\t\tNUll Ai\n";
+        throw Error_throw_ignore("Error! Cannot alloc to matrix 'Ai'!\n");
+    }
+
+    Ap = new int[Size_AP]();
+
+    if (Ap == NULL)
+    {
+        cout << "\t\tNUll Ap\n";
+        delete[] Ai;
+        Ai = NULL;
+        throw Error_throw_ignore("Error! Cannot alloc to matrix 'Ap'!\n");
+    }
+
+    Ax = new double[Size_Ax]();
+
+    if (Ax == NULL)
+    {
+        delete[] Ai;
+        Ai = NULL;
+        delete[] Ap;
+        Ap = NULL;
+        cout << "\t\tNUll Ax\n";
+        throw Error_throw_ignore("Error! Cannot alloc to matrix 'Ax'!\n");
+    }
+
+    //cout << "umfpack mat init finish_\n";
+
+    size_t Id_non_zero = 0;
     for (size_t is = 0; is < Dim; ++is)
     {
         if (is == 0)
-            Ap_xx.push_back(0);
+            Ap[is] = 0;
         else
-            Ap_xx.push_back(Ai_xx.size());
+            Ap[is] = Id_non_zero;
 
         for (size_t js = 0; js < Dim; ++js)
         {
             size_t k = js * Dim + is; // column major
             if (abs(K_a[k]) > 1e-6)
             {
-                Ax_xx.push_back(K_a[k]);
-                Ai_xx.push_back(js);
+                Ax[Id_non_zero] = (double)K_a[k];
+                Ai[Id_non_zero] = (int)js;
+                Id_non_zero++;
             }
         }
     }
-
-    Ap_xx.push_back(Ai_xx.size());
-}
+    Ap[Size_AP - 1] = Size_Ax;
+};
 
 inline void Using_UMFPACK::Solve(const size_t Dim, double *B)
 {
-
-    //cout << "umfpack mat init start_\n";
-    int *Ai = (int *)malloc(Ai_xx.size() * sizeof(int));
-    memset(Ai, 0, Ai_xx.size() * sizeof(int));
-    int *Ap = (int *)malloc(Ap_xx.size() * sizeof(int));
-    memset(Ap, 0, Ap_xx.size() * sizeof(int));
-    double *Ax = (double *)malloc(Ax_xx.size() * sizeof(double));
-    memset(Ax, 0, Ax_xx.size() * sizeof(double));
-    //cout << "umfpack mat init finish_\n";
-
-    std::copy(Ai_xx.begin(), Ai_xx.end(), Ai);
-    std::copy(Ap_xx.begin(), Ap_xx.end(), Ap);
-    std::copy(Ax_xx.begin(), Ax_xx.end(), Ax);
-
-    this->Ai_xx.clear();
-    this->Ap_xx.clear();
-    this->Ax_xx.clear();
-
     int n = Dim;
     double *null = (double *)NULL;
     void *Numeric;
     int status;
     void *Symbolic;
 
-    double *x = (double *)malloc(Dim * sizeof(double));
-    memset(x, 0, Dim * sizeof(double));
+    double *x = new double[Dim]();
+
+    if (x == NULL)
+    {
+        delete[] Ai;
+        Ai = NULL;
+        delete[] Ap;
+        Ap = NULL;
+        delete[] Ax;
+        Ax = NULL;
+        cout << "\t\tNUll x\n";
+        throw Error_throw_ignore("Error! Cannot alloc to matrix 'x'!\n");
+    }
 
     status = umfpack_di_symbolic(n, n, Ap, Ai, Ax, &Symbolic, null, null);
     status = umfpack_di_numeric(Ap, Ai, Ax, Symbolic, &Numeric, null, null);
@@ -94,14 +134,18 @@ inline void Using_UMFPACK::Solve(const size_t Dim, double *B)
     status = umfpack_di_solve(UMFPACK_A, Ap, Ai, Ax, x, B, Numeric, null, null);
     umfpack_di_free_numeric(&Numeric);
 
-    free(Ai);
-    free(Ap);
-    free(Ax);
+    delete[] Ai;
+    Ai = NULL;
+    delete[] Ap;
+    Ap = NULL;
+    delete[] Ax;
+    Ax = NULL;
 
     for (size_t is = 0; is < Dim; is++)
         B[is] = x[is];
 
-    free(x);
+    delete[] x;
+    x = NULL;
 
     status++;
 };

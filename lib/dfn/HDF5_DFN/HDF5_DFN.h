@@ -26,6 +26,7 @@ public:
     vector<double> Read_H5(string filename, string datasetname);
     string Read_H5_text(string filename, string datasetname);
     void Append_dataset_to_group(string filename, string groupname, string datasetname, vector<double> data);
+    void Append_dataset_to_group(string filename, string groupname, vector<string> datasetname, vector<vector<double>> data);
 };
 
 HDF5_DFN::HDF5_DFN(){
@@ -273,6 +274,42 @@ inline void HDF5_DFN::Append_dataset_to_group(string filename, string groupname,
 
     delete[] buffer;
     buffer = NULL;
+
+    group.close();
+    file.close();
+};
+
+void HDF5_DFN::Append_dataset_to_group(string filename, string groupname, vector<string> datasetname, vector<vector<double>> data)
+{
+    H5File file(filename, H5F_ACC_RDWR);
+    Group group(file.openGroup(groupname));
+
+    for (size_t k = 0; k < datasetname.size(); ++k)
+    {
+        hsize_t dims[1]; // dataset dimensions for each rank
+        dims[0] = data[k].size();
+        // Create the dataspace for a dataset first.
+        DataSpace dataspace(1, dims);
+        //IntType datatype(PredType::NATIVE_FLOAT);
+        //datatype.setOrder(H5T_ORDER_LE);
+        // Create the dataset under group with specified dataspace.
+
+        DataSet dataset = group.createDataSet(datasetname[k], PredType::NATIVE_DOUBLE, dataspace);
+
+        double *buffer = new double[data[k].size()]();
+        if (buffer == NULL)
+        {
+            string AS = "in Write_H5(), error buff\n";
+            throw Error_throw_pause(AS);
+        }
+
+        for (size_t i = 0; i < data[k].size(); ++i)
+            buffer[i] = data[k][i];
+        dataset.write(buffer, PredType::NATIVE_DOUBLE);
+
+        delete[] buffer;
+        buffer = NULL;
+    }
 
     group.close();
     file.close();
