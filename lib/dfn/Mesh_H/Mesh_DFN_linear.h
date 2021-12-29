@@ -50,6 +50,11 @@ public:
     size_t NUM_interior_edges = 0;
     size_t dir_ = 2;
 
+    std::map<pair<size_t, size_t>, double> Edge_length;
+    double mean_edge_length = 0;
+    double max_edge_length = 0;
+    double min_edge_length = 1e5;
+
 public:
     Mesh_DFN_linear();
     Mesh_DFN_linear(DFN::Domain dom,
@@ -540,10 +545,35 @@ inline void Mesh_DFN_linear::Numbering_edges(DFN::Domain dom)
                         edge_interior++;
                     }
                 }
+
+                double len = (this->coordinate_3D.row(node1 - 1) -
+                              this->coordinate_3D.row(node2 - 1))
+                                 .norm();
+
+                std::pair<size_t, size_t> At_ = std::make_pair(node1 < node2 ? node1 : node2,
+                                                               node1 > node2 ? node1 : node2);
+
+                std::pair<std::pair<size_t, size_t>, double> AY_ = std::make_pair(At_, len);
+
+                this->Edge_length.insert(AY_);
             }
     }
 
     NUM_interior_edges = edge_interior - 1;
+
+    double len_totoal = 0;
+    for (std::map<std::pair<size_t, size_t>, double>::iterator its = this->Edge_length.begin();
+         its != this->Edge_length.end();
+         its++)
+    {
+        double len = its->second; //
+
+        this->max_edge_length = max_edge_length > len ? max_edge_length : len;
+        this->min_edge_length = min_edge_length < len ? min_edge_length : len;
+        len_totoal += len;
+    }
+
+    this->mean_edge_length = len_totoal / this->Edge_length.size();
 };
 
 inline bool Mesh_DFN_linear::If_two_pnts_Neumann(size_t node1, size_t node2)
@@ -640,7 +670,7 @@ inline void Mesh_DFN_linear::Identify_point_attribute(DFN::Domain dom)
     _Pnt_attri.resize(this->coordinate_3D.rows());
     for (size_t i = 0; i < (size_t)this->coordinate_3D.rows(); ++i)
     {
-        _Pnt_attri[i] = Vector7b(false, false, false, false, false, false, false);
+        _Pnt_attri[i] << false, false, false, false, false, false, false;
 
         Vector3d thisPnT;
         thisPnT << this->coordinate_3D(i, 0),

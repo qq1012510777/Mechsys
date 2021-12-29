@@ -4,7 +4,9 @@
 #include "../MATLAB_DATA_API/MATLAB_DATA_API.h"
 
 #include "../Mesh_H/Mesh_DFN_linear.h"
-#include "../Using_UMFPACK/Using_UMFPACK.h"
+//#include "../Using_UMFPACK/Using_UMFPACK.h"
+//#include "Eigen/CholmodSupport"
+#include <Eigen/UmfPackSupport>
 
 namespace DFN
 {
@@ -18,14 +20,18 @@ public:
     double Q_in = 0;
     double Q_out = 0;
     double Q_error = 0;
+
+    double inlet_length = 0;
+    double outlet_length = 0;
     size_t dir = 0;
 
-    MatrixXf velocity_normal_scalar_sep_edges;
-    MatrixXf pressure_interior_edge;
-    MatrixXf pressure_eles;
+    MatrixXd velocity_normal_scalar_sep_edges;
+    MatrixXd pressure_interior_edge;
+    MatrixXd pressure_eles;
 
     MatrixXf normal_vec_sep_edges;
 
+    size_t round_precision = 10;
 public:
     MHFEM(DFN::Mesh_DFN_linear mesh,
           DFN::Domain dom,
@@ -36,7 +42,8 @@ public:
     void Matlab_plot(string FileKey_mat,
                      string FileKey_m,
                      DFN::Mesh_DFN_linear mesh,
-                     DFN::Domain dom);
+                     DFN::Domain dom,
+                     string same_dir = "NO");
 
 private:
     void Assemble_and_solve(DFN::Mesh_DFN_linear mesh,
@@ -45,6 +52,8 @@ private:
     MatrixXf Calculate_velocity_normal_vec_sep_edges(DFN::Domain dom,
                                                      size_t Frac_ID,
                                                      MatrixXf coord);
+
+    double The_inlet_of_all_elements(DFN::Mesh_DFN_linear mesh); // do not use
 
 private:
     MatrixXf stimaB(MatrixXf coord);
@@ -56,9 +65,12 @@ inline MHFEM::MHFEM(DFN::Mesh_DFN_linear mesh,
                     double outlet_p_,
                     size_t i /*direction*/)
 {
+    this->round_precision = 10;
+
     dir = i;
     inlet_p = inlet_p_;
     outlet_p = outlet_p_;
+    Eigen::setNbThreads(1);
     Assemble_and_solve(mesh,
                        dom);
 
@@ -95,9 +107,9 @@ inline void MHFEM::Assemble_and_solve(DFN::Mesh_DFN_linear mesh,
 
     normal_vec_sep_edges.resize(NUM_sep_edges, 3);
 
-    MatrixXf A = MatrixXf::Zero(NUM_sep_edges, NUM_sep_edges);
-    MatrixXf B = MatrixXf::Zero(NUM_sep_edges, NUM_eles);
-    MatrixXf C = MatrixXf::Zero(NUM_glob_interior_edges, NUM_sep_edges);
+    MatrixXd A = MatrixXd::Zero(NUM_sep_edges, NUM_sep_edges);
+    MatrixXd B = MatrixXd::Zero(NUM_sep_edges, NUM_eles);
+    MatrixXd C = MatrixXd::Zero(NUM_glob_interior_edges, NUM_sep_edges);
 
     size_t tmp_eleNO = 0;
 
@@ -140,11 +152,45 @@ inline void MHFEM::Assemble_and_solve(DFN::Mesh_DFN_linear mesh,
             //vector<size_t> I{edge2 - 1, edge3 - 1, edge1 - 1};
             vector<size_t> I{edge2 - 1, edge3 - 1, edge1 - 1};
 
+            float SUM_u = 0;
             for (size_t ik = 0; ik < 3; ++ik)
                 for (size_t jk = 0; jk < 3; ++jk)
                 {
-                    A(I[ik], I[jk]) += round(((-1.0 / Kper) * A_(ik, jk)), 4);
+                    double AT = (double)round(((-1.0 / Kper) * A_(ik, jk)), round_precision);
+                    A(I[ik], I[jk]) += AT;
+                    SUM_u += abs(AT);
                 }
+
+            //cout << abs(SUM_u) << endl;
+            if (abs(SUM_u) < pow(10, -1.0 * round_precision))
+            {
+                string AS = "bad triangle lead to all zero matrix A!\n";
+                AS += "Frac: " + to_string(i + 1) + "; element: " + to_string(j + 1) + "\n\nThe matrix is:\n";
+                vector<RowVector3f> coord_(3);
+                coord_[0] = mesh.coordinate_3D.row(node1 - 1);
+                coord_[1] = mesh.coordinate_3D.row(node2 - 1);
+                coord_[2] = mesh.coordinate_3D.row(node3 - 1);
+
+                DFN::If_skinny_triangle SKINNY{coord_};
+
+                for (size_t io = 0; io < 3; ++io)
+                {
+                    for (size_t jo = 0; jo < 3; ++jo)
+                    {
+                        AS += to_string(A_(io, jo));
+                        AS += ", ";
+                    }
+                    AS += "\n";
+                }
+
+                AS += "\nAngle is:\n";
+                AS += to_string(SKINNY.angle);
+                AS += "\n";
+                AS += "abs(SUM_u): ";
+                AS += to_string(abs(SUM_u));
+                AS += "\n";
+                throw Error_throw_ignore(AS);
+            }
             /*
             if(node1 == 9 && node2 == 4 && node3 == 2)
             {
@@ -155,12 +201,12 @@ inline void MHFEM::Assemble_and_solve(DFN::Mesh_DFN_linear mesh,
             */
 
             Vector3f B_;
-            B_ << round((coord.row(2) - coord.row(1)).norm(), 4),
-                round((coord.row(0) - coord.row(2)).norm(), 4),
-                round((coord.row(1) - coord.row(0)).norm(), 4);
+            B_ << round((coord.row(2) - coord.row(1)).norm(), round_precision),
+                round((coord.row(0) - coord.row(2)).norm(), round_precision),
+                round((coord.row(1) - coord.row(0)).norm(), round_precision);
 
             for (size_t ik = 0; ik < 3; ++ik)
-                B(I[ik], tmp_eleNO) = round(B_(ik, 0), 4);
+                B(I[ik], tmp_eleNO) = (double)round(B_(ik, 0), round_precision);
 
             tmp_eleNO++;
 
@@ -185,7 +231,7 @@ inline void MHFEM::Assemble_and_solve(DFN::Mesh_DFN_linear mesh,
                 {
                     //this edge is an interior edge
                     size_t global_inter_edge_NO = ity->second;
-                    C(global_inter_edge_NO - 1, I[ik]) -= round(len, 4);
+                    C(global_inter_edge_NO - 1, I[ik]) -= (double)round(len, round_precision);
                     continue;
                 }
 
@@ -222,8 +268,8 @@ inline void MHFEM::Assemble_and_solve(DFN::Mesh_DFN_linear mesh,
         }
     }
 
-    MatrixXf K = MatrixXf::Zero(Dim, Dim);
-    MatrixXf b = MatrixXf::Zero(Dim, 1);
+    MatrixXd K = MatrixXd::Zero(Dim, Dim);
+    MatrixXd b = MatrixXd::Zero(Dim, 1);
 
     K.block(0, 0, NUM_sep_edges, NUM_sep_edges) = A;
     K.block(0, NUM_sep_edges, NUM_sep_edges, NUM_eles) = B;
@@ -239,6 +285,7 @@ inline void MHFEM::Assemble_and_solve(DFN::Mesh_DFN_linear mesh,
 
         double P_D = this->inlet_p;
         b(SEP_edgeNO - 1, 0) += P_D * len;
+        inlet_length += len;
     }
     for (size_t i = 0; i < Outlet_edge_sep_NO.size(); ++i)
     {
@@ -247,14 +294,15 @@ inline void MHFEM::Assemble_and_solve(DFN::Mesh_DFN_linear mesh,
 
         double P_D = this->outlet_p;
         b(SEP_edgeNO - 1, 0) += P_D * len;
+        outlet_length += len;
     }
 
     //--------Neumann
     for (size_t i = 0; i < Neumann_edge_sep_NO.size(); ++i)
     {
         size_t SEP_edgeNO = Neumann_edge_sep_NO[i];
-        K.col(SEP_edgeNO - 1) = VectorXf::Zero(Dim, 1);
-        K.row(SEP_edgeNO - 1) = RowVectorXf::Zero(1, Dim);
+        K.col(SEP_edgeNO - 1) = VectorXd::Zero(Dim, 1);
+        K.row(SEP_edgeNO - 1) = RowVectorXd::Zero(1, Dim);
         K(SEP_edgeNO - 1, SEP_edgeNO - 1) = 1;
         b(SEP_edgeNO - 1, 0) = 0;
     }
@@ -264,7 +312,6 @@ inline void MHFEM::Assemble_and_solve(DFN::Mesh_DFN_linear mesh,
     //cout << "\nb\n";
     //cout << b << endl;
     //cout << "\nx\n";
-    //cout << x << endl;
 
     B.resize(NUM_eles, NUM_sep_edges);
 
@@ -272,26 +319,60 @@ inline void MHFEM::Assemble_and_solve(DFN::Mesh_DFN_linear mesh,
     B = K.block(NUM_sep_edges, 0, NUM_eles, NUM_sep_edges);
     C = K.block(NUM_sep_edges + NUM_eles, 0, NUM_glob_interior_edges, NUM_sep_edges);
 
-    MatrixXf g = b.block(0, 0, NUM_sep_edges, 1);
-    MatrixXf f = b.block(NUM_sep_edges, 0, NUM_eles, 1);
+    MatrixXd g = b.block(0, 0, NUM_sep_edges, 1);
+    MatrixXd f = b.block(NUM_sep_edges, 0, NUM_eles, 1);
 
-    MatrixXf A_inv = A.inverse(); //------
+    cout << "*********preparing*********\n";
+    MatrixXd A_inv = MatrixXd::Zero(A.rows(), A.cols());
+    for (int i = 0; i < A.rows() / 3; ++i)
+    {
+        MatrixXd A_block = A.block(i * 3, i * 3, 3, 3);
+        A_inv.block(i * 3, i * 3, 3, 3) = A_block.inverse();
+    }
 
-    MatrixXf C_tps = C.transpose();
-    MatrixXf B_tps = B.transpose();
-    MatrixXf Wq = B * A_inv;
-    MatrixXf U = (Wq * B_tps).inverse();
-    MatrixXf Re = C * A_inv;
-    MatrixXf Eq = Re * B_tps;
-    MatrixXf Sd = Wq * C_tps;
+    MatrixXd C_tps = C.transpose();
+    MatrixXd B_tps = B.transpose();
+    MatrixXd Wq = B * A_inv;
 
-    MatrixXf D = Re * C_tps - Eq * U * Sd;
-    MatrixXf r = Re * g + Eq * U * (f - Wq * g);
+    //MatrixXf U1 = (Wq * B_tps).inverse();
+    VectorXd Diagonal_wq = (Wq * B_tps).diagonal();
+    Diagonal_wq = (1 / Diagonal_wq.array()).matrix();
+    MatrixXd U;
+    U = MatrixXd::Zero(Diagonal_wq.rows(), Diagonal_wq.rows());
+    U.diagonal() = Diagonal_wq;
 
-    SparseMatrix<float> D_ = D.sparseView();
-    ConjugateGradient<SparseMatrix<float>, Lower | Upper> cg;
-    cg.compute(D_);
-    pressure_interior_edge = cg.solve(r);
+    MatrixXd Re = C * A_inv;
+    MatrixXd Eq = Re * B_tps;
+    MatrixXd Sd = Wq * C_tps;
+
+    MatrixXd D = Re * C_tps - Eq * U * Sd;
+    MatrixXd r = Re * g + Eq * U * (f - Wq * g);
+
+    //---------------Eigen::ConjugateGradient-----------
+    //auto start = std::chrono::steady_clock::now();
+    //Eigen::setNbThreads(1);
+    //ConjugateGradient<SparseMatrix<float>, Lower | Upper> cg;
+    //SparseMatrix<float> D_ = D.sparseView();
+    //D_.makeCompressed();
+    //pressure_interior_edge = cg.compute(D_).solve(r);
+    //auto end = std::chrono::steady_clock::now();
+    //std::chrono::duration<double, std::micro> elapsed = end - start; // std::micro time (us)
+    //std::cout << "ConjugateGradient Running time: " << (((double)(elapsed.count() * 1.0) * (0.000001)) / 60.00) << " minutes" << std::endl;
+
+    //-----------------UMFpack-----------
+    //start = std::chrono::steady_clock::now();
+    cout << "*********solving*********\n";
+    Eigen::UmfPackLU<SparseMatrix<double>> Umf_solver;
+    SparseMatrix<double> As_ = D.sparseView();
+    As_.makeCompressed();
+    Umf_solver.compute(As_);
+    pressure_interior_edge = Umf_solver.solve(r);
+    cout << "*********finished*********\n";
+    //end = std::chrono::steady_clock::now();
+    //elapsed = end - start; // std::micro time (us)
+    //std::cout << "UMFpack Running time: " << (((double)(elapsed.count() * 1.0) * (0.000001)) / 60.00) << " minutes" << std::endl;
+    //----------------------
+    //pressure_interior_edge = x_tt.cast<float>();
 
     pressure_eles = U * (Wq * g - Sd * pressure_interior_edge - f);
     velocity_normal_scalar_sep_edges = A_inv * (g - B_tps * pressure_eles - C_tps * pressure_interior_edge);
@@ -406,7 +487,8 @@ inline MatrixXf MHFEM::Calculate_velocity_normal_vec_sep_edges(DFN::Domain dom,
 void MHFEM::Matlab_plot(string FileKey_mat,
                         string FileKey_m,
                         DFN::Mesh_DFN_linear mesh,
-                        DFN::Domain dom)
+                        DFN::Domain dom,
+                        string same_dir)
 {
     const char *filename = FileKey_mat.c_str();
 
@@ -612,7 +694,15 @@ void MHFEM::Matlab_plot(string FileKey_mat,
     oss << "pressure_z = [pressure_z; center_ele(:, 3)];\n";
     oss << "pressure_ = [pressure_; pressure_eles];\n\n";
 
-    oss << "pressure_vert = griddata(pressure_x, pressure_y, pressure_z, pressure_, coordinate_3D(:, 1), coordinate_3D(:, 2), coordinate_3D(:, 3), 'nearest');\n";
+    if (same_dir == "NO")
+        oss << "pressure_vert = griddata(pressure_x, pressure_y, pressure_z, pressure_, coordinate_3D(:, 1), coordinate_3D(:, 2), coordinate_3D(:, 3), 'nearest');\n";
+    else if (same_dir == "x")
+        oss << "pressure_vert = griddata(pressure_y, pressure_z, pressure_, coordinate_3D(:, 2), coordinate_3D(:, 3), 'nearest');\n";
+    else if (same_dir == "y")
+        oss << "pressure_vert = griddata(pressure_x, pressure_z, pressure_, coordinate_3D(:, 1), coordinate_3D(:, 3), 'nearest');\n";
+    else if (same_dir == "z")
+        oss << "pressure_vert = griddata(pressure_x, pressure_y, pressure_, coordinate_3D(:, 1), coordinate_3D(:, 2), 'nearest');\n";
+
     oss << "figure(1); hold on\n";
     oss << "patch('Vertices', coordinate_3D, 'Faces', element_3D, 'FaceVertexCData', pressure_vert, 'FaceColor', 'interp', 'EdgeAlpha', 0.9, 'facealpha', 1); colorbar; view(3)\n";
     oss << "caxis([" << this->outlet_p << ", " << this->inlet_p << "]);\n";
@@ -630,5 +720,32 @@ void MHFEM::Matlab_plot(string FileKey_mat,
 
     oss.close();
 };
+
+inline double MHFEM::The_inlet_of_all_elements(DFN::Mesh_DFN_linear mesh)
+{
+    size_t _nodeid_ = 0;
+    double inlet_all_ele = 0;
+
+    for (size_t i = 0; i < mesh.Frac_Tag.size(); ++i) // Frac
+    {
+        for (size_t j = 0; j < (size_t)mesh.element_2D[i].rows(); ++j) // elements
+        {
+            for (size_t k = 0; k < 3; ++k)
+            {
+                if (velocity_normal_scalar_sep_edges(_nodeid_, 0) < 0)
+                {
+                    size_t node_a = mesh.element_2D[i](j, k),
+                           node_b = mesh.element_2D[i](j, (k + 1) % 3);
+
+                    double len = (mesh.coordinate_3D.row(node_a - 1) - mesh.coordinate_3D.row(node_b - 1)).norm();
+
+                    inlet_all_ele += len * velocity_normal_scalar_sep_edges(_nodeid_, 0);
+                }
+                _nodeid_++;
+            }
+        }
+    }
+    return inlet_all_ele;
+}
 
 }; // namespace DFN

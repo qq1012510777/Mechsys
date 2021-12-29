@@ -1,31 +1,35 @@
 #pragma once
+#include "../Eigen_API/Eigen_API.h"
 #include "../Line_WL_H/Line_WL.h"
 #include "../Quaternion_H/Quaternion.h"
 #include "Dense"
 #include <cmath>
 #include <ctime>
 #include <iostream>
-#include <vector>
 #include <sstream>
 #include <string>
+#include <vector>
 using namespace std;
 using namespace Eigen;
-
-typedef Matrix<double, 1, 5> Vector5d;
-typedef Matrix<double, 1, 6> Vector6d;
-typedef Matrix<double, 1, 7> Vector7d;
-
-typedef Matrix<double, 6, 1> RowVector6d;
 
 string To_string_with_width(size_t val, size_t width)
 {
     std::ostringstream oss;
-    oss.width(width); 
+    oss.width(width);
     oss.fill('0');
     oss << val;
     return oss.str();
 }
 
+template <typename Ts>
+
+std::string to_string_with_precision(const Ts a_value, const int n = 6)
+{
+    std::ostringstream out;
+    out.precision(n);
+    out << std::fixed << a_value;
+    return out.str();
+}
 
 // LAPACK
 extern "C"
@@ -230,7 +234,7 @@ void Find_normal_vec(double dip_direction,
     a(1) = sin(beta / 180.0 * M_PI) * sin(alpha / 180.0 * M_PI);
     a(2) = cos(beta / 180.0 * M_PI);
 
-    if(a(2) < 0)
+    if (a(2) < 0)
     {
         a = -a;
     }

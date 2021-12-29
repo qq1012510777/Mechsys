@@ -1,4 +1,5 @@
 #pragma once
+#include "../Eigen_API/Eigen_API.h"
 #include "../Geometry_H/NorVec_plane.h"
 #include "../Geometry_H/Vector_2.h"
 #include "../Math_WL_H/Math_WL.h"
@@ -12,8 +13,6 @@
 
 using namespace Eigen;
 using namespace std;
-typedef Matrix<double, 1, 6> Vector6d;
-typedef Matrix<double, 1, 7> Vector7d;
 
 namespace DFN
 {
@@ -764,18 +763,17 @@ inline Fracture::Fracture(bool mode2D,
     }
     else if (string_ori == "orthogonal")
     {
-        
+
         int po = c.Bernoulli(0.3);
 
         double l_1 = 0;
         double m_1 = 0;
         double n_1 = 0;
-        
+
         if (po == 1)
             n_1 = 1;
         else if (po == 0)
             l_1 = 1;
-      
 
         double r_k = pow(l_1 * l_1 + m_1 * m_1 + n_1 * n_1, 0.5);
 
@@ -795,7 +793,6 @@ inline Fracture::Fracture(bool mode2D,
 
         //--------------------normal vector--------
         Normal_vector << l_1, m_1, n_1;
-        
     }
     else
     {

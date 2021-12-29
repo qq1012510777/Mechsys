@@ -12,6 +12,7 @@ class If_skinny_triangle
 {
 public:
     /* data */
+    double angle = 0;
     bool If_skinny = false;
 
 public:
@@ -35,16 +36,18 @@ inline If_skinny_triangle::If_skinny_triangle(std::vector<RowVector3f> coord)
     double dot = x1 * x2 + y1 * y2 + z1 * z2; //    #between [x1, y1, z1] and [x2, y2, z2]
     double lenSq1 = x1 * x1 + y1 * y1 + z1 * z1;
     double lenSq2 = x2 * x2 + y2 * y2 + z2 * z2;      //
-    double angle = acos(dot / sqrt(lenSq1 * lenSq2)); //
+    angle = acos(dot / sqrt(lenSq1 * lenSq2)); //
 
     angle = angle * 180 / M_PI;
 
-    if (abs(angle - 0) < 0.5 ||
-        abs(angle - 180) < 0.5 ||
-        abs(angle - 360) < 0.5)
+    double E = 0.5;
+    if (abs(angle - 0) < E ||
+        abs(angle - 180) < E ||
+        abs(angle - 360) < E)
         If_skinny = true;
-    
-    //cout << "angle: " << angle << endl;
+
+    //cout << "angle: " << angle << ",  ";
+    //cout << "abs(angle - 180): " << If_skinny << endl;
 }
 
 }; // namespace DFN
