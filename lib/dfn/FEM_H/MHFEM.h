@@ -6,7 +6,7 @@
 #include "../Mesh_H/Mesh_DFN_linear.h"
 //#include "../Using_UMFPACK/Using_UMFPACK.h"
 //#include "Eigen/CholmodSupport"
-#include <Eigen/UmfPackSupport>
+//#include <Eigen/UmfPackSupport>
 
 namespace DFN
 {
@@ -32,6 +32,7 @@ public:
     MatrixXf normal_vec_sep_edges;
 
     size_t round_precision = 10;
+
 public:
     MHFEM(DFN::Mesh_DFN_linear mesh,
           DFN::Domain dom,
@@ -107,9 +108,8 @@ inline void MHFEM::Assemble_and_solve(DFN::Mesh_DFN_linear mesh,
 
     normal_vec_sep_edges.resize(NUM_sep_edges, 3);
 
-    MatrixXd A = MatrixXd::Zero(NUM_sep_edges, NUM_sep_edges);
-    MatrixXd B = MatrixXd::Zero(NUM_sep_edges, NUM_eles);
-    MatrixXd C = MatrixXd::Zero(NUM_glob_interior_edges, NUM_sep_edges);
+    SparseMatrix<double> K(Dim, Dim);
+    SparseMatrix<double> b(Dim, 1);
 
     size_t tmp_eleNO = 0;
 
@@ -117,6 +117,7 @@ inline void MHFEM::Assemble_and_solve(DFN::Mesh_DFN_linear mesh,
         Outlet_edge_sep_NO;
     vector<size_t> Neumann_edge_sep_NO;
 
+    //cout << 1 << endl;
     for (size_t i = 0; i < mesh.Frac_Tag.size(); ++i) // Frac
     {
         size_t Frac_Tag = mesh.Frac_Tag[i];
@@ -157,14 +158,14 @@ inline void MHFEM::Assemble_and_solve(DFN::Mesh_DFN_linear mesh,
                 for (size_t jk = 0; jk < 3; ++jk)
                 {
                     double AT = (double)round(((-1.0 / Kper) * A_(ik, jk)), round_precision);
-                    A(I[ik], I[jk]) += AT;
+                    K.coeffRef(I[ik], I[jk]) += AT;
                     SUM_u += abs(AT);
                 }
 
             //cout << abs(SUM_u) << endl;
             if (abs(SUM_u) < pow(10, -1.0 * round_precision))
             {
-                string AS = "bad triangle lead to all zero matrix A!\n";
+                string AS = "bad triangle lead to all zero matrix A_!\n";
                 AS += "Frac: " + to_string(i + 1) + "; element: " + to_string(j + 1) + "\n\nThe matrix is:\n";
                 vector<RowVector3f> coord_(3);
                 coord_[0] = mesh.coordinate_3D.row(node1 - 1);
@@ -206,7 +207,11 @@ inline void MHFEM::Assemble_and_solve(DFN::Mesh_DFN_linear mesh,
                 round((coord.row(1) - coord.row(0)).norm(), round_precision);
 
             for (size_t ik = 0; ik < 3; ++ik)
-                B(I[ik], tmp_eleNO) = (double)round(B_(ik, 0), round_precision);
+            {
+                //B.coeffRef(I[ik], tmp_eleNO) = (double)round(B_(ik, 0), round_precision);
+                K.coeffRef(I[ik], tmp_eleNO + NUM_sep_edges) = (double)round(B_(ik, 0), round_precision);
+                K.coeffRef(tmp_eleNO + NUM_sep_edges, I[ik]) = (double)round(B_(ik, 0), round_precision);
+            }
 
             tmp_eleNO++;
 
@@ -231,7 +236,9 @@ inline void MHFEM::Assemble_and_solve(DFN::Mesh_DFN_linear mesh,
                 {
                     //this edge is an interior edge
                     size_t global_inter_edge_NO = ity->second;
-                    C(global_inter_edge_NO - 1, I[ik]) -= (double)round(len, round_precision);
+                    // C.coeffRef(global_inter_edge_NO - 1, I[ik]) -= (double)round(len, round_precision);
+                    K.coeffRef(global_inter_edge_NO - 1 + NUM_sep_edges + NUM_eles, I[ik]) -= (double)round(len, round_precision);
+                    K.coeffRef(I[ik], global_inter_edge_NO - 1 + NUM_sep_edges + NUM_eles) -= (double)round(len, round_precision);
                     continue;
                 }
 
@@ -267,16 +274,7 @@ inline void MHFEM::Assemble_and_solve(DFN::Mesh_DFN_linear mesh,
             }
         }
     }
-
-    MatrixXd K = MatrixXd::Zero(Dim, Dim);
-    MatrixXd b = MatrixXd::Zero(Dim, 1);
-
-    K.block(0, 0, NUM_sep_edges, NUM_sep_edges) = A;
-    K.block(0, NUM_sep_edges, NUM_sep_edges, NUM_eles) = B;
-    K.block(0, NUM_sep_edges + NUM_eles, NUM_sep_edges, NUM_glob_interior_edges) = C.transpose();
-    K.block(NUM_sep_edges, 0, NUM_eles, NUM_sep_edges) = B.transpose();
-    K.block(NUM_sep_edges + NUM_eles, 0, NUM_glob_interior_edges, NUM_sep_edges) = C;
-
+    //cout << 2 << endl;
     // Dirichlet boundary condition
     for (size_t i = 0; i < Inlet_edge_sep_NO.size(); ++i)
     {
@@ -284,7 +282,7 @@ inline void MHFEM::Assemble_and_solve(DFN::Mesh_DFN_linear mesh,
         double len = Inlet_edge_sep_NO[i].second;
 
         double P_D = this->inlet_p;
-        b(SEP_edgeNO - 1, 0) += P_D * len;
+        b.coeffRef(SEP_edgeNO - 1, 0) += P_D * len;
         inlet_length += len;
     }
     for (size_t i = 0; i < Outlet_edge_sep_NO.size(); ++i)
@@ -293,80 +291,102 @@ inline void MHFEM::Assemble_and_solve(DFN::Mesh_DFN_linear mesh,
         double len = Outlet_edge_sep_NO[i].second;
 
         double P_D = this->outlet_p;
-        b(SEP_edgeNO - 1, 0) += P_D * len;
+        b.coeffRef(SEP_edgeNO - 1, 0) += P_D * len;
         outlet_length += len;
     }
-
+    //cout << 3 << endl;
     //--------Neumann
     for (size_t i = 0; i < Neumann_edge_sep_NO.size(); ++i)
     {
         size_t SEP_edgeNO = Neumann_edge_sep_NO[i];
-        K.col(SEP_edgeNO - 1) = VectorXd::Zero(Dim, 1);
-        K.row(SEP_edgeNO - 1) = RowVectorXd::Zero(1, Dim);
-        K(SEP_edgeNO - 1, SEP_edgeNO - 1) = 1;
-        b(SEP_edgeNO - 1, 0) = 0;
-    }
+        K.innerVector(SEP_edgeNO - 1) = VectorXd::Zero(Dim, 1).sparseView();
+        //----------------
+        //for (size_t j = 0; j < Dim; ++j)
+        //K.coeffRef(SEP_edgeNO - 1, j) = 0;
 
+        K.row(SEP_edgeNO - 1) *= 0;
+
+        K.coeffRef(SEP_edgeNO - 1, SEP_edgeNO - 1) = 1;
+        b.coeffRef(SEP_edgeNO - 1, 0) = 0; // impermeable
+    }
+    K.makeCompressed();
+    b.makeCompressed();
     //MatrixXf x = K.inverse() * b;
     //cout << K << endl;
     //cout << "\nb\n";
     //cout << b << endl;
     //cout << "\nx\n";
-
-    B.resize(NUM_eles, NUM_sep_edges);
+    //cout << 4 << endl;
+    SparseMatrix<double> A(NUM_sep_edges, NUM_sep_edges);
+    SparseMatrix<double> B(NUM_eles, NUM_sep_edges);
+    SparseMatrix<double> C(NUM_glob_interior_edges, NUM_sep_edges);
 
     A = K.block(0, 0, NUM_sep_edges, NUM_sep_edges);
     B = K.block(NUM_sep_edges, 0, NUM_eles, NUM_sep_edges);
     C = K.block(NUM_sep_edges + NUM_eles, 0, NUM_glob_interior_edges, NUM_sep_edges);
 
-    MatrixXd g = b.block(0, 0, NUM_sep_edges, 1);
-    MatrixXd f = b.block(NUM_sep_edges, 0, NUM_eles, 1);
+    K.resize(0, 0);
+
+    A.makeCompressed();
+    B.makeCompressed();
+    C.makeCompressed();
+
+    SparseMatrix<double> g = b.block(0, 0, NUM_sep_edges, 1);
+    SparseMatrix<double> f = b.block(NUM_sep_edges, 0, NUM_eles, 1);
+
+    b.resize(0, 0);
+
+    g.makeCompressed();
+    f.makeCompressed();
 
     cout << "*********preparing*********\n";
-    MatrixXd A_inv = MatrixXd::Zero(A.rows(), A.cols());
+    SparseMatrix<double> A_inv(A.rows(), A.cols());
     for (int i = 0; i < A.rows() / 3; ++i)
     {
-        MatrixXd A_block = A.block(i * 3, i * 3, 3, 3);
-        A_inv.block(i * 3, i * 3, 3, 3) = A_block.inverse();
+        MatrixXd A_block = MatrixXd(A.block(i * 3, i * 3, 3, 3));
+        //A_inv.block(i * 3, i * 3, 3, 3) = A_block.inverse();
+        A_block = A_block.inverse();
+        for (int j = i * 3, jq = 0; j < i * 3 + 3; ++j, ++jq)
+            for (int k = i * 3, kq = 0; k < i * 3 + 3; ++k, ++kq)
+                A_inv.coeffRef(j, k) = A_block(jq, kq);
     }
+    A_inv.makeCompressed();
+    A.resize(0, 0);
 
-    MatrixXd C_tps = C.transpose();
-    MatrixXd B_tps = B.transpose();
-    MatrixXd Wq = B * A_inv;
+    SparseMatrix<double> C_tps = C.transpose();
+    C_tps.makeCompressed();
+    SparseMatrix<double> B_tps = B.transpose();
+    B_tps.makeCompressed();
+    SparseMatrix<double> Wq = B * A_inv;
+    Wq.makeCompressed();
+    B.resize(0, 0);
 
-    //MatrixXf U1 = (Wq * B_tps).inverse();
-    VectorXd Diagonal_wq = (Wq * B_tps).diagonal();
-    Diagonal_wq = (1 / Diagonal_wq.array()).matrix();
-    MatrixXd U;
-    U = MatrixXd::Zero(Diagonal_wq.rows(), Diagonal_wq.rows());
-    U.diagonal() = Diagonal_wq;
+    SparseMatrix<double> U = Wq * B_tps;
+    for (int i = 0; i < U.rows(); ++i)
+        U.coeffRef(i, i) = 1.0 / U.coeffRef(i, i);
+    U.makeCompressed();
 
-    MatrixXd Re = C * A_inv;
-    MatrixXd Eq = Re * B_tps;
-    MatrixXd Sd = Wq * C_tps;
+    SparseMatrix<double> Re = C * A_inv;
+    Re.makeCompressed();
+    C.resize(0, 0);
+    SparseMatrix<double> Eq = Re * B_tps;
+    Eq.makeCompressed();
+    SparseMatrix<double> Sd = Wq * C_tps;
+    Sd.makeCompressed();
 
-    MatrixXd D = Re * C_tps - Eq * U * Sd;
-    MatrixXd r = Re * g + Eq * U * (f - Wq * g);
-
-    //---------------Eigen::ConjugateGradient-----------
-    //auto start = std::chrono::steady_clock::now();
-    //Eigen::setNbThreads(1);
-    //ConjugateGradient<SparseMatrix<float>, Lower | Upper> cg;
-    //SparseMatrix<float> D_ = D.sparseView();
-    //D_.makeCompressed();
-    //pressure_interior_edge = cg.compute(D_).solve(r);
-    //auto end = std::chrono::steady_clock::now();
-    //std::chrono::duration<double, std::micro> elapsed = end - start; // std::micro time (us)
-    //std::cout << "ConjugateGradient Running time: " << (((double)(elapsed.count() * 1.0) * (0.000001)) / 60.00) << " minutes" << std::endl;
+    SparseMatrix<double> D = Re * C_tps - Eq * U * Sd;
+    D.makeCompressed();
+    SparseMatrix<double> r = Re * g + Eq * U * (f - Wq * g);
+    r.makeCompressed();
 
     //-----------------UMFpack-----------
     //start = std::chrono::steady_clock::now();
     cout << "*********solving*********\n";
-    Eigen::UmfPackLU<SparseMatrix<double>> Umf_solver;
-    SparseMatrix<double> As_ = D.sparseView();
-    As_.makeCompressed();
-    Umf_solver.compute(As_);
-    pressure_interior_edge = Umf_solver.solve(r);
+    //Eigen::UmfPackLU<SparseMatrix<double>> Umf_solver;
+    //Umf_solver.compute(D);
+    //pressure_interior_edge = Umf_solver.solve(r);
+    SimplicialLDLT<SparseMatrix<double>> solver;
+    pressure_interior_edge = solver.compute(D).solve(r);
     cout << "*********finished*********\n";
     //end = std::chrono::steady_clock::now();
     //elapsed = end - start; // std::micro time (us)
