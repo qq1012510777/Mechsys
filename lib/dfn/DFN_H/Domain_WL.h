@@ -126,7 +126,6 @@ public:
     //spanning model along x, y or z axis
 
     void PlotMatlab_Radius_and_Area_kstest(string FileKey);
-    ///< Use kstest tests if two groups of data
     //are both following the same distribution,
     // but seems not work
 

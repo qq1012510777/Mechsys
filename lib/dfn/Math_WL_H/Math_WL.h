@@ -3,33 +3,33 @@
 #include "../Line_WL_H/Line_WL.h"
 #include "../Quaternion_H/Quaternion.h"
 #include "Dense"
+#include <chrono>
 #include <cmath>
 #include <ctime>
 #include <iostream>
 #include <sstream>
 #include <string>
+#include <sys/time.h>
 #include <vector>
 using namespace std;
 using namespace Eigen;
 
-string To_string_with_width(size_t val, size_t width)
-{
-    std::ostringstream oss;
-    oss.width(width);
-    oss.fill('0');
-    oss << val;
-    return oss.str();
-}
+void time_counter_start(auto &start);
+void time_counter_end(auto start,
+                      auto &end,
+                      string content,
+                      string unit);
+
+string To_string_with_width(size_t val, size_t width);
 
 template <typename Ts>
-
 std::string to_string_with_precision(const Ts a_value, const int n = 6)
 {
     std::ostringstream out;
     out.precision(n);
     out << std::fixed << a_value;
     return out.str();
-}
+};
 
 // LAPACK
 extern "C"
@@ -1519,3 +1519,38 @@ void intersection_between_two_overlaped_line_segments(std::vector<Vector3d> Inte
     Intersection_2[1] << round(CRTR2(0), 4) + x0, round(CRTR2(1), 4) + y0, 0;
     //cout << "pppoo\n";
 };
+
+string To_string_with_width(size_t val, size_t width)
+{
+    std::ostringstream oss;
+    oss.width(width);
+    oss.fill('0');
+    oss << val;
+    return oss.str();
+}
+
+void time_counter_start(auto &start)
+{
+    start = std::chrono::steady_clock::now();
+};
+
+void time_counter_end(auto start,
+                      auto &end,
+                      string content,
+                      string unit)
+{
+    end = std::chrono::steady_clock::now();
+    std::chrono::duration<double, std::micro> elapsed = end - start; // std::micro time (us)
+
+    if (unit == "in_hours")
+        std::cout << "Running time of " << content << ": " << (((double)(elapsed.count() * 1.0) * (0.000001)) / 60.00) / 60.00 << " hours" << std::endl;
+    else if (unit == "in_minutes")
+        std::cout << "Running time of " << content << ": " << (((double)(elapsed.count() * 1.0) * (0.000001)) / 60.00) << " minutes" << std::endl;
+    else if (unit == "in_seconds")
+        std::cout << "Running time of " << content << ": " << (((double)(elapsed.count() * 1.0) * (0.000001))) << " seconds" << std::endl;
+    else
+    {
+        string AS = "Please define the unit with input 'in_hours', 'in_minutes', or 'in_seconds'!\n";
+        throw Error_throw_pause(AS);
+    }
+}

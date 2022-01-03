@@ -33,12 +33,15 @@ public:
 
     size_t round_precision = 10;
 
+    size_t N_proc = 1;
+
 public:
     MHFEM(DFN::Mesh_DFN_linear mesh,
           DFN::Domain dom,
           double inlet_p_,
           double outlet_p_,
-          size_t i /*direction*/);
+          size_t i /*direction*/,
+          size_t no_proc = 1);
 
     void Matlab_plot(string FileKey_mat,
                      string FileKey_m,
@@ -58,20 +61,22 @@ private:
 
 private:
     MatrixXf stimaB(MatrixXf coord);
+    size_t Element_ID(size_t i, size_t j, DFN::Mesh_DFN_linear mesh);
 };
 
 inline MHFEM::MHFEM(DFN::Mesh_DFN_linear mesh,
                     DFN::Domain dom,
                     double inlet_p_,
                     double outlet_p_,
-                    size_t i /*direction*/)
+                    size_t i /*direction*/,
+                    size_t no_proc)
 {
     this->round_precision = 10;
 
     dir = i;
     inlet_p = inlet_p_;
     outlet_p = outlet_p_;
-    Eigen::setNbThreads(1);
+    this->N_proc = no_proc;
     Assemble_and_solve(mesh,
                        dom);
 
@@ -100,6 +105,8 @@ inline MHFEM::MHFEM(DFN::Mesh_DFN_linear mesh,
 inline void MHFEM::Assemble_and_solve(DFN::Mesh_DFN_linear mesh,
                                       DFN::Domain dom)
 {
+    //auto start = std::chrono::steady_clock::now(), end = std::chrono::steady_clock::now();
+
     size_t NUM_sep_edges = mesh.element_3D.rows() * 3,
            NUM_eles = mesh.element_3D.rows(),
            NUM_glob_interior_edges = mesh.NUM_interior_edges;
@@ -111,20 +118,28 @@ inline void MHFEM::Assemble_and_solve(DFN::Mesh_DFN_linear mesh,
     SparseMatrix<double> K(Dim, Dim);
     SparseMatrix<double> b(Dim, 1);
 
-    size_t tmp_eleNO = 0;
-
     vector<pair<size_t, double>> Inlet_edge_sep_NO,
         Outlet_edge_sep_NO;
     vector<size_t> Neumann_edge_sep_NO;
 
     //cout << 1 << endl;
+    //cout << "*********assembling*********\n";
+    //time_counter_start(start);
     for (size_t i = 0; i < mesh.Frac_Tag.size(); ++i) // Frac
     {
         size_t Frac_Tag = mesh.Frac_Tag[i];
 
         double Kper = dom.Fractures[Frac_Tag].Conductivity;
+
+        size_t Nproc_1 = this->N_proc;
+
+#pragma omp parallel for schedule(dynamic) num_threads(Nproc_1)
         for (size_t j = 0; j < (size_t)mesh.element_2D[i].rows(); ++j) // elements
         {
+
+            size_t tmp_eleNO = Element_ID(i, j, mesh);
+
+            //cout << tmp_eleNO << endl;
 
             MatrixXf coord = MatrixXf::Zero(3, 2);
 
@@ -158,7 +173,10 @@ inline void MHFEM::Assemble_and_solve(DFN::Mesh_DFN_linear mesh,
                 for (size_t jk = 0; jk < 3; ++jk)
                 {
                     double AT = (double)round(((-1.0 / Kper) * A_(ik, jk)), round_precision);
-                    K.coeffRef(I[ik], I[jk]) += AT;
+#pragma omp critical
+                    {
+                        K.coeffRef(I[ik], I[jk]) += AT;
+                    }
                     SUM_u += abs(AT);
                 }
 
@@ -209,11 +227,13 @@ inline void MHFEM::Assemble_and_solve(DFN::Mesh_DFN_linear mesh,
             for (size_t ik = 0; ik < 3; ++ik)
             {
                 //B.coeffRef(I[ik], tmp_eleNO) = (double)round(B_(ik, 0), round_precision);
-                K.coeffRef(I[ik], tmp_eleNO + NUM_sep_edges) = (double)round(B_(ik, 0), round_precision);
-                K.coeffRef(tmp_eleNO + NUM_sep_edges, I[ik]) = (double)round(B_(ik, 0), round_precision);
-            }
 
-            tmp_eleNO++;
+#pragma omp critical
+                {
+                    K.coeffRef(I[ik], tmp_eleNO + NUM_sep_edges) = (double)round(B_(ik, 0), round_precision);
+                    K.coeffRef(tmp_eleNO + NUM_sep_edges, I[ik]) = (double)round(B_(ik, 0), round_precision);
+                }
+            }
 
             // how to know if an edge is an interior edge
             //cout << 1 << endl;
@@ -237,8 +257,12 @@ inline void MHFEM::Assemble_and_solve(DFN::Mesh_DFN_linear mesh,
                     //this edge is an interior edge
                     size_t global_inter_edge_NO = ity->second;
                     // C.coeffRef(global_inter_edge_NO - 1, I[ik]) -= (double)round(len, round_precision);
-                    K.coeffRef(global_inter_edge_NO - 1 + NUM_sep_edges + NUM_eles, I[ik]) -= (double)round(len, round_precision);
-                    K.coeffRef(I[ik], global_inter_edge_NO - 1 + NUM_sep_edges + NUM_eles) -= (double)round(len, round_precision);
+
+#pragma omp critical
+                    {
+                        K.coeffRef(global_inter_edge_NO - 1 + NUM_sep_edges + NUM_eles, I[ik]) -= (double)round(len, round_precision);
+                        K.coeffRef(I[ik], global_inter_edge_NO - 1 + NUM_sep_edges + NUM_eles) -= (double)round(len, round_precision);
+                    }
                     continue;
                 }
 
@@ -248,7 +272,10 @@ inline void MHFEM::Assemble_and_solve(DFN::Mesh_DFN_linear mesh,
                 it_inlet = mesh.Inlet_edges.find(make_pair(node_A, node_B));
                 if (it_inlet != mesh.Inlet_edges.end())
                 {
-                    Inlet_edge_sep_NO.push_back(std::make_pair(I[ik] + 1, len));
+#pragma omp critical
+                    {
+                        Inlet_edge_sep_NO.push_back(std::make_pair(I[ik] + 1, len));
+                    }
                     continue;
                 }
 
@@ -257,7 +284,10 @@ inline void MHFEM::Assemble_and_solve(DFN::Mesh_DFN_linear mesh,
                 it_outlet = mesh.Outlet_edges.find(make_pair(node_A, node_B));
                 if (it_outlet != mesh.Outlet_edges.end())
                 {
-                    Outlet_edge_sep_NO.push_back(std::make_pair(I[ik] + 1, len));
+#pragma omp critical
+                    {
+                        Outlet_edge_sep_NO.push_back(std::make_pair(I[ik] + 1, len));
+                    }
                     continue;
                 }
 
@@ -266,7 +296,10 @@ inline void MHFEM::Assemble_and_solve(DFN::Mesh_DFN_linear mesh,
                 Neumann_edges_ = mesh.Neumann_edges.find(make_pair(node_A, node_B));
                 if (Neumann_edges_ != mesh.Neumann_edges.end())
                 {
-                    Neumann_edge_sep_NO.push_back(I[ik] + 1);
+#pragma omp critical
+                    {
+                        Neumann_edge_sep_NO.push_back(I[ik] + 1);
+                    }
                     continue;
                 }
 
@@ -274,7 +307,12 @@ inline void MHFEM::Assemble_and_solve(DFN::Mesh_DFN_linear mesh,
             }
         }
     }
+    //time_counter_end(start, end, "assembling", "in_minutes");
+
     //cout << 2 << endl;
+    //cout << "*********boundary condition*********\n";
+    //time_counter_start(start);
+    Eigen::setNbThreads(this->N_proc);
     // Dirichlet boundary condition
     for (size_t i = 0; i < Inlet_edge_sep_NO.size(); ++i)
     {
@@ -338,8 +376,10 @@ inline void MHFEM::Assemble_and_solve(DFN::Mesh_DFN_linear mesh,
 
     g.makeCompressed();
     f.makeCompressed();
+    //time_counter_end(start, end, "boundary condition addressing", "in_minutes");
 
-    cout << "*********preparing*********\n";
+    //cout << "*********preparing*********\n";
+    //time_counter_start(start);
     SparseMatrix<double> A_inv(A.rows(), A.cols());
     for (int i = 0; i < A.rows() / 3; ++i)
     {
@@ -378,16 +418,19 @@ inline void MHFEM::Assemble_and_solve(DFN::Mesh_DFN_linear mesh,
     D.makeCompressed();
     SparseMatrix<double> r = Re * g + Eq * U * (f - Wq * g);
     r.makeCompressed();
+    //time_counter_end(start, end, "preparing matrice", "in_minutes");
 
     //-----------------UMFpack-----------
     //start = std::chrono::steady_clock::now();
-    cout << "*********solving*********\n";
+    //cout << "*********solving*********\n";
+    //time_counter_start(start);
     //Eigen::UmfPackLU<SparseMatrix<double>> Umf_solver;
     //Umf_solver.compute(D);
     //pressure_interior_edge = Umf_solver.solve(r);
     SimplicialLDLT<SparseMatrix<double>> solver;
     pressure_interior_edge = solver.compute(D).solve(r);
-    cout << "*********finished*********\n";
+    //time_counter_end(start, end, "solving matrice", "in_minutes");
+    //cout << "*********finished*********\n";
     //end = std::chrono::steady_clock::now();
     //elapsed = end - start; // std::micro time (us)
     //std::cout << "UMFpack Running time: " << (((double)(elapsed.count() * 1.0) * (0.000001)) / 60.00) << " minutes" << std::endl;
@@ -413,7 +456,7 @@ inline void MHFEM::Assemble_and_solve(DFN::Mesh_DFN_linear mesh,
         double veloc_length = abs(velocity_normal_scalar_sep_edges(sep_EDGE_no - 1, 0) * len);
         this->Q_out += veloc_length;
     }
-};
+}; // namespace DFN
 
 inline MatrixXf MHFEM::stimaB(MatrixXf coord)
 {
@@ -766,6 +809,18 @@ inline double MHFEM::The_inlet_of_all_elements(DFN::Mesh_DFN_linear mesh)
         }
     }
     return inlet_all_ele;
-}
+};
 
+inline size_t MHFEM::Element_ID(size_t i, size_t j, DFN::Mesh_DFN_linear mesh)
+{
+    size_t ID = 0;
+
+    if (i == 0)
+        return ID + j;
+
+    for (size_t y = 0; y < i; ++y)
+        ID += mesh.element_2D[y].rows();
+
+    return ID + j;
+};
 }; // namespace DFN

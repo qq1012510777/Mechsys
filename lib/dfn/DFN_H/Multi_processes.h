@@ -1,8 +1,9 @@
 #pragma once
-#include "../FEM_H/FEM_DFN_A.h"
+//#include "../FEM_H/FEM_DFN_A.h"
+#include "../FEM_H/MHFEM.h"
 #include "../HDF5_DFN/HDF5_DFN.h"
 #include "../MATLAB_DATA_API/MATLAB_DATA_API.h"
-#include "../Mesh_H/Mesh_DFN_overall.h"
+#include "../Mesh_H/Mesh_DFN_linear.h"
 #include "../ProgressBar/ProgressBar.h"
 #include "Domain_WL.h"
 #include <cstdio>
@@ -73,8 +74,9 @@ public:
                                        const string str_frac_size,
                                        const string conductivity_distri,
                                        const double domain_size,
-                                       const double min_ele_edge,
-                                       const double max_ele_edge);
+                                       std::vector<std::vector<double>> min_ele_edge,
+                                       std::vector<std::vector<double>> max_ele_edge,
+                                       std::vector<std::vector<double>> Mean_ele_edge);
 
     void Matlab_command(string FileKey_m, string FileKey_mat, size_t np, size_t ny, size_t model_no);
 };
@@ -184,8 +186,12 @@ inline void Multi_processes::Loop_create_DFNs(gsl_rng *random_seed,
         std::vector<std::vector<double>> Permeability_A(3);
         std::vector<std::vector<double>> Q_error_A(3);
         std::vector<DFN::Domain> Dom_vec;
-        std::vector<std::vector<DFN::Mesh_DFN_overall>> Mesh_vec(3);
+        std::vector<std::vector<DFN::Mesh_DFN_linear>> Mesh_vec(3);
         std::vector<std::vector<size_t>> Mesh_status(3);
+
+        std::vector<std::vector<double>> min_edge_r(3);
+        std::vector<std::vector<double>> max_edge_r(3);
+        std::vector<std::vector<double>> mean_edge_r(3);
 
         // 0: no percolating cluster
         // 1: have percolation cluster, and mesh successfully
@@ -211,6 +217,18 @@ inline void Multi_processes::Loop_create_DFNs(gsl_rng *random_seed,
         Ratio_of_P30_A[0].resize(nv);
         Ratio_of_P30_A[1].resize(nv);
         Ratio_of_P30_A[2].resize(nv);
+
+        min_edge_r[0].resize(nv);
+        min_edge_r[1].resize(nv);
+        min_edge_r[2].resize(nv);
+
+        max_edge_r[0].resize(nv);
+        max_edge_r[1].resize(nv);
+        max_edge_r[2].resize(nv);
+
+        mean_edge_r[0].resize(nv);
+        mean_edge_r[1].resize(nv);
+        mean_edge_r[2].resize(nv);
 
         if (nv < Nb_flow_sim_MC_times)
             Nb_flow_sim_MC_times = nv;
@@ -406,14 +424,21 @@ inline void Multi_processes::Loop_create_DFNs(gsl_rng *random_seed,
                             }
 
                             //cout << "\t\tmesh start" << endl;
-                            DFN::Mesh_DFN_overall mesh(dom, min_ele_edge, max_ele_edge, rt, Nproc);
+                            DFN::Mesh_DFN_linear mesh_s(dom, min_ele_edge, max_ele_edge, rt, Nproc);
                             //cout << "\t\tmesh finish" << endl;
 
-                            Mesh_vec[rt][i] = mesh;
+                            Mesh_vec[rt][i] = mesh_s;
                             Mesh_status[rt][i] = 1;
 
-                            if (mesh.mesh_state == false)
+                            min_edge_r[rt][i] = mesh_s.min_edge_length;
+                            max_edge_r[rt][i] = mesh_s.max_edge_length;
+                            mean_edge_r[rt][i] = mesh_s.mean_edge_length;
+
+                            if (mesh_s.mesh_state == false)
+                            {
                                 Mesh_status[rt][i] = 2;
+                                goto Regenerate_dfn;
+                            }
                         }
                         else
                         {
@@ -424,11 +449,13 @@ inline void Multi_processes::Loop_create_DFNs(gsl_rng *random_seed,
                     {
                         //cout << "\t\tmesh error! label this mesh as failed one" << endl;
                         Mesh_status[rt][i] = 2;
+                        goto Regenerate_dfn;
                     }
                     catch (...)
                     {
                         //cout << "\t\tOther error! label this mesh as failed one" << endl;
                         Mesh_status[rt][i] = 2;
+                        goto Regenerate_dfn;
                     }
                 }
 
@@ -437,7 +464,7 @@ inline void Multi_processes::Loop_create_DFNs(gsl_rng *random_seed,
             //cout << endl;
             auto end_1 = std::chrono::steady_clock::now();
             std::chrono::duration<double, std::micro> elapsed_1 = end_1 - start_1; // std::micro time (us)
-            cout << "\033[33m\tmeshing finished! runtime: " << (((double)(elapsed_1.count() * 1.0) * (0.000001)) / 60.00) / 60.00 << "h \033[0m" << endl;
+            cout << "\033[33m\tmeshing finished! runtime: " << (((double)(elapsed_1.count() * 1.0) * (0.000001)) / 60.00) << " minutes \033[0m" << endl;
         };
 
         if (this->Model_flow == 1)
@@ -458,17 +485,17 @@ inline void Multi_processes::Loop_create_DFNs(gsl_rng *random_seed,
                     {
                         if (Mesh_status[rt][i] == 1)
                         {
-                            DFN::Mesh_DFN_overall mesh = Mesh_vec[rt][i];
+                            DFN::Mesh_DFN_linear mesh_s = Mesh_vec[rt][i];
 
                             //cout << "\t\tFEM start" << endl;
-                            DFN::FEM_DFN_A CC(mesh, dom, rt);
+                            DFN::MHFEM CC(mesh_s, dom, 100, 20, rt, this->Nproc_flow);
                             //cout << "\t\tFEM finish" << endl;
                             if (np == nt)
                             {
                                 string mesh_ = "mesh_DFN_" + to_string(rt);
                                 string FEM_ = "FEM_DFN_" + to_string(rt);
-                                mesh.Matlab_plot(mesh_ + ".mat", mesh_ + ".m", dom);
-                                CC.matlab_plot(FEM_ + ".mat", FEM_ + ".m", dom, mesh);
+                                mesh_s.Matlab_plot(mesh_ + ".mat", mesh_ + ".m", dom);
+                                CC.Matlab_plot(FEM_ + ".mat", FEM_ + ".m", mesh_s, dom);
                             }
                             Permeability_A[rt][i] = CC.Permeability;
                             Q_error_A[rt][i] = CC.Q_error;
@@ -495,11 +522,17 @@ inline void Multi_processes::Loop_create_DFNs(gsl_rng *random_seed,
                     {
                         Permeability_A[rt][i] = -1;
                         Q_error_A[rt][i] = -1;
+                        goto Regenerate_dfn;
                     }
                     catch (bad_alloc &e)
                     {
                         Permeability_A[rt][i] = -1;
                         Q_error_A[rt][i] = -1;
+                        goto Regenerate_dfn;
+                    }
+                    catch (...)
+                    {
+                        goto Regenerate_dfn;
                     }
                 }
 
@@ -508,7 +541,7 @@ inline void Multi_processes::Loop_create_DFNs(gsl_rng *random_seed,
             //cout << endl;
             auto end_2 = std::chrono::steady_clock::now();
             std::chrono::duration<double, std::micro> elapsed_2 = end_2 - start_2; // std::micro time (us)
-            cout << "\033[31m\tFEM finished! runtime: " << (((double)(elapsed_2.count() * 1.0) * (0.000001)) / 60.00) / 60.00 << "h \033[0m" << endl;
+            cout << "\033[31m\tFEM finished! runtime: " << (((double)(elapsed_2.count() * 1.0) * (0.000001)) / 60.00) << " minutes \033[0m" << endl;
         }
 
         //---------------------------
@@ -531,8 +564,9 @@ inline void Multi_processes::Loop_create_DFNs(gsl_rng *random_seed,
                                             str_frac_size,
                                             conductivity_distri,
                                             this->L,
-                                            min_ele_edge,
-                                            max_ele_edge);
+                                            min_edge_r,
+                                            max_edge_r,
+                                            mean_edge_r);
         //cout << "\tfinish output data\n\n";
     };
 
@@ -558,8 +592,9 @@ inline void Multi_processes::Matlab_Data_output_stepBYstep(const size_t np,
                                                            const string str_frac_size,
                                                            const string conductivity_distri,
                                                            const double domain_size,
-                                                           const double min_ele_edge,
-                                                           const double max_ele_edge)
+                                                           vector<std::vector<double>> min_ele_edge,
+                                                           vector<std::vector<double>> max_ele_edge,
+                                                           vector<std::vector<double>> Mean_ele_edge)
 
 {
 
@@ -567,15 +602,12 @@ inline void Multi_processes::Matlab_Data_output_stepBYstep(const size_t np,
     {
         const char *CS = FileKey_mat.c_str();
         std::remove(CS);
-
         DFN::HDF5_DFN H5file_1(FileKey_mat); //create the file;
 
         H5file_1.Write_H5(FileKey_mat, "Ori_distr", str_ori);
         H5file_1.Write_H5(FileKey_mat, "FracSize_distr", str_frac_size);
         H5file_1.Write_H5(FileKey_mat, "Conduc_distr", conductivity_distri);
         H5file_1.Write_H5(FileKey_mat, "Domain_size", domain_size);
-        H5file_1.Write_H5(FileKey_mat, "Min_ele_edge", min_ele_edge);
-        H5file_1.Write_H5(FileKey_mat, "Max_ele_edge", max_ele_edge);
 
         H5file_1.Write_H5(FileKey_mat, "Frac_sets", (double)this->array12.size());
 
@@ -611,7 +643,6 @@ inline void Multi_processes::Matlab_Data_output_stepBYstep(const size_t np,
             }
         }
     }
-
     DFN::HDF5_DFN H5file;
 
     string groupname = "group_" + To_string_with_width(np, 3);
@@ -644,9 +675,17 @@ inline void Multi_processes::Matlab_Data_output_stepBYstep(const size_t np,
     string string_Q_error_x = "Q_error_x";
     string string_Q_error_y = "Q_error_y";
     string string_Q_error_z = "Q_error_z";
+    string string_Min_ele_edge_x = "Min_ele_edge_x";
+    string string_Max_ele_edge_x = "Max_ele_edge_x";
+    string string_Mean_ele_edge_x = "Mean_ele_edge_x";
+    string string_Min_ele_edge_y = "Min_ele_edge_y";
+    string string_Max_ele_edge_y = "Max_ele_edge_y";
+    string string_Mean_ele_edge_y = "Mean_ele_edge_y";
+    string string_Min_ele_edge_z = "Min_ele_edge_z";
+    string string_Max_ele_edge_z = "Max_ele_edge_z";
+    string string_Mean_ele_edge_z = "Mean_ele_edge_z";
 
     H5file.Write_H5(FileKey_mat, groupname, string_P32_total, P32_total_A); // created a group already
-
     H5file.Append_dataset_to_group(FileKey_mat, groupname, string_P32_connected_x, P32_connected_A[0]);
     H5file.Append_dataset_to_group(FileKey_mat, groupname, string_P32_connected_y, P32_connected_A[1]);
     H5file.Append_dataset_to_group(FileKey_mat, groupname, string_P32_connected_z, P32_connected_A[2]);
@@ -672,6 +711,15 @@ inline void Multi_processes::Matlab_Data_output_stepBYstep(const size_t np,
     H5file.Append_dataset_to_group(FileKey_mat, groupname, string_Q_error_x, Q_error_A[0]);
     H5file.Append_dataset_to_group(FileKey_mat, groupname, string_Q_error_y, Q_error_A[1]);
     H5file.Append_dataset_to_group(FileKey_mat, groupname, string_Q_error_z, Q_error_A[2]);
+    H5file.Append_dataset_to_group(FileKey_mat, groupname, string_Min_ele_edge_x, min_ele_edge[0]);
+    H5file.Append_dataset_to_group(FileKey_mat, groupname, string_Max_ele_edge_x, max_ele_edge[0]);
+    H5file.Append_dataset_to_group(FileKey_mat, groupname, string_Mean_ele_edge_x, Mean_ele_edge[0]);
+    H5file.Append_dataset_to_group(FileKey_mat, groupname, string_Min_ele_edge_y, min_ele_edge[1]);
+    H5file.Append_dataset_to_group(FileKey_mat, groupname, string_Max_ele_edge_y, max_ele_edge[1]);
+    H5file.Append_dataset_to_group(FileKey_mat, groupname, string_Mean_ele_edge_y, Mean_ele_edge[1]);
+    H5file.Append_dataset_to_group(FileKey_mat, groupname, string_Min_ele_edge_z, min_ele_edge[2]);
+    H5file.Append_dataset_to_group(FileKey_mat, groupname, string_Max_ele_edge_z, max_ele_edge[2]);
+    H5file.Append_dataset_to_group(FileKey_mat, groupname, string_Mean_ele_edge_z, Mean_ele_edge[2]);
 };
 
 inline void Multi_processes::Matlab_command(string FileKey_m, string FileKey_mat, size_t np, size_t ny, size_t model_no)
