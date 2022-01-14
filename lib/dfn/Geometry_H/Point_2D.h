@@ -236,87 +236,10 @@ inline bool Point_2D::If_lies_on_a_line_seg(const std::vector<Vector2d> Line_seg
 
     double distanceA = boost::geometry::distance(p, EDGE_POLYGON);
 
-    if (distanceA < 0.01)
+    if (distanceA < 0.0001)
         return true;
 
     return false;
-
-    /*
-    double line_ymax = Line_seg[0](1) > Line_seg[1](1) ? Line_seg[0](1) : Line_seg[1](1);
-    double line_ymin = Line_seg[0](1) < Line_seg[1](1) ? Line_seg[0](1) : Line_seg[1](1);
-
-    double line_xmax = Line_seg[0](0) > Line_seg[1](0) ? Line_seg[0](0) : Line_seg[1](0);
-    double line_xmin = Line_seg[0](0) < Line_seg[1](0) ? Line_seg[0](0) : Line_seg[1](0);
-
-    // a vertical line, same x _ coordinate
-    if (abs(Line_seg[0](0) - Line_seg[1](0)) < 0.0001 && abs(Line_seg[0](1) - Line_seg[1](1)) > 0.0001)
-    {
-        if (abs(this->Coordinate(0) - Line_seg[0](0)) < 0.0001)
-        {
-            if (this->Coordinate(1) - line_ymin > -0.0001 && line_ymax - this->Coordinate(1) > -0.0001)
-            {
-                return true;
-            }
-            else
-                return false;
-        }
-        else
-        {
-            return false;
-        }
-    }
-
-    // a horizontal line
-    if (abs(Line_seg[0](0) - Line_seg[1](0)) > 0.0001 && abs(Line_seg[0](1) - Line_seg[1](1)) < 0.0001)
-    {
-        if (abs(this->Coordinate(1) - Line_seg[0](1)) < 0.0001)
-        {
-            if (this->Coordinate(0) - line_xmin > -0.0001 && line_xmax - this->Coordinate(0) > -0.0001)
-            {
-                return true;
-            }
-            else
-                return false;
-        }
-        else
-        {
-            return false;
-        }
-    }
-
-    // a inclined line segment
-    Vector2d F = Line_seg[1] - Line_seg[0];
-    Vector2d P = this->Coordinate - Line_seg[0];
-    std::vector<Vector3d> Verts1(1), Verts2(1), Verts3(1), Verts4(1);
-    Verts1[0] << F(0), F(1), 0;
-    Verts2[0] << P(0), P(1), 0;
-
-    double angle_line = atan2(F(1), F(0));
-    Quaternion_t Q_axis_1;
-    Vector3d temp1;
-    temp1 << 0, 0, -1;
-    DFN::Rotation_verts Re(Verts1, angle_line, Q_axis_1, temp1, Verts3);
-    DFN::Rotation_verts Re2(Verts2, angle_line, Q_axis_1, temp1, Verts4);
-
-    if (abs(Verts4[0](1)) > 0.001)
-    {
-        return false;
-    }
-    else
-    {
-        if ((Verts4[0](0) > -0.001 && Verts3[0](0) - Verts4[0](0) > -0.001) ||
-            (Verts4[0](0) < 0.001 && Verts4[0](0) - Verts3[0](0) > -0.001))
-        {
-            return true;
-        }
-        else
-        {
-            return false;
-        }
-    }
-
-    return false;
-    */
 };
 
 inline Vector2d Point_2D::Perpend_foot_on_a_line_seg(const std::vector<Vector2d> Line_seg)

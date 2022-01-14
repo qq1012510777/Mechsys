@@ -18,6 +18,8 @@ typedef SparseMatrix<float> Sp_f_mat;
 typedef SparseMatrix<size_t> Sp_s_mat;
 typedef Matrix<bool, 7, 1> Vector7b;
 
+typedef Matrix<pair<string, Vector2d>, Dynamic, Dynamic> MatrixX_st_v2d;
+
 MatrixXs removeMatrixXsRow(const MatrixXs original_matrix,
                            vector<int> row_to_remove);
 

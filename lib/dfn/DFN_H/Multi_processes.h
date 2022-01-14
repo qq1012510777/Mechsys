@@ -79,6 +79,15 @@ public:
                                        std::vector<std::vector<double>> Mean_ele_edge);
 
     void Matlab_command(string FileKey_m, string FileKey_mat, size_t np, size_t ny, size_t model_no);
+
+private:
+    Vector2d Re_MHFEM(DFN::Domain dom_222,
+                      const double min_ele_edge,
+                      const double max_ele_edge,
+                      size_t dir_,
+                      double h_in,
+                      double h_out,
+                      size_t Nproc_t_);
 };
 
 //****************************
@@ -253,11 +262,10 @@ inline void Multi_processes::Loop_create_DFNs(gsl_rng *random_seed,
 
         //DFN::ProgressBar prog_bar;
         std::cout << "\nThe Model NO." << np << " is creating now! Sizes: " << str_frac_size << "; Ori: " << str_ori << ".\n";
-
+    Regenerate_dfn:;
+        nv = 1;
         for (size_t i = 0; i < nv; i++)
         {
-
-        Regenerate_dfn:;
             try
             {
                 DFN::Domain dom;
@@ -378,6 +386,10 @@ inline void Multi_processes::Loop_create_DFNs(gsl_rng *random_seed,
                      << e.what() << "\033[0m" << endl;
                 goto Regenerate_dfn;
             }
+            catch (...)
+            {
+                goto Regenerate_dfn;
+            }
 
             //prog_bar.Rep_prog_for_paral(nv, 5, "\t\tDFN_MC_modeling ");
         }
@@ -407,7 +419,7 @@ inline void Multi_processes::Loop_create_DFNs(gsl_rng *random_seed,
                 DFN::Domain dom;
                 dom = Dom_vec[i];
 
-                for (size_t rt = 0; rt < 3; ++rt)
+                for (size_t rt = 2; rt < 3; ++rt)
                 {
                     try
                     {
@@ -479,7 +491,7 @@ inline void Multi_processes::Loop_create_DFNs(gsl_rng *random_seed,
                 DFN::Domain dom;
                 dom = Dom_vec[i];
 
-                for (size_t rt = 0; rt < 3; ++rt)
+                for (size_t rt = 2; rt < 3; ++rt)
                 {
                     try
                     {
@@ -487,8 +499,9 @@ inline void Multi_processes::Loop_create_DFNs(gsl_rng *random_seed,
                         {
                             DFN::Mesh_DFN_linear mesh_s = Mesh_vec[rt][i];
 
+                            double h_in = 100, h_out = 20;
                             //cout << "\t\tFEM start" << endl;
-                            DFN::MHFEM CC(mesh_s, dom, 100, 20, rt, this->Nproc_flow);
+                            DFN::MHFEM CC(mesh_s, dom, h_in, h_out, rt, this->Nproc_flow);
                             //cout << "\t\tFEM finish" << endl;
                             if (np == nt)
                             {
@@ -500,6 +513,19 @@ inline void Multi_processes::Loop_create_DFNs(gsl_rng *random_seed,
                             Permeability_A[rt][i] = CC.Permeability;
                             Q_error_A[rt][i] = CC.Q_error;
                             //Permeability_A[rt][i] = 0;
+
+                            if (CC.Q_error > 1 || isnan(CC.Permeability) == 1)
+                            {
+                                //cout << "\t\tfound large error or isnan, the error: " << CC.Q_error << ", the permeability: " << CC.Permeability << endl;
+                                //dom.Matlab_Out_Frac_matfile("Fractures.mat");
+                                //CC.Matlab_plot("MHFEM.mat", "MHFEM.m", mesh_s, dom);
+                                //exit(0);
+                                Vector2d TTE = this->Re_MHFEM(dom, min_ele_edge, max_ele_edge, rt, h_in, h_out, this->Nproc_flow);
+                                Permeability_A[rt][i] = TTE[0];
+                                Q_error_A[rt][i] = TTE[1];
+                                if (TTE[0] > 1 || isnan(TTE[1]) == 1)
+                                    goto Regenerate_dfn;
+                            }
                         }
                         else if (Mesh_status[rt][i] == 2)
                         {
@@ -528,6 +554,7 @@ inline void Multi_processes::Loop_create_DFNs(gsl_rng *random_seed,
                     {
                         Permeability_A[rt][i] = -1;
                         Q_error_A[rt][i] = -1;
+                        cout << "\t\tbad alloc\n";
                         goto Regenerate_dfn;
                     }
                     catch (...)
@@ -918,6 +945,42 @@ inline void Multi_processes::Sign_of_finding_pc(string FileKey)
     oss << Density_c;
 
     oss.close();
+};
+
+inline Vector2d Multi_processes::Re_MHFEM(DFN::Domain dom_222,
+                                          const double min_ele_edge,
+                                          const double max_ele_edge,
+                                          size_t dir_,
+                                          double h_in,
+                                          double h_out,
+                                          size_t Nproc_t_)
+{
+    string AS = "Fractures_" + To_string_with_width(random_unsigned_integer(1, 1e5), 5) + ".mat";
+    dom_222.Matlab_Out_Frac_matfile(AS);
+
+    std::vector<std::vector<Vector3d>> verts__;
+    DFN::Load_a_DFN_from_matfile loadmat(AS, verts__);
+    DFN::Domain dom_t_;
+
+    Vector6d modelsize__;
+    double L_ = this->L;
+    modelsize__ << -0.5 * L_, 0.5 * L_, -0.5 * L_, 0.5 * L_, -0.5 * L_, 0.5 * L_;
+    dom_t_.Create_whole_model_II(modelsize__, verts__);
+    dom_t_.Identify_percolation_clusters();
+    dom_t_.Connectivity_analysis();
+    dom_t_.Re_identify_intersection_considering_trimmed_frac();
+    dom_t_.Identify_percolation_clusters();
+
+    DFN::Mesh_DFN_linear mesh_t_(dom_t_, min_ele_edge * 0.9, max_ele_edge * 0.9, dir_, 1);
+
+    DFN::MHFEM fem_t_{mesh_t_, dom_t_, h_in, h_out, dir_, Nproc_t_};
+    Vector2d OSD;
+    OSD << fem_t_.Permeability, fem_t_.Q_error;
+
+    const char *CS = AS.c_str();
+    std::remove(CS);
+
+    return OSD;
 };
 
 }; // namespace DFN

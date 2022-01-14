@@ -47,7 +47,7 @@ Load_a_DFN_from_matfile::Load_a_DFN_from_matfile(string FileKey_mat, std::vector
     }
 
     mxFree(getdata);
-
+    //cout << "Input Num_fractures: " << Num_fractures << endl;
     verts.resize(Num_fractures);
     if (Num_fractures != 0)
         for (size_t i = 0; i < Num_fractures; ++i)

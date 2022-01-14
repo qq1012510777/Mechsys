@@ -578,7 +578,7 @@ inline Fracture::Fracture(size_t _Tag,
     Clus = _Clus;
 
     Nvertices = _Verts.size();
-    Radius = pow((_Verts[0] - _Verts[2]).dot(_Verts[0] - _Verts[2]), 0.5) * 0.5;
+    Radius = (_Verts[0] - _Verts[2]).norm();
     double x1, y1, z1;
     double l, m, n, d;
     x1 = _Verts[0](0);

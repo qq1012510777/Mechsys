@@ -118,20 +118,29 @@ inline void MHFEM::Assemble_and_solve(DFN::Mesh_DFN_linear mesh,
     SparseMatrix<double> K(Dim, Dim);
     SparseMatrix<double> b(Dim, 1);
 
-    vector<pair<size_t, double>> Inlet_edge_sep_NO,
+    K.reserve(VectorXi::Constant(Dim, 5));
+    b.reserve(mesh.NUM_inlet_edges + mesh.NUM_outlet_edges);
+
+    vector<Triplet<double>> Inlet_edge_sep_NO,
         Outlet_edge_sep_NO;
+
+    vector<double> length_in_out(mesh.NUM_inlet_edges + mesh.NUM_outlet_edges, 0);
+
     vector<size_t> Neumann_edge_sep_NO;
 
-    //cout << 1 << endl;
-    //cout << "*********assembling*********\n";
+    Inlet_edge_sep_NO.resize(mesh.NUM_inlet_edges);
+    Outlet_edge_sep_NO.resize(mesh.NUM_outlet_edges);
+    Neumann_edge_sep_NO.resize(mesh.NUM_neumann_edges);
+
+    //cout << "*********assembling_1*********\n";
     //time_counter_start(start);
+    size_t Nproc_1 = this->N_proc;
+
     for (size_t i = 0; i < mesh.Frac_Tag.size(); ++i) // Frac
     {
         size_t Frac_Tag = mesh.Frac_Tag[i];
 
         double Kper = dom.Fractures[Frac_Tag].Conductivity;
-
-        size_t Nproc_1 = this->N_proc;
 
 #pragma omp parallel for schedule(dynamic) num_threads(Nproc_1)
         for (size_t j = 0; j < (size_t)mesh.element_2D[i].rows(); ++j) // elements
@@ -162,6 +171,18 @@ inline void MHFEM::Assemble_and_solve(DFN::Mesh_DFN_linear mesh,
                    edge2 = tmp_eleNO * 3 + 2,
                    edge3 = tmp_eleNO * 3 + 3;
 
+            /*
+            #pragma omp critical
+            if (i == 32)
+            {
+                cout << "ele: " << endl;
+                cout << tmp_eleNO + 1 << endl;
+                cout << "sep velovity:" << endl;
+                cout << edge1 << endl;
+                cout << edge2 << endl;
+                cout << edge3 << endl;
+            }*/
+
             MatrixXf outnormal_vec = Calculate_velocity_normal_vec_sep_edges(dom, Frac_Tag, coord);
             normal_vec_sep_edges.block(edge1 - 1, 0, 3, 3) = outnormal_vec;
 
@@ -173,9 +194,9 @@ inline void MHFEM::Assemble_and_solve(DFN::Mesh_DFN_linear mesh,
                 for (size_t jk = 0; jk < 3; ++jk)
                 {
                     double AT = (double)round(((-1.0 / Kper) * A_(ik, jk)), round_precision);
-#pragma omp critical
+                    //#pragma omp critical
                     {
-                        K.coeffRef(I[ik], I[jk]) += AT;
+                        K.insert(I[ik], I[jk]) = AT;
                     }
                     SUM_u += abs(AT);
                 }
@@ -208,153 +229,122 @@ inline void MHFEM::Assemble_and_solve(DFN::Mesh_DFN_linear mesh,
                 AS += "abs(SUM_u): ";
                 AS += to_string(abs(SUM_u));
                 AS += "\n";
+                cout << AS << endl;
                 throw Error_throw_ignore(AS);
             }
-            /*
-            if(node1 == 9 && node2 == 4 && node3 == 2)
-            {
-                cout << "----------\n";
-                cout << A_ << endl;
-                cout << "----------\n";
-            }
-            */
 
             Vector3f B_;
             B_ << round((coord.row(2) - coord.row(1)).norm(), round_precision),
                 round((coord.row(0) - coord.row(2)).norm(), round_precision),
                 round((coord.row(1) - coord.row(0)).norm(), round_precision);
 
+            /*
+            if (i == 16)
+            {
+            #pragma omp critical
+                {
+                    cout << "element: " << j + 1 << endl;
+                    cout << A_ << endl
+                         << endl;
+                    cout << B_ << endl;
+                }
+            }*/
+
             for (size_t ik = 0; ik < 3; ++ik)
             {
                 //B.coeffRef(I[ik], tmp_eleNO) = (double)round(B_(ik, 0), round_precision);
 
-#pragma omp critical
+                //#pragma omp critical
                 {
-                    K.coeffRef(I[ik], tmp_eleNO + NUM_sep_edges) = (double)round(B_(ik, 0), round_precision);
-                    K.coeffRef(tmp_eleNO + NUM_sep_edges, I[ik]) = (double)round(B_(ik, 0), round_precision);
+                    K.insert(I[ik], tmp_eleNO + NUM_sep_edges) = (double)round(B_(ik, 0), round_precision);
+                    K.insert(tmp_eleNO + NUM_sep_edges, I[ik]) = (double)round(B_(ik, 0), round_precision);
                 }
-            }
 
-            // how to know if an edge is an interior edge
-            //cout << 1 << endl;
-            for (size_t ik = 0; ik < 3; ++ik)
-            {
-                size_t ik_r = (ik + 1) % 3; // local edgeNO
-
-                size_t node_a = mesh.element_2D[i](j, ik_r);
-                size_t node_b = mesh.element_2D[i](j, (ik_r + 1) % 3);
-
-                size_t node_A = node_a < node_b ? node_a : node_b,
-                       node_B = node_a > node_b ? node_a : node_b;
-
-                std::map<pair<size_t, size_t>, size_t>::iterator ity;
-                ity = mesh.Interior_edgeNO.find(make_pair(node_A, node_B));
-
-                double len = (mesh.coordinate_3D.row(node_A - 1) - mesh.coordinate_3D.row(node_B - 1)).norm();
-
-                if (ity != mesh.Interior_edgeNO.end())
+                if (mesh.Interior_edgeNO[i](j, ik).first == "interior")
                 {
-                    //this edge is an interior edge
-                    size_t global_inter_edge_NO = ity->second;
-                    // C.coeffRef(global_inter_edge_NO - 1, I[ik]) -= (double)round(len, round_precision);
+                    size_t global_interiorID = mesh.Interior_edgeNO[i](j, ik).second[0];
 
-#pragma omp critical
+                    K.insert(global_interiorID - 1 + NUM_sep_edges + NUM_eles, I[(ik + 2) % 3]) = -B_((ik + 2) % 3, 0);
+                    K.insert(I[(ik + 2) % 3], global_interiorID - 1 + NUM_sep_edges + NUM_eles) = -B_((ik + 2) % 3, 0);
+                    /*
+                    #pragma omp critical
+                    if (i == 32)
                     {
-                        K.coeffRef(global_inter_edge_NO - 1 + NUM_sep_edges + NUM_eles, I[ik]) -= (double)round(len, round_precision);
-                        K.coeffRef(I[ik], global_inter_edge_NO - 1 + NUM_sep_edges + NUM_eles) -= (double)round(len, round_precision);
-                    }
-                    continue;
+                        cout << "interior: " << endl;
+                        cout << global_interiorID << endl;
+                    }*/
                 }
-
-                //------------------------
-                //Dirichlet inlet
-                std::set<pair<size_t, size_t>>::iterator it_inlet;
-                it_inlet = mesh.Inlet_edges.find(make_pair(node_A, node_B));
-                if (it_inlet != mesh.Inlet_edges.end())
+                else if (mesh.Interior_edgeNO[i](j, ik).first == "in")
                 {
-#pragma omp critical
-                    {
-                        Inlet_edge_sep_NO.push_back(std::make_pair(I[ik] + 1, len));
-                    }
-                    continue;
-                }
+                    //size_t node_a = mesh.element_2D[i](j, ik);
+                    //size_t node_b = mesh.element_2D[i](j, (ik + 1) % 3);
 
-                //Dirichlet outlet
-                std::set<pair<size_t, size_t>>::iterator it_outlet;
-                it_outlet = mesh.Outlet_edges.find(make_pair(node_A, node_B));
-                if (it_outlet != mesh.Outlet_edges.end())
+                    size_t Sep_NO_rr = mesh.Interior_edgeNO[i](j, ik).second[0];
+                    size_t ID_1 = mesh.Interior_edgeNO[i](j, ik).second[1];
+
+                    //Inlet_edge_sep_NO[ID_1 - 1].first = Sep_NO_rr;
+                    //Inlet_edge_sep_NO[ID_1 - 1].second = (double)round(B_((ik + 2) % 3, 0), round_precision);
+                    double P_D = this->inlet_p;
+
+                    Inlet_edge_sep_NO[ID_1 - 1] = Triplet<double>(Sep_NO_rr - 1, 0, P_D * (double)round(B_((ik + 2) % 3, 0), round_precision));
+                    length_in_out[ID_1 - 1] = (double)round(B_((ik + 2) % 3, 0), round_precision);
+                }
+                else if (mesh.Interior_edgeNO[i](j, ik).first == "out")
                 {
-#pragma omp critical
-                    {
-                        Outlet_edge_sep_NO.push_back(std::make_pair(I[ik] + 1, len));
-                    }
-                    continue;
-                }
+                    //size_t node_a = mesh.element_2D[i](j, ik);
+                    //size_t node_b = mesh.element_2D[i](j, (ik + 1) % 3);
 
-                //Neumann edges
-                std::set<pair<size_t, size_t>>::iterator Neumann_edges_;
-                Neumann_edges_ = mesh.Neumann_edges.find(make_pair(node_A, node_B));
-                if (Neumann_edges_ != mesh.Neumann_edges.end())
+                    size_t Sep_NO_rr = mesh.Interior_edgeNO[i](j, ik).second[0];
+                    size_t ID_1 = mesh.Interior_edgeNO[i](j, ik).second[1];
+
+                    // Outlet_edge_sep_NO[ID_1 - 1].first = Sep_NO_rr;
+                    // Outlet_edge_sep_NO[ID_1 - 1].second = (double)round(B_((ik + 2) % 3, 0), round_precision);
+
+                    double P_D = this->outlet_p;
+                    Outlet_edge_sep_NO[ID_1 - 1] = Triplet<double>(Sep_NO_rr - 1, 0, P_D * (double)round(B_((ik + 2) % 3, 0), round_precision));
+                    length_in_out[ID_1 - 1 + mesh.NUM_inlet_edges] = (double)round(B_((ik + 2) % 3, 0), round_precision);
+                }
+                else if (mesh.Interior_edgeNO[i](j, ik).first == "neumann")
                 {
-#pragma omp critical
-                    {
-                        Neumann_edge_sep_NO.push_back(I[ik] + 1);
-                    }
-                    continue;
-                }
+                    //size_t node_a = mesh.element_2D[i](j, ik);
+                    //size_t node_b = mesh.element_2D[i](j, (ik + 1) % 3);
 
-                throw Error_throw_pause("An edge must has an attribute\n");
+                    size_t Sep_NO_rr = mesh.Interior_edgeNO[i](j, ik).second[0];
+                    size_t ID_1 = mesh.Interior_edgeNO[i](j, ik).second[1];
+
+                    Neumann_edge_sep_NO[ID_1 - 1] = Sep_NO_rr;
+                    //Neumann_edge_sep_NO[ID_1 - 1].second = (double)round(B_((ik + 2) % 3, 0), round_precision);
+                }
             }
         }
     }
-    //time_counter_end(start, end, "assembling", "in_minutes");
+    //time_counter_end(start, end, "assembling_1", "in_minutes");
 
-    //cout << 2 << endl;
     //cout << "*********boundary condition*********\n";
     //time_counter_start(start);
     Eigen::setNbThreads(this->N_proc);
-    // Dirichlet boundary condition
-    for (size_t i = 0; i < Inlet_edge_sep_NO.size(); ++i)
-    {
-        size_t SEP_edgeNO = Inlet_edge_sep_NO[i].first;
-        double len = Inlet_edge_sep_NO[i].second;
+    vector<Triplet<double>> tripletlist;
+    tripletlist.reserve(Inlet_edge_sep_NO.size() + Outlet_edge_sep_NO.size());
+    tripletlist.insert(tripletlist.end(), Inlet_edge_sep_NO.begin(), Inlet_edge_sep_NO.end());
+    tripletlist.insert(tripletlist.end(), Outlet_edge_sep_NO.begin(), Outlet_edge_sep_NO.end());
 
-        double P_D = this->inlet_p;
-        b.coeffRef(SEP_edgeNO - 1, 0) += P_D * len;
-        inlet_length += len;
-    }
-    for (size_t i = 0; i < Outlet_edge_sep_NO.size(); ++i)
-    {
-        size_t SEP_edgeNO = Outlet_edge_sep_NO[i].first;
-        double len = Outlet_edge_sep_NO[i].second;
+    b.setFromTriplets(tripletlist.begin(), tripletlist.end());
 
-        double P_D = this->outlet_p;
-        b.coeffRef(SEP_edgeNO - 1, 0) += P_D * len;
-        outlet_length += len;
-    }
-    //cout << 3 << endl;
     //--------Neumann
     for (size_t i = 0; i < Neumann_edge_sep_NO.size(); ++i)
     {
         size_t SEP_edgeNO = Neumann_edge_sep_NO[i];
         K.innerVector(SEP_edgeNO - 1) = VectorXd::Zero(Dim, 1).sparseView();
-        //----------------
-        //for (size_t j = 0; j < Dim; ++j)
-        //K.coeffRef(SEP_edgeNO - 1, j) = 0;
 
         K.row(SEP_edgeNO - 1) *= 0;
 
         K.coeffRef(SEP_edgeNO - 1, SEP_edgeNO - 1) = 1;
-        b.coeffRef(SEP_edgeNO - 1, 0) = 0; // impermeable
+        //b.coeffRef(SEP_edgeNO - 1, 0) = 0; // impermeable
     }
+
     K.makeCompressed();
     b.makeCompressed();
-    //MatrixXf x = K.inverse() * b;
-    //cout << K << endl;
-    //cout << "\nb\n";
-    //cout << b << endl;
-    //cout << "\nx\n";
-    //cout << 4 << endl;
+
     SparseMatrix<double> A(NUM_sep_edges, NUM_sep_edges);
     SparseMatrix<double> B(NUM_eles, NUM_sep_edges);
     SparseMatrix<double> C(NUM_glob_interior_edges, NUM_sep_edges);
@@ -370,6 +360,7 @@ inline void MHFEM::Assemble_and_solve(DFN::Mesh_DFN_linear mesh,
     C.makeCompressed();
 
     SparseMatrix<double> g = b.block(0, 0, NUM_sep_edges, 1);
+
     SparseMatrix<double> f = b.block(NUM_sep_edges, 0, NUM_eles, 1);
 
     b.resize(0, 0);
@@ -381,6 +372,9 @@ inline void MHFEM::Assemble_and_solve(DFN::Mesh_DFN_linear mesh,
     //cout << "*********preparing*********\n";
     //time_counter_start(start);
     SparseMatrix<double> A_inv(A.rows(), A.cols());
+    A_inv.reserve(VectorXi::Constant(A.cols(), 3));
+
+#pragma omp parallel for schedule(dynamic) num_threads(Nproc_1)
     for (int i = 0; i < A.rows() / 3; ++i)
     {
         MatrixXd A_block = MatrixXd(A.block(i * 3, i * 3, 3, 3));
@@ -388,7 +382,7 @@ inline void MHFEM::Assemble_and_solve(DFN::Mesh_DFN_linear mesh,
         A_block = A_block.inverse();
         for (int j = i * 3, jq = 0; j < i * 3 + 3; ++j, ++jq)
             for (int k = i * 3, kq = 0; k < i * 3 + 3; ++k, ++kq)
-                A_inv.coeffRef(j, k) = A_block(jq, kq);
+                A_inv.insert(j, k) = A_block(jq, kq);
     }
     A_inv.makeCompressed();
     A.resize(0, 0);
@@ -402,8 +396,12 @@ inline void MHFEM::Assemble_and_solve(DFN::Mesh_DFN_linear mesh,
     B.resize(0, 0);
 
     SparseMatrix<double> U = Wq * B_tps;
+
+    //cout << 1 << endl;
+#pragma omp parallel for schedule(dynamic) num_threads(Nproc_1)
     for (int i = 0; i < U.rows(); ++i)
         U.coeffRef(i, i) = 1.0 / U.coeffRef(i, i);
+    //cout << 1 << endl;
     U.makeCompressed();
 
     SparseMatrix<double> Re = C * A_inv;
@@ -420,42 +418,40 @@ inline void MHFEM::Assemble_and_solve(DFN::Mesh_DFN_linear mesh,
     r.makeCompressed();
     //time_counter_end(start, end, "preparing matrice", "in_minutes");
 
-    //-----------------UMFpack-----------
-    //start = std::chrono::steady_clock::now();
     //cout << "*********solving*********\n";
     //time_counter_start(start);
-    //Eigen::UmfPackLU<SparseMatrix<double>> Umf_solver;
-    //Umf_solver.compute(D);
-    //pressure_interior_edge = Umf_solver.solve(r);
     SimplicialLDLT<SparseMatrix<double>> solver;
     pressure_interior_edge = solver.compute(D).solve(r);
-    //time_counter_end(start, end, "solving matrice", "in_minutes");
-    //cout << "*********finished*********\n";
-    //end = std::chrono::steady_clock::now();
-    //elapsed = end - start; // std::micro time (us)
-    //std::cout << "UMFpack Running time: " << (((double)(elapsed.count() * 1.0) * (0.000001)) / 60.00) << " minutes" << std::endl;
-    //----------------------
-    //pressure_interior_edge = x_tt.cast<float>();
+    // time_counter_end(start, end, "solving matrice", "in_minutes");
 
     pressure_eles = U * (Wq * g - Sd * pressure_interior_edge - f);
     velocity_normal_scalar_sep_edges = A_inv * (g - B_tps * pressure_eles - C_tps * pressure_interior_edge);
 
+    //cout << "in:\n";
     for (size_t i = 0; i < Inlet_edge_sep_NO.size(); ++i)
     {
-        size_t sep_EDGE_no = Inlet_edge_sep_NO[i].first;
-        double len = Inlet_edge_sep_NO[i].second;
+        size_t sep_EDGE_no = Inlet_edge_sep_NO[i].row();
+        //double len = Inlet_edge_sep_NO[i].value();
+        double len = length_in_out[i];
 
-        double veloc_length = abs(velocity_normal_scalar_sep_edges(sep_EDGE_no - 1, 0) * len);
+        double veloc_length = abs(velocity_normal_scalar_sep_edges(sep_EDGE_no, 0) * len);
         this->Q_in += veloc_length;
+        inlet_length += len;
+        //cout << "len: " << len << ";\tq: " << velocity_normal_scalar_sep_edges(sep_EDGE_no, 0) << "; sep_EDGE_no: " << sep_EDGE_no + 1 << "\n";
     }
+    //cout << "\n\nout:\n";
     for (size_t i = 0; i < Outlet_edge_sep_NO.size(); ++i)
     {
-        size_t sep_EDGE_no = Outlet_edge_sep_NO[i].first;
-        double len = Outlet_edge_sep_NO[i].second;
+        size_t sep_EDGE_no = Outlet_edge_sep_NO[i].row();
+        //double len = Outlet_edge_sep_NO[i].value();
+        double len = length_in_out[i + mesh.NUM_inlet_edges];
 
-        double veloc_length = abs(velocity_normal_scalar_sep_edges(sep_EDGE_no - 1, 0) * len);
+        double veloc_length = abs(velocity_normal_scalar_sep_edges(sep_EDGE_no, 0) * len);
         this->Q_out += veloc_length;
+        outlet_length += len;
+        //cout << "len: " << len << ";\tq: " << velocity_normal_scalar_sep_edges(sep_EDGE_no, 0) << "; sep_EDGE_no: " << sep_EDGE_no + 1 << "\n";
     }
+
 }; // namespace DFN
 
 inline MatrixXf MHFEM::stimaB(MatrixXf coord)
@@ -682,26 +678,28 @@ void MHFEM::Matlab_plot(string FileKey_mat,
                   "pressure_eles");
 
     //-------------------------
-    vector<double> pData11(mesh.Interior_edgeNO.size() * 2);
+    vector<double> pData11(mesh.NUM_interior_edges * 2, 0);
 
-    for (std::map<pair<size_t, size_t>, size_t>::iterator its = mesh.Interior_edgeNO.begin();
-         its != mesh.Interior_edgeNO.end(); its++)
-    {
-        size_t yw = its->second;
-        size_t node1 = its->first.first;
-        pData11[yw - 1] = node1;
-    }
+    for (size_t i = 0; i < mesh.element_2D.size(); ++i)
+        for (size_t j = 0; j < (size_t)mesh.element_2D[i].rows(); ++j)
+            for (size_t k = 0; k < 3; ++k)
+            {
+                if (mesh.Interior_edgeNO[i](j, k).first == "interior")
+                {
+                    size_t globalID = mesh.Interior_edgeNO[i](j, k).second[0];
 
-    for (std::map<pair<size_t, size_t>, size_t>::iterator its = mesh.Interior_edgeNO.begin();
-         its != mesh.Interior_edgeNO.end(); its++)
-    {
-        size_t yw = its->second;
-        size_t node1 = its->first.second;
-        pData11[yw - 1 + mesh.Interior_edgeNO.size()] = node1;
-    }
+                    if (pData11[globalID - 1] == 0)
+                    {
+                        size_t node1 = mesh.element_2D[i](j, k);
+                        size_t node2 = mesh.element_2D[i](j, (k + 1) % 3);
 
-    M1_.Write_mat(filename, "u", mesh.Interior_edgeNO.size() * 2,
-                  mesh.Interior_edgeNO.size(), 2, pData11, "Interior_edgeNO");
+                        pData11[globalID - 1] = node1;
+                        pData11[(globalID - 1) + mesh.NUM_interior_edges] = node2;
+                    }
+                }
+            }
+    M1_.Write_mat(filename, "u", mesh.NUM_interior_edges * 2,
+                  mesh.NUM_interior_edges, 2, pData11, "Interior_edgeNO");
 
     // m file
     std::ofstream oss(FileKey_m, ios::out);
