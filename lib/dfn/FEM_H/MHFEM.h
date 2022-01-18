@@ -6,7 +6,7 @@
 #include "../Mesh_H/Mesh_DFN_linear.h"
 //#include "../Using_UMFPACK/Using_UMFPACK.h"
 //#include "Eigen/CholmodSupport"
-//#include <Eigen/UmfPackSupport>
+#include <Eigen/UmfPackSupport>
 
 namespace DFN
 {
@@ -260,9 +260,9 @@ inline void MHFEM::Assemble_and_solve(DFN::Mesh_DFN_linear mesh,
                     K.insert(tmp_eleNO + NUM_sep_edges, I[ik]) = (double)round(B_(ik, 0), round_precision);
                 }
 
-                if (mesh.Interior_edgeNO[i](j, ik).first == "interior")
+                if (mesh.Edge_attri_and_NO[i](j, ik).first == "interior")
                 {
-                    size_t global_interiorID = mesh.Interior_edgeNO[i](j, ik).second[0];
+                    size_t global_interiorID = mesh.Edge_attri_and_NO[i](j, ik).second[0];
 
                     K.insert(global_interiorID - 1 + NUM_sep_edges + NUM_eles, I[(ik + 2) % 3]) = -B_((ik + 2) % 3, 0);
                     K.insert(I[(ik + 2) % 3], global_interiorID - 1 + NUM_sep_edges + NUM_eles) = -B_((ik + 2) % 3, 0);
@@ -274,13 +274,13 @@ inline void MHFEM::Assemble_and_solve(DFN::Mesh_DFN_linear mesh,
                         cout << global_interiorID << endl;
                     }*/
                 }
-                else if (mesh.Interior_edgeNO[i](j, ik).first == "in")
+                else if (mesh.Edge_attri_and_NO[i](j, ik).first == "in")
                 {
                     //size_t node_a = mesh.element_2D[i](j, ik);
                     //size_t node_b = mesh.element_2D[i](j, (ik + 1) % 3);
 
-                    size_t Sep_NO_rr = mesh.Interior_edgeNO[i](j, ik).second[0];
-                    size_t ID_1 = mesh.Interior_edgeNO[i](j, ik).second[1];
+                    size_t Sep_NO_rr = mesh.Edge_attri_and_NO[i](j, ik).second[0];
+                    size_t ID_1 = mesh.Edge_attri_and_NO[i](j, ik).second[1];
 
                     //Inlet_edge_sep_NO[ID_1 - 1].first = Sep_NO_rr;
                     //Inlet_edge_sep_NO[ID_1 - 1].second = (double)round(B_((ik + 2) % 3, 0), round_precision);
@@ -289,13 +289,13 @@ inline void MHFEM::Assemble_and_solve(DFN::Mesh_DFN_linear mesh,
                     Inlet_edge_sep_NO[ID_1 - 1] = Triplet<double>(Sep_NO_rr - 1, 0, P_D * (double)round(B_((ik + 2) % 3, 0), round_precision));
                     length_in_out[ID_1 - 1] = (double)round(B_((ik + 2) % 3, 0), round_precision);
                 }
-                else if (mesh.Interior_edgeNO[i](j, ik).first == "out")
+                else if (mesh.Edge_attri_and_NO[i](j, ik).first == "out")
                 {
                     //size_t node_a = mesh.element_2D[i](j, ik);
                     //size_t node_b = mesh.element_2D[i](j, (ik + 1) % 3);
 
-                    size_t Sep_NO_rr = mesh.Interior_edgeNO[i](j, ik).second[0];
-                    size_t ID_1 = mesh.Interior_edgeNO[i](j, ik).second[1];
+                    size_t Sep_NO_rr = mesh.Edge_attri_and_NO[i](j, ik).second[0];
+                    size_t ID_1 = mesh.Edge_attri_and_NO[i](j, ik).second[1];
 
                     // Outlet_edge_sep_NO[ID_1 - 1].first = Sep_NO_rr;
                     // Outlet_edge_sep_NO[ID_1 - 1].second = (double)round(B_((ik + 2) % 3, 0), round_precision);
@@ -304,13 +304,13 @@ inline void MHFEM::Assemble_and_solve(DFN::Mesh_DFN_linear mesh,
                     Outlet_edge_sep_NO[ID_1 - 1] = Triplet<double>(Sep_NO_rr - 1, 0, P_D * (double)round(B_((ik + 2) % 3, 0), round_precision));
                     length_in_out[ID_1 - 1 + mesh.NUM_inlet_edges] = (double)round(B_((ik + 2) % 3, 0), round_precision);
                 }
-                else if (mesh.Interior_edgeNO[i](j, ik).first == "neumann")
+                else if (mesh.Edge_attri_and_NO[i](j, ik).first == "neumann")
                 {
                     //size_t node_a = mesh.element_2D[i](j, ik);
                     //size_t node_b = mesh.element_2D[i](j, (ik + 1) % 3);
 
-                    size_t Sep_NO_rr = mesh.Interior_edgeNO[i](j, ik).second[0];
-                    size_t ID_1 = mesh.Interior_edgeNO[i](j, ik).second[1];
+                    size_t Sep_NO_rr = mesh.Edge_attri_and_NO[i](j, ik).second[0];
+                    size_t ID_1 = mesh.Edge_attri_and_NO[i](j, ik).second[1];
 
                     Neumann_edge_sep_NO[ID_1 - 1] = Sep_NO_rr;
                     //Neumann_edge_sep_NO[ID_1 - 1].second = (double)round(B_((ik + 2) % 3, 0), round_precision);
@@ -353,27 +353,17 @@ inline void MHFEM::Assemble_and_solve(DFN::Mesh_DFN_linear mesh,
     B = K.block(NUM_sep_edges, 0, NUM_eles, NUM_sep_edges);
     C = K.block(NUM_sep_edges + NUM_eles, 0, NUM_glob_interior_edges, NUM_sep_edges);
 
-    K.resize(0, 0);
-
-    A.makeCompressed();
-    B.makeCompressed();
-    C.makeCompressed();
-
     SparseMatrix<double> g = b.block(0, 0, NUM_sep_edges, 1);
 
     SparseMatrix<double> f = b.block(NUM_sep_edges, 0, NUM_eles, 1);
 
-    b.resize(0, 0);
-
-    g.makeCompressed();
-    f.makeCompressed();
     //time_counter_end(start, end, "boundary condition addressing", "in_minutes");
 
     //cout << "*********preparing*********\n";
     //time_counter_start(start);
     SparseMatrix<double> A_inv(A.rows(), A.cols());
     A_inv.reserve(VectorXi::Constant(A.cols(), 3));
-
+    //cout << 1 << endl;
 #pragma omp parallel for schedule(dynamic) num_threads(Nproc_1)
     for (int i = 0; i < A.rows() / 3; ++i)
     {
@@ -384,44 +374,37 @@ inline void MHFEM::Assemble_and_solve(DFN::Mesh_DFN_linear mesh,
             for (int k = i * 3, kq = 0; k < i * 3 + 3; ++k, ++kq)
                 A_inv.insert(j, k) = A_block(jq, kq);
     }
-    A_inv.makeCompressed();
-    A.resize(0, 0);
 
     SparseMatrix<double> C_tps = C.transpose();
-    C_tps.makeCompressed();
+    //cout << 4 << endl;
     SparseMatrix<double> B_tps = B.transpose();
-    B_tps.makeCompressed();
+
     SparseMatrix<double> Wq = B * A_inv;
-    Wq.makeCompressed();
-    B.resize(0, 0);
 
+    //cout << 6 << endl;
     SparseMatrix<double> U = Wq * B_tps;
-
-    //cout << 1 << endl;
-#pragma omp parallel for schedule(dynamic) num_threads(Nproc_1)
     for (int i = 0; i < U.rows(); ++i)
         U.coeffRef(i, i) = 1.0 / U.coeffRef(i, i);
-    //cout << 1 << endl;
-    U.makeCompressed();
+
+    //cout << 8 << endl;
 
     SparseMatrix<double> Re = C * A_inv;
-    Re.makeCompressed();
-    C.resize(0, 0);
-    SparseMatrix<double> Eq = Re * B_tps;
-    Eq.makeCompressed();
-    SparseMatrix<double> Sd = Wq * C_tps;
-    Sd.makeCompressed();
 
+    SparseMatrix<double> Eq = Re * B_tps;
+
+    SparseMatrix<double> Sd = Wq * C_tps;
+    //cout << 9 << endl;
     SparseMatrix<double> D = Re * C_tps - Eq * U * Sd;
-    D.makeCompressed();
+
     SparseMatrix<double> r = Re * g + Eq * U * (f - Wq * g);
-    r.makeCompressed();
+
     //time_counter_end(start, end, "preparing matrice", "in_minutes");
 
     //cout << "*********solving*********\n";
     //time_counter_start(start);
-    SimplicialLDLT<SparseMatrix<double>> solver;
-    pressure_interior_edge = solver.compute(D).solve(r);
+    UmfPackLU<SparseMatrix<double>> solver;
+    solver.compute(D);
+    pressure_interior_edge = solver.solve(r);
     // time_counter_end(start, end, "solving matrice", "in_minutes");
 
     pressure_eles = U * (Wq * g - Sd * pressure_interior_edge - f);
@@ -574,6 +557,7 @@ void MHFEM::Matlab_plot(string FileKey_mat,
                       "element_2D_Frac_" + to_string(i + 1));
 
         //----------------------------------
+        /*
         vector<double> pData2(mesh.coordinate_2D[i].rows() * 2);
 
         for (size_t j = 0; j < (size_t)mesh.coordinate_2D[i].rows() * 2; ++j)
@@ -586,7 +570,7 @@ void MHFEM::Matlab_plot(string FileKey_mat,
         }
         M1_.Write_mat(filename, "u", mesh.coordinate_2D[i].rows() * 2,
                       mesh.coordinate_2D[i].rows(), 2, pData2,
-                      "coordinate_2D_Frac_" + to_string(i + 1));
+                      "coordinate_2D_Frac_" + to_string(i + 1));*/
 
         //----------------------------------
     }
@@ -684,9 +668,9 @@ void MHFEM::Matlab_plot(string FileKey_mat,
         for (size_t j = 0; j < (size_t)mesh.element_2D[i].rows(); ++j)
             for (size_t k = 0; k < 3; ++k)
             {
-                if (mesh.Interior_edgeNO[i](j, k).first == "interior")
+                if (mesh.Edge_attri_and_NO[i](j, k).first == "interior")
                 {
-                    size_t globalID = mesh.Interior_edgeNO[i](j, k).second[0];
+                    size_t globalID = mesh.Edge_attri_and_NO[i](j, k).second[0];
 
                     if (pData11[globalID - 1] == 0)
                     {

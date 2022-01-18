@@ -1,4 +1,5 @@
 #pragma once
+#include "../Geometry_H/Vector_2.h"
 #include "../Quaternion_H/Quaternion.h"
 #include "Dense"
 #include "Polygon_convex_3D.h"
@@ -35,7 +36,7 @@ inline Rotate_to_horizontal::Rotate_to_horizontal(DFN::Polygon_convex_3D Poly)
 {
     DFN::Vector_2 v(Poly.Normal_vector, Ref_axis);
     theta_degree = Poly.Beta;
-    theta_PI = theta_degree * M_PI / 180;   
+    theta_PI = theta_degree * M_PI / 180;
 }
 
 inline Rotate_to_horizontal::Rotate_to_horizontal(DFN::Polygon_convex_3D Poly, std::vector<Vector3d> &verts_rotate)
@@ -62,7 +63,7 @@ inline Rotate_to_horizontal::Rotate_to_horizontal(DFN::Polygon_convex_3D Poly, s
         verts_rotate = verts;
         normal_2 = normal_1;
     }
-    
+
     //-------a piece of debug code----
     for (size_t i = 0; i < verts_rotate.size(); i++)
     {
@@ -102,7 +103,7 @@ inline void Rotate_to_horizontal::Rotate_other_pnts(const std::vector<Vector3d> 
     If_on_horizontal = true;
     for (size_t i = 0; i < verts_rotate.size(); i++)
     {
-        if (abs(verts_rotate[i](2)) > 0.005)
+        if (abs(verts_rotate[i](2)) > 0.05)
         {
             If_on_horizontal = false;
             break;
@@ -143,7 +144,7 @@ inline void Rotate_to_horizontal::Rotate_back_without_z(const std::vector<Vector
     else
     {
         verts_rotate = verts;
-    }   
+    }
 };
 
 }; // namespace DFN

@@ -1,7 +1,8 @@
 #pragma once
 #include "../Eigen_API/Eigen_API.h"
 #include "../Geometry_H/NorVec_plane.h"
-#include "../Geometry_H/Vector_2.h"
+#include "../Geometry_H/Rotate_to_horizontal.h"
+//#include "../Geometry_H/Vector_2.h"
 #include "../Math_WL_H/Math_WL.h"
 #include "../Quaternion_H/Quaternion.h"
 #include "Dense"
@@ -34,6 +35,7 @@ public:
     double Conductivity = 1.;
 
     std::vector<Vector3d> Verts;
+    std::vector<Vector3d> Verts_2D;
     std::vector<Vector3d> Verts_trim;
     Vector3d Center;                                  ///< the center of the fractures (circle-controlled)
     Vector3d Normal_vector;                           ///< normal vector
@@ -80,6 +82,8 @@ public:
              double Last_frac_size,
              string conductivity_distri);
     ///< used to represent model surface
+
+    MatrixXd Rotation_Matrix_3DTo2D(Vector3d add_);
 };
 
 // 1
@@ -255,6 +259,8 @@ inline Fracture::Fracture(string string_ori,
         Rotation(temp1, Q_axis_z2, temp2);
         Verts[i] = temp2;
     };
+
+    Verts_2D = Verts;
 
     Vector3d temp3;
     DFN::Vector_2 v(Normal_vector, temp3);
@@ -490,6 +496,7 @@ inline Fracture::Fracture(string string_ori,
                  temp2);
         Verts[i] = temp2;
     };
+    Verts_2D = Verts;
 
     Vector3d temp3;
     DFN::Vector_2 v(Normal_vector, temp3);
@@ -603,6 +610,18 @@ inline Fracture::Fracture(size_t _Tag,
     Verts.resize(Nvertices);
     for (size_t i = 0; i < Nvertices; ++i)
         Verts[i] = _Verts[i];
+
+    DFN::Polygon_convex_3D poly{Verts};
+    std::vector<Vector3d> verts_kk;
+
+    DFN::Rotate_to_horizontal R1{poly.Corners, verts_kk};
+
+    this->Verts_2D = verts_kk;
+
+    /*
+    cout << "Verts_2D\n";
+    for (size_t i = 0; i < Nvertices; ++i)
+        cout << Verts_2D[i].transpose() << endl;*/
 
     double beta = acos(n / Normal_vector.norm()) * 180.0 /
                   M_PI;
@@ -852,6 +871,7 @@ inline Fracture::Fracture(bool mode2D,
         Rotation(temp1, Q_axis_z2, temp2);
         Verts[i] = temp2;
     };
+    Verts_2D = Verts;
 
     Vector3d temp3;
     DFN::Vector_2 v(Normal_vector, temp3);
@@ -980,4 +1000,63 @@ inline Fracture::Fracture(bool mode2D,
     Area_trim = Area;
     Perimeter_trim = Perimeter;
 };
+
+inline MatrixXd Fracture::Rotation_Matrix_3DTo2D(Vector3d add_)
+{
+    Vector3d u, u_, v, v_, w, w_;
+
+    u = this->Verts[0];
+    v = this->Verts[1];
+    w = this->Verts[2];
+
+    MatrixXd tmp_c = MatrixXd::Zero(3, 3);
+    tmp_c.col(0) = u;
+    tmp_c.col(1) = v;
+    tmp_c.col(2) = w;
+
+    u += add_;
+    v += add_;
+    w += add_;
+
+    u_ = this->Verts_2D[0];
+    v_ = this->Verts_2D[1];
+    w_ = this->Verts_2D[2];
+
+    Vector3d yt = u + (v - u).cross(w - u);
+    Vector3d yt_ = u_ + (v_ - u_).cross(w_ - u_);
+
+    //cout << "yt: " << yt.transpose() << endl;
+    //cout << "yt_: " << yt.transpose() << endl;
+
+    Vector4d y, y_;
+    y << yt[0], yt[1], yt[2], 1;
+    y_ << yt_[0], yt_[1], yt_[2], 1;
+
+    MatrixXd M, M_;
+    M = MatrixXd::Zero(4, 4);
+    M_ = M;
+
+    M.col(0) << u[0], u[1], u[2], 0;
+    M.col(1) << v[0], v[1], v[2], 0;
+    M.col(2) << w[0], w[1], w[2], 0;
+
+    M_.col(0) << u_[0], u_[1], u_[2], 0;
+    M_.col(1) << v_[0], v_[1], v_[2], 0;
+    M_.col(2) << w_[0], w_[1], w_[2], 0;
+    M.col(3) = y;
+    M_.col(3) = y_;
+
+    /*
+    cout << "M:\n"
+         << M << endl;
+    cout << "M.inverse:\n"
+         << M.inverse() << endl;
+    cout << "M_: " << M_ << endl;
+
+    cout << M_ * M.inverse() << endl;
+    */
+    
+    return M_ * M.inverse();
+};
+
 } // namespace DFN

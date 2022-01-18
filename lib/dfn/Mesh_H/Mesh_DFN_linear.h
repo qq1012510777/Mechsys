@@ -43,11 +43,14 @@ public:
     //vector<MatrixXs> Dirichlet_attri;
     //vector<MatrixXs> Interior_edges;
 
-    vector<MatrixX_st_v2d> Interior_edgeNO;
-    vector<vector<Vector3d>> Interior_edgeNO_to_ele_edge;
-    std::map<pair<size_t, size_t>, size_t> Inlet_edges;
-    std::map<pair<size_t, size_t>, size_t> Outlet_edges;
-    std::map<pair<size_t, size_t>, size_t> Neumann_edges;
+    //vector<MatrixX_st_v2d> Interior_edgeNO;
+    //vector<vector<Vector3d>> Interior_edgeNO_to_ele_edge;
+    //std::map<pair<size_t, size_t>, size_t> Inlet_edges;
+    //std::map<pair<size_t, size_t>, size_t> Outlet_edges;
+    //std::map<pair<size_t, size_t>, size_t> Neumann_edges;
+    //SparseMatrix<size_t> Interior_edgeNO;
+
+    vector<MatrixX_st_v2d> Edge_attri_and_NO;
 
     size_t NUM_interior_edges = 0;
     size_t NUM_inlet_edges = 0;
@@ -55,10 +58,12 @@ public:
     size_t NUM_neumann_edges = 0;
     size_t dir_ = 2;
 
-    std::map<pair<size_t, size_t>, double> Edge_length;
+    SparseMatrix<double> Edge_length;
     double mean_edge_length = 0;
     double max_edge_length = 0;
     double min_edge_length = 1e5;
+
+    size_t Nproc_global = 1;
 
 public:
     Mesh_DFN_linear();
@@ -77,6 +82,7 @@ private:
     void Identify_point_attribute(DFN::Domain dom);
     void Numbering_edges(DFN::Domain dom);
     void Modify_the_triangle_orientation();
+    void Identify_ele_fracNO(DFN::Domain dom);
 
 private:
     bool If_interior_edge(size_t node1, size_t node2);
@@ -95,7 +101,7 @@ inline Mesh_DFN_linear::Mesh_DFN_linear(DFN::Domain dom,
                                         size_t Nproc)
 {
     this->dir_ = dir;
-
+    this->Nproc_global = Nproc;
     //---------------------------------------
     if (dom.Percolation_cluster[dir].size() > 1)
     {
@@ -122,6 +128,7 @@ inline Mesh_DFN_linear::Mesh_DFN_linear(DFN::Domain dom,
         //gmsh::option::setNumber("General.NumThreads", Nproc);
         gmsh::option::setNumber("General.Verbosity", 2); // default level is 5
         gmsh::model::add("t2");
+        gmsh::model::mesh::clear();
         //cout << "size: " << dom.Percolation_cluster[dir].size() << endl;
         //cout << "status: " << dom.Percolation_status[dir] << endl;
 
@@ -273,113 +280,18 @@ inline Mesh_DFN_linear::Mesh_DFN_linear(DFN::Domain dom,
         }
         //cout << 2 << endl;
         //------------2D
-        this->element_2D.resize(this->Frac_Tag.size());
-        vector<size_t> Num_eles_each_frac(this->Frac_Tag.size(), 0);
 
-        std::vector<std::pair<int, int>> entities;
-        gmsh::model::getEntities(entities, 2);
-        for (size_t i = 0; i < entities.size(); ++i)
-        {
-            elemTypes.clear();
-            elemTags.clear();
-            elemNodeTags.clear();
-            gmsh::model::mesh::getElements(elemTypes, elemTags, elemNodeTags, entities[i].first, entities[i].second);
-            size_t NUM_ele_frac = elemNodeTags[0].size() / 3;
-            //cout << elemNodeTags[0].size() / 3 << endl;
-
-            // identify which frac the elements belongs to
-
-            size_t i_th_ele = 0;
-
-            i_th_ele = random_unsigned_integer(0, NUM_ele_frac - 1);
-
-            MatrixXs tmp_ele;
-            tmp_ele = MatrixXs::Zero(3, 1);
-            tmp_ele << elemNodeTags[0][3 * i_th_ele], elemNodeTags[0][3 * i_th_ele + 1], elemNodeTags[0][3 * i_th_ele + 2];
-            Vector3d A, B, C;
-
-            A << (double)coordinate_3D(tmp_ele(0, 0) - 1, 0),
-                (double)coordinate_3D(tmp_ele(0, 0) - 1, 1),
-                (double)coordinate_3D(tmp_ele(0, 0) - 1, 2);
-
-            B << (double)coordinate_3D(tmp_ele(1, 0) - 1, 0),
-                (double)coordinate_3D(tmp_ele(1, 0) - 1, 1),
-                (double)coordinate_3D(tmp_ele(1, 0) - 1, 2);
-
-            C << (double)coordinate_3D(tmp_ele(2, 0) - 1, 0),
-                (double)coordinate_3D(tmp_ele(2, 0) - 1, 1),
-                (double)coordinate_3D(tmp_ele(2, 0) - 1, 2);
-
-            DFN::Point_3D ElePnt_1{A};
-            DFN::Point_3D ElePnt_2{B};
-            DFN::Point_3D ElePnt_3{C};
-
-            size_t Frac_NO = 0;
-
-            for (size_t k = 0; k < this->Frac_Tag.size(); ++k)
-            {
-                size_t FracID_ = this->Frac_Tag[k];
-                if ((ElePnt_1.If_lies_on_the_bounds_of_polygon(dom.Fractures[FracID_].Verts_trim) == true || ElePnt_1.If_lies_within_a_polygon_3D(dom.Fractures[FracID_].Verts_trim) == true) &&
-                    (ElePnt_2.If_lies_on_the_bounds_of_polygon(dom.Fractures[FracID_].Verts_trim) == true || ElePnt_2.If_lies_within_a_polygon_3D(dom.Fractures[FracID_].Verts_trim) == true) &&
-                    (ElePnt_3.If_lies_on_the_bounds_of_polygon(dom.Fractures[FracID_].Verts_trim) == true || ElePnt_3.If_lies_within_a_polygon_3D(dom.Fractures[FracID_].Verts_trim) == true))
-                {
-                    Frac_NO = k;
-                    break;
-                }
-
-                if (k == this->Frac_Tag.size() - 1)
-                    throw Error_throw_ignore("Cannot find which frac does this element lie on. In class Mesh_DFN_overall");
-            }
-
-            size_t ori_rows = element_2D[Frac_NO].rows();
-            element_2D[Frac_NO].conservativeResize(ori_rows + NUM_ele_frac, 3);
-
-            for (size_t i = 0; i < elemNodeTags[0].size(); i += 3)
-            {
-                this->element_2D[Frac_NO].row(i / 3 + ori_rows) << (size_t)elemNodeTags[0][i],
-                    (size_t)elemNodeTags[0][i + 1],
-                    (size_t)elemNodeTags[0][i + 2];
-            }
-        }
-
-        for (size_t i = 0; i < this->element_2D.size(); ++i)
-        {
-            //cout << 3 << endl;
-            vector<int> row_to_revomve_1;
-            for (size_t j = 0; j < (size_t)this->element_2D[i].rows(); ++j)
-            {
-                vector<RowVector3f> coord_(3);
-
-                size_t node1 = this->element_2D[i](j, 0) - 1;
-                size_t node2 = this->element_2D[i](j, 1) - 1;
-                size_t node3 = this->element_2D[i](j, 2) - 1;
-
-                coord_[0] = this->coordinate_3D.row(node1);
-                coord_[1] = this->coordinate_3D.row(node2);
-                coord_[2] = this->coordinate_3D.row(node3);
-
-                DFN::If_skinny_triangle SKINNY{coord_};
-
-                if (SKINNY.If_skinny == true)
-                    row_to_revomve_1.push_back(j);
-            }
-
-            if (row_to_revomve_1.size() >= 1)
-            {
-                MatrixXs ATE = removeMatrixXsRow(this->element_2D[i], row_to_revomve_1);
-                this->element_2D[i].resize(this->element_2D[i].rows() - row_to_revomve_1.size(),
-                                           3);
-                this->element_2D[i] = ATE;
-            }
-            //cout << 4 << endl;
-        }
-
+        //-----------
+        //cout << "Identify_ele_fracNO\n";
+        this->Identify_ele_fracNO(dom);
+        //cout << "Generate_2D_nodes\n";
         this->Generate_2D_nodes(dom);
-
+        //cout << "Modify_the_triangle_orientation\n";
         this->Modify_the_triangle_orientation();
         this->Identify_point_attribute(dom);
         //cout << this->element_2D[0] << endl;
         //cout << "-------\n";
+        //cout << "Numbering_edges\n";
         this->Numbering_edges(dom);
 
         /*
@@ -412,7 +324,63 @@ inline Mesh_DFN_linear::Mesh_DFN_linear(DFN::Domain dom,
 inline void Mesh_DFN_linear::Generate_2D_nodes(DFN::Domain dom)
 {
     this->coordinate_2D.resize(this->Frac_Tag.size());
+    size_t Nproc_ = this->Nproc_global;
 
+#pragma omp parallel for schedule(dynamic) num_threads(Nproc_)
+    for (size_t i = 0; i < this->Frac_Tag.size(); ++i)
+    {
+        Eigen::SparseMatrix<float> m1(this->coordinate_3D.rows(), 2);
+        m1.reserve(VectorXi::Constant(2, this->coordinate_3D.rows()));
+
+        VectorXd PNT_INDICATOR = Eigen::VectorXd::Zero(this->coordinate_3D.rows());
+
+        size_t Frac_Tag = this->Frac_Tag[i];
+        Vector3d add_;
+        add_ << random_double(1, 10), random_double(1, 10), random_double(1, 10);
+        MatrixXd A = dom.Fractures[Frac_Tag].Rotation_Matrix_3DTo2D(add_);
+
+        for (size_t j = 0; j < (size_t)element_2D[i].rows(); ++j)
+        {
+            for (size_t k = 0; k < 3; ++k)
+            {
+                //cout << 1 << endl;
+                size_t PNT_ID = element_2D[i](j, k) - 1;
+                //cout << "PNT_ID " << PNT_ID << endl;
+                if (PNT_INDICATOR[PNT_ID] == 0)
+                {
+                    /////cout << 1.1 << endl;
+                    PNT_INDICATOR[PNT_ID] = 1;
+                    //cout << 1.2 << endl;
+
+                    Vector4d PNT_RR, PNT_WW;
+                    PNT_RR << (double)this->coordinate_3D(PNT_ID, 0) + add_[0],
+                        (double)this->coordinate_3D(PNT_ID, 1) + add_[1],
+                        (double)this->coordinate_3D(PNT_ID, 2) + add_[2],
+                        0;
+
+                    //cout << 1.3 << endl;
+                    PNT_WW = A * PNT_RR;
+
+                    //cout << 1.5 << endl;
+                    if (abs(PNT_WW[2]) > 1e-3)
+                    {
+                        cout << PNT_WW.transpose() << endl;
+                        cout << "Rotate pnts to 2D failed! In class 'Mesh_DFN_linear'!\n";
+                        throw Error_throw_ignore("Rotate pnts to 2D failed! In class 'Mesh_DFN_linear'!\n");
+                    }
+                    m1.insert(PNT_ID, 0) = (float)PNT_WW[0];
+                    m1.insert(PNT_ID, 1) = (float)PNT_WW[1];
+                }
+                //cout << 2 << endl;
+            }
+        }
+        m1.makeCompressed();
+        this->coordinate_2D[i] = m1;
+        //cout << m1.rows() << ", " << m1.cols() << endl;
+    }
+
+    /*
+#pragma omp parallel for schedule(dynamic) num_threads(Nproc_)
     for (size_t i = 0; i < this->Frac_Tag.size(); ++i)
     {
         //cout << this->Frac_Tag.size() << endl;
@@ -453,6 +421,7 @@ inline void Mesh_DFN_linear::Generate_2D_nodes(DFN::Domain dom)
                     //cout << 1.5 << endl;
                     if (UY == false)
                     {
+                        cout << verts2[0] << endl;
                         cout << "Rotate pnts to 2D failed! In class 'Mesh_DFN_linear'!\n";
                         throw Error_throw_ignore("Rotate pnts to 2D failed! In class 'Mesh_DFN_linear'!\n");
                     }
@@ -465,7 +434,7 @@ inline void Mesh_DFN_linear::Generate_2D_nodes(DFN::Domain dom)
         m1.makeCompressed();
         this->coordinate_2D[i] = m1;
         //cout << m1.rows() << ", " << m1.cols() << endl;
-    }
+    }*/
 };
 
 inline void Mesh_DFN_linear::Modify_the_triangle_orientation()
@@ -473,6 +442,8 @@ inline void Mesh_DFN_linear::Modify_the_triangle_orientation()
 
     std::vector<bool> If_clockwise(this->Frac_Tag.size());
 
+    size_t Nproc_ = this->Nproc_global;
+#pragma omp parallel for schedule(dynamic) num_threads(Nproc_)
     for (size_t i = 0; i < If_clockwise.size(); ++i)
     {
 
@@ -509,6 +480,120 @@ inline void Mesh_DFN_linear::Modify_the_triangle_orientation()
     }
 };
 
+inline void Mesh_DFN_linear::Numbering_edges(DFN::Domain dom)
+{
+    Edge_attri_and_NO.resize(element_2D.size());
+
+    SparseMatrix<size_t> Shared_edge_global_NO(this->coordinate_3D.rows(), this->coordinate_3D.rows());
+    Shared_edge_global_NO.reserve(VectorXi::Constant(this->coordinate_3D.rows(), 4));
+
+    Edge_length.resize(this->coordinate_3D.rows(), this->coordinate_3D.rows());
+    Edge_length.reserve(VectorXi::Constant(this->coordinate_3D.rows(), 1));
+
+    size_t edge_shared = 1;
+
+    size_t Sep_edge_NO_in = 1;
+    size_t Sep_edge_NO_out = 1;
+    size_t Sep_edge_NO_neumann = 1;
+
+    for (size_t i = 0; i < element_2D.size(); ++i)
+    {
+        SparseMatrix<double> node2element_local = Node2element(i);
+        Edge_attri_and_NO[i].resize(element_2D[i].rows(), 3);
+        for (size_t j = 0; j < (size_t)element_2D[i].rows(); ++j)
+        {
+            size_t tmp_ele_NO = Element_ID(i, j);
+
+            for (size_t k = 0; k < 3; ++k)
+            {
+                size_t Sep_NO = tmp_ele_NO * 3 + k + 1;
+
+                Edge_attri_and_NO[i](j, k).first = "nothing";
+                Edge_attri_and_NO[i](j, k).second << 0, 0;
+
+                size_t node1 = element_2D[i](j, k),
+                       node2 = element_2D[i](j, (k + 1) % 3);
+
+                if (node2element_local.coeffRef(node1 - 1, node2 - 1) != 0 && node2element_local.coeffRef(node2 - 1, node1 - 1) != 0)
+                {
+                    //shared edge
+                    Edge_attri_and_NO[i](j, k).first = "interior";
+                    Edge_attri_and_NO[i](j, k).second << 0, 0;
+
+                    if (Shared_edge_global_NO.coeffRef(node1 - 1, node2 - 1) == 0)
+                    {
+                        Edge_attri_and_NO[i](j, k).second << edge_shared, Sep_NO;
+                        Shared_edge_global_NO.coeffRef(node1 - 1, node2 - 1) = edge_shared;
+                        Shared_edge_global_NO.coeffRef(node2 - 1, node1 - 1) = edge_shared;
+                        edge_shared++;
+                    }
+                    else
+                        Edge_attri_and_NO[i](j, k).second << Shared_edge_global_NO.coeffRef(node1 - 1, node2 - 1), Sep_NO;
+                }
+                else
+                {
+                    // boundary edge
+                    string A_t;
+                    bool ty_1 = If_two_pnts_Dirchlet(node1, node2, A_t);
+
+                    if (ty_1 == true)
+                    {
+                        if (A_t == "in")
+                        {
+                            Edge_attri_and_NO[i](j, k).first = "in";
+                            Edge_attri_and_NO[i](j, k).second << Sep_NO, Sep_edge_NO_in;
+                            Sep_edge_NO_in++;
+                        }
+                        else
+                        {
+                            Edge_attri_and_NO[i](j, k).first = "out";
+                            Edge_attri_and_NO[i](j, k).second << Sep_NO, Sep_edge_NO_out;
+                            Sep_edge_NO_out++;
+                        }
+                    }
+                    else
+                    {
+                        Edge_attri_and_NO[i](j, k).first = "neumann";
+                        Edge_attri_and_NO[i](j, k).second << Sep_NO, Sep_edge_NO_neumann;
+                        Sep_edge_NO_neumann++;
+                    }
+                }
+
+                double len = (this->coordinate_3D.row(node1 - 1) -
+                              this->coordinate_3D.row(node2 - 1))
+                                 .norm();
+
+                std::pair<size_t, size_t> At_ = std::make_pair(node1 < node2 ? node1 : node2,
+                                                               node1 > node2 ? node1 : node2);
+
+                this->Edge_length.coeffRef(At_.first - 1, At_.second - 1) = len;
+            }
+        }
+    }
+
+    this->Edge_length.makeCompressed();
+
+    NUM_interior_edges = edge_shared - 1;
+    NUM_inlet_edges = Sep_edge_NO_in - 1;
+    NUM_outlet_edges = Sep_edge_NO_out - 1;
+    NUM_neumann_edges = Sep_edge_NO_neumann - 1;
+
+    double len_totoal = 0;
+    for (int k = 0; k < Edge_length.outerSize(); ++k)
+    {
+        for (SparseMatrix<double>::InnerIterator it(Edge_length, k); it; ++it)
+        {
+            double len = Edge_length.coeffRef(it.row(), it.col());
+
+            this->max_edge_length = max_edge_length > len ? max_edge_length : len;
+            this->min_edge_length = min_edge_length < len ? min_edge_length : len;
+            len_totoal += len;
+        }
+    }
+
+    this->mean_edge_length = len_totoal / (NUM_interior_edges + NUM_inlet_edges + NUM_outlet_edges + NUM_neumann_edges);
+}
+/*
 inline void Mesh_DFN_linear::Numbering_edges(DFN::Domain dom)
 {
     Interior_edgeNO.resize(element_2D.size());
@@ -728,7 +813,7 @@ inline void Mesh_DFN_linear::Numbering_edges(DFN::Domain dom)
     }
 
     this->mean_edge_length = len_totoal / this->Edge_length.size();
-};
+};*/
 
 inline bool Mesh_DFN_linear::If_two_pnts_Neumann(size_t node1, size_t node2)
 {
@@ -870,6 +955,72 @@ inline void Mesh_DFN_linear::Identify_point_attribute(DFN::Domain dom)
     };
 };
 
+inline void Mesh_DFN_linear::Identify_ele_fracNO(DFN::Domain dom)
+{
+    this->element_2D.resize(this->Frac_Tag.size());
+
+    vector<size_t> Num_ele_in_frac(this->Frac_Tag.size(), 0);
+
+    vector<pair<size_t, size_t>> Tag__ele__(this->element_3D.size());
+
+    //---------
+    size_t Nproc = this->Nproc_global;
+#pragma omp parallel for schedule(dynamic) num_threads(Nproc)
+    for (int i = 0; i < this->element_3D.rows(); ++i)
+    {
+        size_t node1 = this->element_3D(i, 0),
+               node2 = this->element_3D(i, 1),
+               node3 = this->element_3D(i, 2);
+
+        Vector3d A, B, C;
+        A << (double)coordinate_3D(node1 - 1, 0),
+            (double)coordinate_3D(node1 - 1, 1),
+            (double)coordinate_3D(node1 - 1, 2);
+
+        B << (double)coordinate_3D(node2 - 1, 0),
+            (double)coordinate_3D(node2 - 1, 1),
+            (double)coordinate_3D(node2 - 1, 2);
+
+        C << (double)coordinate_3D(node3 - 1, 0),
+            (double)coordinate_3D(node3 - 1, 1),
+            (double)coordinate_3D(node3 - 1, 2);
+
+        DFN::Point_3D ElePnt_1{A};
+        DFN::Point_3D ElePnt_2{B};
+        DFN::Point_3D ElePnt_3{C};
+
+        for (size_t k = 0; k < this->Frac_Tag.size(); ++k)
+        {
+            size_t FracID_ = this->Frac_Tag[k];
+            if ((ElePnt_1.If_lies_on_the_bounds_of_polygon(dom.Fractures[FracID_].Verts_trim) == true || ElePnt_1.If_lies_within_a_polygon_3D(dom.Fractures[FracID_].Verts_trim) == true) &&
+                (ElePnt_2.If_lies_on_the_bounds_of_polygon(dom.Fractures[FracID_].Verts_trim) == true || ElePnt_2.If_lies_within_a_polygon_3D(dom.Fractures[FracID_].Verts_trim) == true) &&
+                (ElePnt_3.If_lies_on_the_bounds_of_polygon(dom.Fractures[FracID_].Verts_trim) == true || ElePnt_3.If_lies_within_a_polygon_3D(dom.Fractures[FracID_].Verts_trim) == true))
+            {
+                {
+#pragma omp critical
+                    {
+                        Num_ele_in_frac[k]++;
+                        Tag__ele__[i].second = Num_ele_in_frac[k] - 1;
+                    }
+                    Tag__ele__[i].first = k;
+                }
+                break;
+            }
+
+            if (k == this->Frac_Tag.size() - 1)
+                throw Error_throw_ignore("Cannot find which frac does this element lie on. In class Mesh_DFN_overall");
+        }
+    }
+
+#pragma omp parallel for schedule(dynamic) num_threads(Nproc)
+    for (size_t i = 0; i < this->Frac_Tag.size(); ++i)
+        this->element_2D[i].resize(Num_ele_in_frac[i], 3);
+
+#pragma omp parallel for schedule(dynamic) num_threads(Nproc)
+    for (int i = 0; i < this->element_3D.rows(); ++i)
+        this->element_2D[Tag__ele__[i].first].row(Tag__ele__[i].second) = this->element_3D.row(i);
+};
+
 inline SparseMatrix<double> Mesh_DFN_linear::Node2element(size_t i)
 {
     size_t Dim = this->coordinate_3D.rows();
@@ -931,6 +1082,7 @@ void Mesh_DFN_linear::Matlab_plot(string FileKey_mat,
                       "element_2D_Frac_" + to_string(i + 1));
 
         //----------------------------------
+        /*
         vector<double> pData2(this->coordinate_2D[i].rows() * 2);
 
         for (size_t j = 0; j < (size_t)this->coordinate_2D[i].rows() * 2; ++j)
@@ -943,7 +1095,7 @@ void Mesh_DFN_linear::Matlab_plot(string FileKey_mat,
         }
         M1_.Write_mat(filename, "u", this->coordinate_2D[i].rows() * 2,
                       this->coordinate_2D[i].rows(), 2, pData2,
-                      "coordinate_2D_Frac_" + to_string(i + 1));
+                      "coordinate_2D_Frac_" + to_string(i + 1));*/
 
         //----------------------------------
     }
@@ -979,6 +1131,28 @@ void Mesh_DFN_linear::Matlab_plot(string FileKey_mat,
                   this->element_3D.rows(), 3, pData5, FracJM_s);
 
     //---------------------
+    std::map<pair<size_t, size_t>, size_t> Inlet_edges, Outlet_edges, Neumann_edges, Interior_edgeNO;
+    for (size_t i = 0; i < element_2D.size(); ++i)
+        for (int j = 0; j < element_2D[i].rows(); ++j)
+        {
+            for (int k = 0; k < 3; ++k)
+            {
+                size_t node1 = element_2D[i](j, k),
+                       node2 = element_2D[i](j, (k + 1) % 3);
+                std::pair<size_t, size_t> At_ = std::make_pair(node1 < node2 ? node1 : node2,
+                                                               node1 > node2 ? node1 : node2);
+
+                if (this->Edge_attri_and_NO[i](j, k).first == "in")
+                    Inlet_edges.insert(std::make_pair(At_, 0));
+                else if (this->Edge_attri_and_NO[i](j, k).first == "out")
+                    Outlet_edges.insert(std::make_pair(At_, 0));
+                else if (this->Edge_attri_and_NO[i](j, k).first == "neumann")
+                    Neumann_edges.insert(std::make_pair(At_, 0));
+                else
+                    Interior_edgeNO.insert(std::make_pair(At_, 0));
+            }
+        }
+
     vector<double> pData6(Inlet_edges.size() * 2);
     size_t yw = 0;
     for (std::map<pair<size_t, size_t>, size_t>::iterator its = Inlet_edges.begin();
@@ -1044,8 +1218,6 @@ void Mesh_DFN_linear::Matlab_plot(string FileKey_mat,
     M1_.Write_mat(filename, "u", Neumann_edges.size() * 2,
                   Neumann_edges.size(), 2, pData8, "Neumann_edges");
 
-    //-------------------------
-    /*
     vector<double> pData9(Interior_edgeNO.size() * 2);
     yw = 0;
     for (std::map<pair<size_t, size_t>, size_t>::iterator its = Interior_edgeNO.begin();
@@ -1066,29 +1238,7 @@ void Mesh_DFN_linear::Matlab_plot(string FileKey_mat,
 
     M1_.Write_mat(filename, "u", Interior_edgeNO.size() * 2,
                   Interior_edgeNO.size(), 2, pData9, "Interior_edgeNO");
-    */
-    vector<double> pData9(NUM_interior_edges * 2, 0);
 
-    for (size_t i = 0; i < element_2D.size(); ++i)
-        for (size_t j = 0; j < (size_t)element_2D[i].rows(); ++j)
-            for (size_t k = 0; k < 3; ++k)
-            {
-                if (this->Interior_edgeNO[i](j, k).first == "interior")
-                {
-                    size_t globalID = this->Interior_edgeNO[i](j, k).second[0];
-
-                    if (pData9[globalID - 1] == 0)
-                    {
-                        size_t node1 = element_2D[i](j, k);
-                        size_t node2 = element_2D[i](j, (k + 1) % 3);
-
-                        pData9[globalID - 1] = node1;
-                        pData9[(globalID - 1) + NUM_interior_edges] = node2;
-                    }
-                }
-            }
-    M1_.Write_mat(filename, "u", NUM_interior_edges * 2,
-                  NUM_interior_edges, 2, pData9, "Interior_edgeNO");
     // m file
     std::ofstream oss(FileKey_m, ios::out);
     oss << "clc;\nclose all;\nclear all;";
