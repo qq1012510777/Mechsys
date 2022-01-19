@@ -1,6 +1,6 @@
 #pragma once
 #include "Collinear_2D.h"
-#include "Dense"
+#include "Eigen/Dense"
 #include "Interval_1D.h"
 #include "Point_2D.h"
 #include "Polygon_convex_2D.h"

@@ -1,5 +1,5 @@
 #pragma once
-#include "Dense"
+#include "Eigen/Dense"
 #include "../Error_throw/Error_throw.h"
 
 // Std Lib

@@ -1,6 +1,6 @@
 #pragma once
 #include "Collinear_2D.h"
-#include "Dense"
+#include "Eigen/Dense"
 #include "Rotation_verts.h"
 #include <cmath>
 #include <iostream>

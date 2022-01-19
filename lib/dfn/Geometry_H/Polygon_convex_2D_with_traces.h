@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Dense"
+#include "Eigen/Dense"
 #include "Distance_2D.h"
 #include "Line_seg_2D.h"
 #include "Point_2D.h"

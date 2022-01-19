@@ -18,12 +18,11 @@
 # Fifth Floor, Boston, MA 02110-1301, USA                                           #
 #####################################################################################
 
-SET(EIGEN_DEPENENCY_SEARCH_PATH
-  $ENV{MECHSYS_ROOT}/pkg/Eigen
-  $ENV{HOME}/pkg/Eigen
+SET(EIGEN_INCLUDE_SEARCH_PATH
+  $ENV{MECHSYS_ROOT}/pkg
   $ENV{HOME}/pkg)
 
-FIND_PATH(EIGEN_DENSE Dense ${EIGEN_DEPENENCY_SEARCH_PATH})
+FIND_PATH(EIGEN_DENSE Eigen ${EIGEN_INCLUDE_SEARCH_PATH})
 
 SET(EIGEN_FOUND 1)
 FOREACH(var EIGEN_DENSE)

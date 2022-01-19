@@ -1,6 +1,6 @@
 #pragma once
 #include "../Math_WL_H/Math_WL.h"
-#include "Dense"
+#include "Eigen/Dense"
 #include "Line_seg_3D.h"
 #include <cmath>
 #include <iostream>

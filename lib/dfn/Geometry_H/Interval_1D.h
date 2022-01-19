@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Dense"
+#include "Eigen/Dense"
 #include <cmath>
 #include <iostream>
 #include <set>

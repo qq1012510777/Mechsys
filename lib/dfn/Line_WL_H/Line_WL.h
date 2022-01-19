@@ -4,7 +4,7 @@
 #include <ctime>
 #include <cmath>
 #include <vector>
-#include "Dense"
+#include "Eigen/Dense"
 
 using namespace std;
 using namespace Eigen;

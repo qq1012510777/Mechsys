@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Dense"
+#include "Eigen/Dense"
 #include "Line_seg_2D.h"
 #include "Rotation_verts.h"
 #include "Vector_2.h"

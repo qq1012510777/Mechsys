@@ -5,7 +5,7 @@
 //#include "../Geometry_H/Vector_2.h"
 #include "../Math_WL_H/Math_WL.h"
 #include "../Quaternion_H/Quaternion.h"
-#include "Dense"
+#include "Eigen/Dense"
 #include "Random_function_WL.h"
 #include <cmath>
 #include <iostream>

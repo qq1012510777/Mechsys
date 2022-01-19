@@ -1,7 +1,7 @@
 #pragma once
 
 #include "../Quaternion_H/Quaternion.h"
-#include "Dense"
+#include "Eigen/Dense"
 #include "Polygon_convex_2D_with_traces.h"
 #include <cmath>
 #include <iostream>

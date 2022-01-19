@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Dense"
+#include "Eigen/Dense"
 #include "Point_2D.h"
 #include <cmath>
 #include <iostream>

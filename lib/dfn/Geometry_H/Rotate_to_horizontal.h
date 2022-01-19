@@ -1,7 +1,7 @@
 #pragma once
 #include "../Geometry_H/Vector_2.h"
 #include "../Quaternion_H/Quaternion.h"
-#include "Dense"
+#include "Eigen/Dense"
 #include "Polygon_convex_3D.h"
 #include "Rotation_verts.h"
 #include <cmath>

@@ -6,6 +6,7 @@
 #include "../Mesh_H/Mesh_DFN_linear.h"
 #include "../ProgressBar/ProgressBar.h"
 #include "Domain_WL.h"
+#include "Load_a_DFN_from_matfile.h"
 #include <cstdio>
 #include <omp.h>
 #include <stdio.h>
