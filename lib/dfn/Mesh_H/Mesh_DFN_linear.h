@@ -20,10 +20,10 @@ public:
     bool mesh_state = true;
     std::vector<size_t> Frac_Tag;
 
-    std::vector<Sp_f_mat> coordinate_2D;
+    std::vector<Sp_d_mat> coordinate_2D;
     std::vector<MatrixXs> element_2D;
 
-    MatrixXf coordinate_3D;
+    MatrixXd coordinate_3D;
     vector<Vector7b> _Pnt_attri;
     //bool If_model_right = false;
     //bool If_model_left = false;
@@ -241,7 +241,7 @@ inline Mesh_DFN_linear::Mesh_DFN_linear(DFN::Domain dom,
         coordinate_3D.resize(NUM_nodes, 3);
 
         for (size_t i = 0; i < coord.size(); i += 3)
-            coordinate_3D.row(i / 3) << (float)coord[i], (float)coord[i + 1], (float)coord[i + 2];
+            coordinate_3D.row(i / 3) << coord[i], coord[i + 1], coord[i + 2];
 
         std::vector<int> elemTypes;
         std::vector<std::vector<std::size_t>> elemTags, elemNodeTags;
@@ -255,7 +255,7 @@ inline Mesh_DFN_linear::Mesh_DFN_linear(DFN::Domain dom,
             //cout << (size_t)elemNodeTags[0][i] << ", " << (size_t)elemNodeTags[0][i + 1] << ", " << (size_t)elemNodeTags[0][i + 2] << endl;
             this->element_3D.row(i / 3) << (size_t)elemNodeTags[0][i], (size_t)elemNodeTags[0][i + 1], (size_t)elemNodeTags[0][i + 2];
 
-            vector<RowVector3f> coord_(3);
+            vector<RowVector3d> coord_(3);
 
             coord_[0] = this->coordinate_3D.row((size_t)elemNodeTags[0][i] - 1);
             coord_[1] = this->coordinate_3D.row((size_t)elemNodeTags[0][i + 1] - 1);
@@ -329,7 +329,7 @@ inline void Mesh_DFN_linear::Generate_2D_nodes(DFN::Domain dom)
 #pragma omp parallel for schedule(dynamic) num_threads(Nproc_)
     for (size_t i = 0; i < this->Frac_Tag.size(); ++i)
     {
-        Eigen::SparseMatrix<float> m1(this->coordinate_3D.rows(), 2);
+        Eigen::SparseMatrix<double> m1(this->coordinate_3D.rows(), 2);
         m1.reserve(VectorXi::Constant(2, this->coordinate_3D.rows()));
 
         VectorXd PNT_INDICATOR = Eigen::VectorXd::Zero(this->coordinate_3D.rows());
@@ -368,8 +368,8 @@ inline void Mesh_DFN_linear::Generate_2D_nodes(DFN::Domain dom)
                         cout << "Rotate pnts to 2D failed! In class 'Mesh_DFN_linear'!\n";
                         throw Error_throw_ignore("Rotate pnts to 2D failed! In class 'Mesh_DFN_linear'!\n");
                     }
-                    m1.insert(PNT_ID, 0) = (float)PNT_WW[0];
-                    m1.insert(PNT_ID, 1) = (float)PNT_WW[1];
+                    m1.insert(PNT_ID, 0) = PNT_WW[0];
+                    m1.insert(PNT_ID, 1) = PNT_WW[1];
                 }
                 //cout << 2 << endl;
             }
@@ -378,63 +378,6 @@ inline void Mesh_DFN_linear::Generate_2D_nodes(DFN::Domain dom)
         this->coordinate_2D[i] = m1;
         //cout << m1.rows() << ", " << m1.cols() << endl;
     }
-
-    /*
-#pragma omp parallel for schedule(dynamic) num_threads(Nproc_)
-    for (size_t i = 0; i < this->Frac_Tag.size(); ++i)
-    {
-        //cout << this->Frac_Tag.size() << endl;
-        Eigen::SparseMatrix<float> m1(this->coordinate_3D.rows(), 2);
-        m1.reserve(VectorXi::Constant(2, this->coordinate_3D.rows()));
-
-        VectorXd PNT_INDICATOR = Eigen::VectorXd::Zero(this->coordinate_3D.rows());
-
-        size_t Frac_Tag = this->Frac_Tag[i];
-
-        DFN::Polygon_convex_3D poly{dom.Fractures[Frac_Tag].Verts_trim};
-        std::vector<Vector3d> verts1;
-
-        DFN::Rotate_to_horizontal R1{poly.Corners, verts1};
-
-        //cout << 1.5 << endl;
-
-        for (size_t j = 0; j < (size_t)element_2D[i].rows(); ++j)
-        {
-            for (size_t k = 0; k < 3; ++k)
-            {
-                //cout << 1 << endl;
-                size_t PNT_ID = element_2D[i](j, k) - 1;
-                //cout << "PNT_ID " << PNT_ID << endl;
-                if (PNT_INDICATOR[PNT_ID] == 0)
-                {
-                    /////cout << 1.1 << endl;
-                    PNT_INDICATOR[PNT_ID] = 1;
-                    //cout << 1.2 << endl;
-                    bool UY;
-                    std::vector<Vector3d> jxy_3d(1), verts2;
-                    jxy_3d[0] << (double)this->coordinate_3D(PNT_ID, 0),
-                        (double)this->coordinate_3D(PNT_ID, 1),
-                        (double)this->coordinate_3D(PNT_ID, 2);
-                    //cout << 1.3 << endl;
-                    R1.Rotate_other_pnts(jxy_3d, verts2, UY);
-
-                    //cout << 1.5 << endl;
-                    if (UY == false)
-                    {
-                        cout << verts2[0] << endl;
-                        cout << "Rotate pnts to 2D failed! In class 'Mesh_DFN_linear'!\n";
-                        throw Error_throw_ignore("Rotate pnts to 2D failed! In class 'Mesh_DFN_linear'!\n");
-                    }
-                    m1.insert(PNT_ID, 0) = (float)verts2[0][0];
-                    m1.insert(PNT_ID, 1) = (float)verts2[0][1];
-                }
-                //cout << 2 << endl;
-            }
-        }
-        m1.makeCompressed();
-        this->coordinate_2D[i] = m1;
-        //cout << m1.rows() << ", " << m1.cols() << endl;
-    }*/
 };
 
 inline void Mesh_DFN_linear::Modify_the_triangle_orientation()
@@ -593,227 +536,6 @@ inline void Mesh_DFN_linear::Numbering_edges(DFN::Domain dom)
 
     this->mean_edge_length = len_totoal / (NUM_interior_edges + NUM_inlet_edges + NUM_outlet_edges + NUM_neumann_edges);
 }
-/*
-inline void Mesh_DFN_linear::Numbering_edges(DFN::Domain dom)
-{
-    Interior_edgeNO.resize(element_2D.size());
-
-    std::map<pair<size_t, size_t>, size_t> Interior_edgeNO_sss;
-    //-------------
-    size_t edge_interior = 1;
-
-    size_t Sep_edge_NO_in = 1;
-    size_t Sep_edge_NO_out = 1;
-    size_t Sep_edge_NO_neumann = 1;
-    for (size_t i = 0; i < (size_t)element_2D.size(); ++i)
-    {
-        Interior_edgeNO[i].resize(element_2D[i].rows(), 3);
-        //-------------
-        size_t Frac_Tag = this->Frac_Tag[i];
-
-        DFN::Polygon_convex_3D poly{dom.Fractures[Frac_Tag].Verts_trim};
-
-        std::vector<Vector3d> verts1;
-
-        DFN::Rotate_to_horizontal R1{poly.Corners, verts1};
-
-        DFN::Polygon_convex_2D poly_{verts1};
-
-        SparseMatrix<double> node2element_local = Node2element(i);
-
-        for (size_t j = 0; j < (size_t)element_2D[i].rows(); ++j)
-        {
-            size_t tmp_ele_NO = Element_ID(i, j);
-
-            for (size_t k = 0; k < 3; ++k)
-            {
-                size_t Sep_NO = tmp_ele_NO * 3 + k + 1;
-
-                Interior_edgeNO[i](j, k).first = "nothing";
-                Interior_edgeNO[i](j, k).second << 0, 0;
-                //-------------
-                size_t node1 = element_2D[i](j, k),
-                       node2 = element_2D[i](j, (k + 1) % 3);
-
-                bool if_boundary_edge = true;
-
-                if (node2element_local.coeffRef(node1 - 1, node2 - 1) != 0 && node2element_local.coeffRef(node2 - 1, node1 - 1) != 0)
-                    if_boundary_edge = false;
-
-                string A_t;
-                bool ty_1 = If_two_pnts_Dirchlet(node1, node2, A_t),
-                     ty_2 = If_two_pnts_Neumann(node1, node2);
-
-                DFN::Point_2D A{(double)this->coordinate_2D[i].coeffRef(node1 - 1, 0),
-                                (double)this->coordinate_2D[i].coeffRef(node1 - 1, 1)};
-
-                DFN::Point_2D B{(double)this->coordinate_2D[i].coeffRef(node2 - 1, 0),
-                                (double)this->coordinate_2D[i].coeffRef(node2 - 1, 1)};
-
-                bool ty_3 = poly_.If_two_pnts_lie_on_the_same_edge(A, B);
-
-                if (if_boundary_edge == true && ty_1 == true)
-                {
-                    if (A_t == "in")
-                    {
-                        //cout << "INlet:\n\t" << (node1 < node2 ? node1 : node2) << ", ";
-                        //cout << (node1 > node2 ? node1 : node2) << endl;
-                        pair<std::map<pair<size_t, size_t>, size_t>::iterator, bool> ITS;
-
-                        ITS = Inlet_edges.insert(make_pair(std::make_pair(node1 < node2 ? node1 : node2, node1 > node2 ? node1 : node2), 0));
-                        Interior_edgeNO[i](j, k).first = "in";
-
-                        if (ITS.second == true)
-                        {
-                            Inlet_edges[std::make_pair(node1 < node2 ? node1 : node2, node1 > node2 ? node1 : node2)] = Sep_edge_NO_in;
-                            Interior_edgeNO[i](j, k).second[0] = Sep_NO;
-                            Interior_edgeNO[i](j, k).second[1] = Sep_edge_NO_in;
-                            Sep_edge_NO_in++;
-                        }
-                        else
-                        {
-                            //string AS = "\t\tfound an inlet grid edge being shared";
-                            //cout << AS << endl;
-                            //throw Error_throw_pause(AS);
-
-                            Interior_edgeNO[i](j, k).second[0] = Sep_NO;
-                            Interior_edgeNO[i](j, k).second[1] = Sep_edge_NO_in;
-                            Sep_edge_NO_in++;
-                        }
-                    }
-                    else
-                    {
-                        pair<std::map<pair<size_t, size_t>, size_t>::iterator, bool> ITS;
-                        ITS = Outlet_edges.insert(make_pair(std::make_pair(node1 < node2 ? node1 : node2, node1 > node2 ? node1 : node2), 0));
-                        Interior_edgeNO[i](j, k).first = "out";
-
-                        if (ITS.second == true)
-                        {
-                            Outlet_edges[std::make_pair(node1 < node2 ? node1 : node2, node1 > node2 ? node1 : node2)] = Sep_edge_NO_out;
-                            Interior_edgeNO[i](j, k).second[0] = Sep_NO;
-                            Interior_edgeNO[i](j, k).second[1] = Sep_edge_NO_out;
-                            Sep_edge_NO_out++;
-                        }
-                        else
-                        {
-                            //string AS = "\t\tfound an outlet grid edge being shared";
-                            //cout << AS << endl;
-                            //throw Error_throw_pause(AS);
-
-                            Interior_edgeNO[i](j, k).second[0] = Sep_NO;
-                            Interior_edgeNO[i](j, k).second[1] = Sep_edge_NO_out;
-                            Sep_edge_NO_out++;
-                        }
-                    }
-                    //cout << "Dirichlet:\n\t" << (node1 < node2 ? node1 : node2) << ", ";
-                    //cout << (node1 > node2 ? node1 : node2) << endl;
-                }
-                else if (if_boundary_edge == true && ty_1 == false && ty_2 == true && ty_3 == true)
-                {
-                    pair<std::map<pair<size_t, size_t>, size_t>::iterator, bool> ITS;
-
-                    ITS = Neumann_edges.insert(make_pair(std::make_pair(node1 < node2 ? node1 : node2, node1 > node2 ? node1 : node2), 0));
-                    //cout << "Neumann:\n\t" << (node1 < node2 ? node1 : node2) << ", ";
-                    //cout << (node1 > node2 ? node1 : node2) << endl;
-                    Interior_edgeNO[i](j, k).first = "neumann";
-                    if (ITS.second == true)
-                    {
-                        Neumann_edges[std::make_pair(node1 < node2 ? node1 : node2, node1 > node2 ? node1 : node2)] = Sep_edge_NO_neumann;
-                        Interior_edgeNO[i](j, k).second[0] = Sep_NO;
-                        Interior_edgeNO[i](j, k).second[1] = Sep_edge_NO_neumann;
-                        Sep_edge_NO_neumann++;
-                    }
-                    else
-                    {
-                        //string AS = "\t\tfound a neumann grid edge being shared";
-                        //cout << AS << endl;
-                        //throw Error_throw_pause(AS);
-                        //cout << i << ", " << j << ", " << k << endl;
-                        //cout << node1 << ", " << node2 << endl;
-
-                        Interior_edgeNO[i](j, k).second[0] = Sep_NO;
-                        Interior_edgeNO[i](j, k).second[1] = Sep_edge_NO_neumann;
-                        Sep_edge_NO_neumann++;
-                        //dom.Matlab_Out_Frac_matfile("Fractures.mat");
-                    }
-                }
-                else if (if_boundary_edge == false) // if (ty_1 == false && ty_2 == false && ty_3 == false)
-                {
-                    Interior_edgeNO[i](j, k).first = "interior";
-                    //------
-                    std::pair<pair<size_t, size_t>, size_t> tmp;
-                    tmp = std::make_pair(std::make_pair(node1 < node2 ? node1 : node2, node1 > node2 ? node1 : node2), 0);
-
-                    std::pair<std::map<pair<size_t, size_t>, size_t>::iterator, bool>
-                        its;
-                    its = Interior_edgeNO_sss.insert(tmp);
-
-                    if (its.second == true)
-                    {
-                        //cout << "interior:\n\t" << (node1 < node2 ? node1 : node2) << ", ";
-                        //cout << (node1 > node2 ? node1 : node2) << endl;
-                        //cout << edge_interior << endl;
-                        Interior_edgeNO_sss[std::make_pair(node1 < node2 ? node1 : node2, node1 > node2 ? node1 : node2)] = edge_interior;
-                        Interior_edgeNO[i](j, k).second[0] = edge_interior;
-                        edge_interior++;
-                    }
-                    else
-                        Interior_edgeNO[i](j, k).second[0] = Interior_edgeNO_sss[std::make_pair(node1 < node2 ? node1 : node2, node1 > node2 ? node1 : node2)];
-                }
-
-                double len = (this->coordinate_3D.row(node1 - 1) -
-                              this->coordinate_3D.row(node2 - 1))
-                                 .norm();
-
-                std::pair<size_t, size_t> At_ = std::make_pair(node1 < node2 ? node1 : node2,
-                                                               node1 > node2 ? node1 : node2);
-
-                std::pair<std::pair<size_t, size_t>, double> AY_ = std::make_pair(At_, len);
-
-                this->Edge_length.insert(AY_);
-            }
-        }
-    }
-
-    NUM_interior_edges = edge_interior - 1;
-    NUM_inlet_edges = Sep_edge_NO_in - 1;
-    NUM_outlet_edges = Sep_edge_NO_out - 1;
-    NUM_neumann_edges = Sep_edge_NO_neumann - 1;
-
-    //---------translate map to vector of interior edges
-    //-----------checking the accuracy
-
-    Interior_edgeNO_to_ele_edge.resize(NUM_interior_edges);
-
-    for (size_t i = 0; i < NUM_interior_edges; ++i)
-        Interior_edgeNO_to_ele_edge[i].reserve(2);
-
-    for (size_t i = 0; i < element_2D.size(); ++i)
-        for (int j = 0; j < element_2D[i].rows(); ++j)
-            for (size_t k = 0; k < 3; ++k)
-            {
-                if (Interior_edgeNO[i](j, k).first == "interior")
-                {
-                    size_t globalID = Interior_edgeNO[i](j, k).second[0];
-
-                    Interior_edgeNO_to_ele_edge[globalID - 1].push_back(Vector3d((double)(i + 1), (double)(j + 1), (double)(k + 1)));
-                }
-            }
-
-    double len_totoal = 0;
-    for (std::map<std::pair<size_t, size_t>, double>::iterator its = this->Edge_length.begin();
-         its != this->Edge_length.end();
-         its++)
-    {
-        double len = its->second; //
-
-        this->max_edge_length = max_edge_length > len ? max_edge_length : len;
-        this->min_edge_length = min_edge_length < len ? min_edge_length : len;
-        len_totoal += len;
-    }
-
-    this->mean_edge_length = len_totoal / this->Edge_length.size();
-};*/
 
 inline bool Mesh_DFN_linear::If_two_pnts_Neumann(size_t node1, size_t node2)
 {
@@ -1253,10 +975,30 @@ void Mesh_DFN_linear::Matlab_plot(string FileKey_mat,
     oss << "title('mesh result')\n\n";
 
     oss << "figure(2)\n";
-    for (size_t i = 0; i < this->Frac_Tag.size(); ++i)
-        oss << "patch('Vertices', coordinate_3D, 'Faces', element_2D_Frac_" << i + 1 << ", 'FaceVertexCData', zeros(size(coordinate_3D, 1), 1), 'FaceColor', 'interp', 'EdgeAlpha', 0.9, 'facealpha', 0); hold on\n";
-    oss << "view(3); hold on;\n";
-    oss << "title('elements in each fractures')\n";
+    for (size_t i = 0; i < this->Frac_Tag.size(); i++)
+    {
+        size_t nf = this->Frac_Tag[i];
+        size_t n_verts = dom.Fractures[nf].Verts_trim.size();
+        oss << "frac" << nf + 1 << " = fill3([";
+        for (size_t nv = 0; nv < n_verts + 1; ++nv)
+        {
+            size_t nv_1 = nv - (size_t)(nv / n_verts) * n_verts;
+            oss << dom.Fractures[nf].Verts_trim[nv_1](0) << " ";
+        }
+        oss << "],[";
+        for (size_t nv = 0; nv < n_verts + 1; ++nv)
+        {
+            size_t nv_1 = nv - (size_t)(nv / n_verts) * n_verts;
+            oss << dom.Fractures[nf].Verts_trim[nv_1](1) << " ";
+        }
+        oss << "],[";
+        for (size_t nv = 0; nv < n_verts + 1; ++nv)
+        {
+            size_t nv_1 = nv - (size_t)(nv / n_verts) * n_verts;
+            oss << dom.Fractures[nf].Verts_trim[nv_1](2) << " ";
+        }
+        oss << "],[rand rand rand]);\ngrid on;\nhold on;\n";
+    }
 
     oss << "\nA = []; B = []; C = [];\n";
     oss << "for i = 1:size(Inlet_edges, 1)\n";
@@ -1265,7 +1007,7 @@ void Mesh_DFN_linear::Matlab_plot(string FileKey_mat,
     oss << "\tB(:, i) = [coordinate_3D(node1, 2), coordinate_3D(node2, 2)]';\n";
     oss << "\tC(:, i) = [coordinate_3D(node1, 3), coordinate_3D(node2, 3)]';\n";
     oss << "end\n";
-    oss << "plot3(A, B, C, 'r-', 'linewidth', 1.5); hold on\n";
+    oss << "plot3(A, B, C, 'r-*', 'linewidth', 1.5); hold on\n";
 
     oss << "\nA = []; B = []; C = [];\n";
     oss << "for i = 1:size(Outlet_edges, 1)\n";
@@ -1274,7 +1016,7 @@ void Mesh_DFN_linear::Matlab_plot(string FileKey_mat,
     oss << "\tB(:, i) = [coordinate_3D(node1, 2), coordinate_3D(node2, 2)]';\n";
     oss << "\tC(:, i) = [coordinate_3D(node1, 3), coordinate_3D(node2, 3)]';\n";
     oss << "end\n";
-    oss << "plot3(A, B, C, 'b-', 'linewidth', 1.5); hold on\n";
+    oss << "plot3(A, B, C, 'b-o', 'linewidth', 1.5); hold on\n";
 
     oss << "\nA = []; B = []; C = [];\n";
     oss << "for i = 1:size(Neumann_edges, 1)\n";
@@ -1283,7 +1025,7 @@ void Mesh_DFN_linear::Matlab_plot(string FileKey_mat,
     oss << "\tB(:, i) = [coordinate_3D(node1, 2), coordinate_3D(node2, 2)]';\n";
     oss << "\tC(:, i) = [coordinate_3D(node1, 3), coordinate_3D(node2, 3)]';\n";
     oss << "end\n";
-    oss << "plot3(A, B, C, 'k-', 'linewidth', 1.5); hold on\n";
+    oss << "% plot3(A, B, C, 'k-', 'linewidth', 1.5); hold on\n";
 
     oss << "\nA = []; B = []; C = [];\n";
     oss << "for i = 1:size(Interior_edgeNO, 1)\n";
@@ -1292,7 +1034,7 @@ void Mesh_DFN_linear::Matlab_plot(string FileKey_mat,
     oss << "\tB(:, i) = [coordinate_3D(node1, 2), coordinate_3D(node2, 2)]';\n";
     oss << "\tC(:, i) = [coordinate_3D(node1, 3), coordinate_3D(node2, 3)]';\n";
     oss << "end\n";
-    oss << "plot3(A, B, C, 'g-', 'linewidth', 1.5); hold on\n";
+    oss << "% plot3(A, B, C, 'g-', 'linewidth', 1.5); hold on\n";
 
     for (size_t i = 0; i < 6; ++i)
     {

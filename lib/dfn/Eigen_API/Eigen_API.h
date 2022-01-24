@@ -16,6 +16,7 @@ typedef Matrix<double, 1, 6> RowVector6d;
 typedef Matrix<size_t, Dynamic, Dynamic> MatrixXs;
 typedef SparseMatrix<float> Sp_f_mat;
 typedef SparseMatrix<size_t> Sp_s_mat;
+typedef SparseMatrix<double> Sp_d_mat;
 typedef Matrix<bool, 7, 1> Vector7b;
 
 typedef Matrix<pair<string, Vector2d>, Dynamic, Dynamic> MatrixX_st_v2d;

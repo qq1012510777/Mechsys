@@ -16,12 +16,12 @@ public:
     bool If_skinny = false;
 
 public:
-    If_skinny_triangle(std::vector<RowVector3f> coord);
+    If_skinny_triangle(std::vector<RowVector3d> coord);
 };
 
-inline If_skinny_triangle::If_skinny_triangle(std::vector<RowVector3f> coord)
+inline If_skinny_triangle::If_skinny_triangle(std::vector<RowVector3d> coord)
 {
-    RowVector3f V1 = coord[1] - coord[0],
+    RowVector3d V1 = coord[1] - coord[0],
                 V2 = coord[2] - coord[0];
 
     double x1, x2, y1, y2, z1, z2;

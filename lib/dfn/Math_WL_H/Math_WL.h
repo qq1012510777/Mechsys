@@ -14,9 +14,10 @@
 using namespace std;
 using namespace Eigen;
 
-void time_counter_start(auto &start);
-void time_counter_end(auto start,
-                      auto &end,
+typedef std::chrono::time_point<std::chrono::_V2::steady_clock, std::chrono::duration<long int, std::ratio<1, 1000000000>>> Time_Pnt;
+void time_counter_start(Time_Pnt &start);
+void time_counter_end(Time_Pnt start,
+                      Time_Pnt &end,
                       string content,
                       string unit);
 
@@ -1529,13 +1530,13 @@ string To_string_with_width(size_t val, size_t width)
     return oss.str();
 }
 
-void time_counter_start(auto &start)
+void time_counter_start(Time_Pnt &start)
 {
     start = std::chrono::steady_clock::now();
 };
 
-void time_counter_end(auto start,
-                      auto &end,
+void time_counter_end(Time_Pnt start,
+                      Time_Pnt &end,
                       string content,
                       string unit)
 {
